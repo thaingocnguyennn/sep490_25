@@ -41,6 +41,12 @@ export default function AdminSidebar() {
         >
           <span>👥</span> User Management
         </NavLink>
+        <NavLink
+          to="/admin/roles"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <span>🛡️</span> Role Management
+        </NavLink>
 
         <div className="nav-section-title">Documents</div>
         <div className="nav-item" style={{ opacity: 0.5, cursor: 'not-allowed' }}>

@@ -9,6 +9,8 @@ import AdminDashboardPage from '../features/admin/pages/AdminDashboardPage';
 import UsersPage from '../features/users/pages/UsersPage';
 import UserFormPage from '../features/users/pages/UserFormPage';
 import UserDetailPage from '../features/users/pages/UserDetailPage';
+import RolesPage from '../features/roles/pages/RolesPage';
+import RoleFormPage from '../features/roles/pages/RoleFormPage';
 
 export const routes: RouteObject[] = [
   {
@@ -27,12 +29,15 @@ export const routes: RouteObject[] = [
   {
     path: '/admin',
     element: <AdminLayout />,
-    children: [
+      children: [
       { index: true, element: <AdminDashboardPage /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'users/new', element: <UserFormPage /> },
       { path: 'users/:id', element: <UserDetailPage /> },
       { path: 'users/:id/edit', element: <UserFormPage /> },
+      { path: 'roles', element: <RolesPage /> },
+      { path: 'roles/new', element: <RoleFormPage /> },
+      { path: 'roles/:id/edit', element: <RoleFormPage /> },
     ],
   },
   {
