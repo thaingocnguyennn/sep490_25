@@ -63,4 +63,10 @@ router.patch(
   usersController.lock.bind(usersController)
 );
 
+router.patch(
+  '/:id/unlock',
+  requireRole('ADMIN'),
+  usersController.unlock.bind(usersController)
+);
+
 export default router;

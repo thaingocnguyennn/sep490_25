@@ -102,6 +102,15 @@ export class UsersController {
       next(error);
     }
   }
+  async unlock(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      await usersService.updateStatus(id, 'ACTIVE', req.user!.userId);
+      res.status(200).json(successResponse(null, 'User unlocked'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const usersController = new UsersController();
