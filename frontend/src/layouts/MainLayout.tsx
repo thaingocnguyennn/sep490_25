@@ -1,4 +1,4 @@
-import { createElement, ReactNode } from 'react';
+import { useState } from 'react';
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -28,19 +28,13 @@ function Sidebar() {
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section-title">Management</div>
+        <div className="nav-section-title">Main</div>
         <NavLink
           to="/"
           end
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <span>🏠</span> Dashboard
-        </NavLink>
-        <NavLink
-          to="/users"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>👥</span> User Management
         </NavLink>
 
         <div className="nav-section-title">Documents</div>
@@ -82,7 +76,7 @@ function Sidebar() {
   );
 }
 
-export default function MainLayout({ children }: { children?: ReactNode }) {
+export default function MainLayout() {
   const { isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
@@ -93,7 +87,7 @@ export default function MainLayout({ children }: { children?: ReactNode }) {
     <div className="main-layout">
       <Sidebar />
       <div className="content-area">
-        {children ?? <Outlet />}
+        <Outlet />
       </div>
     </div>
   );

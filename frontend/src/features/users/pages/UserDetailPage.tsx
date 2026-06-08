@@ -1,35 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { usersApi } from '../../../api';
+import { useAuth } from '../../../contexts/AuthContext';
 import type { User } from '../../../types';
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
     const loadUser = async () => {
       try {
         const { data } = await usersApi.getById(Number(id));
         setUser(data.data!);
       } catch {
-        navigate('/users');
+        navigate('/admin/users');
       } finally {
         setLoading(false);
       }
     };
     loadUser();
-  }, [id, navigate]);
+  }, [id, isAdmin, navigate]);
 
   const handleDelete = async () => {
     setDeleting(true);
     try {
       await usersApi.delete(Number(id));
-      navigate('/users');
+      navigate('/admin/users');
     } catch {
       setDeleteModal(false);
     } finally {
@@ -54,6 +60,10 @@ export default function UserDetailPage() {
     });
   };
 
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
   if (loading) {
     return (
       <>
@@ -72,12 +82,12 @@ export default function UserDetailPage() {
       <div className="top-bar">
         <h1>User Details</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => navigate('/users')}>
+          <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>
             Back
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => navigate(`/users/${id}/edit`)}
+            onClick={() => navigate(`/admin/users/${id}/edit`)}
           >
             Edit
           </button>

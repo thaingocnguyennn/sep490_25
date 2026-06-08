@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { usersApi } from '../../../api';
+import { useAuth } from '../../../contexts/AuthContext';
 import type { User, Role } from '../../../types';
 
 type UserStatus = 'ACTIVE' | 'INACTIVE' | 'LOCKED';
@@ -18,6 +19,7 @@ interface FormState {
 export default function UserFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState<FormState>({
@@ -35,6 +37,10 @@ export default function UserFormPage() {
   const [fetchingUser, setFetchingUser] = useState(isEdit);
 
   useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
     const loadRoles = async () => {
       try {
         const { data } = await usersApi.getRoles();
@@ -44,10 +50,10 @@ export default function UserFormPage() {
       }
     };
     loadRoles();
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
-    if (!isEdit) return;
+    if (!isAdmin || !isEdit) return;
 
     const loadUser = async () => {
       setFetchingUser(true);
@@ -64,14 +70,14 @@ export default function UserFormPage() {
           roleIds: [],
         });
       } catch {
-        navigate('/users');
+        navigate('/admin/users');
       } finally {
         setFetchingUser(false);
       }
     };
 
     loadUser();
-  }, [id, isEdit, navigate]);
+  }, [id, isAdmin, isEdit, navigate]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -135,7 +141,7 @@ export default function UserFormPage() {
         await usersApi.create(createPayload);
       }
 
-      navigate('/users');
+      navigate('/admin/users');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       setError(error.response?.data?.message || 'Operation failed. Please try again.');
@@ -143,6 +149,10 @@ export default function UserFormPage() {
       setLoading(false);
     }
   };
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   if (fetchingUser) {
     return (
@@ -159,7 +169,7 @@ export default function UserFormPage() {
     <>
       <div className="top-bar">
         <h1>{isEdit ? 'Edit User' : 'Create User'}</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/users')}>
+        <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>
           Back
         </button>
       </div>
@@ -278,7 +288,7 @@ export default function UserFormPage() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => navigate('/users')}
+                  onClick={() => navigate('/admin/users')}
                 >
                   Cancel
                 </button>
