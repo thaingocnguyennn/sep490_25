@@ -5,12 +5,13 @@ import { successResponse, paginatedResponse } from '../../shared/utils/response.
 export class UsersController {
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
-      const { page, limit, search, status } = req.query;
+      const { page, limit, search, status, role } = req.query;
       const result = await usersService.getAll({
         page: page ? Number(page) : 1,
         limit: limit ? Number(limit) : 10,
         search: search as string,
         status: status as string,
+        role: role as string,
       });
 
       res.status(200).json(

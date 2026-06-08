@@ -60,6 +60,7 @@ export interface PaginationParams {
   limit?: number;
   search?: string;
   status?: UserStatus;
+  role?: string;
 }
 
 export interface PaginatedResponse<T> {
