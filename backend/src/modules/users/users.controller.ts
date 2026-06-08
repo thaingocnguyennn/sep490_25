@@ -83,6 +83,25 @@ export class UsersController {
       next(error);
     }
   }
+
+  async lock(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+
+      if (id === req.user!.userId) {
+        res.status(400).json({
+          success: false,
+          message: 'Cannot lock your own account',
+        });
+        return;
+      }
+
+      await usersService.updateStatus(id, 'LOCKED', req.user!.userId);
+      res.status(200).json(successResponse(null, 'User locked'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const usersController = new UsersController();

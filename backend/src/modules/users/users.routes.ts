@@ -57,4 +57,10 @@ router.delete(
   usersController.delete.bind(usersController)
 );
 
+router.patch(
+  '/:id/lock',
+  requireRole('ADMIN'),
+  usersController.lock.bind(usersController)
+);
+
 export default router;
