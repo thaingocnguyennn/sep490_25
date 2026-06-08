@@ -28,6 +28,9 @@ export const usersApi = {
   lock: (id: number) =>
     api.patch<ApiResponse>(`/users/${id}/lock`),
 
+  unlock: (id: number) =>
+    api.patch<ApiResponse>(`/users/${id}/unlock`),
+
   getRoles: () =>
     api.get<ApiResponse<Role[]>>('/users/roles'),
 };

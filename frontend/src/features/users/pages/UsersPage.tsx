@@ -16,8 +16,8 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('');
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [lockId, setLockId] = useState<number | null>(null);
-  const [locking, setLocking] = useState(false);
+  const [toggleTarget, setToggleTarget] = useState<{ id: number; action: 'lock' | 'unlock' } | null>(null);
+  const [toggling, setToggling] = useState(false);
 
   const fetchUsers = async (params: PaginationParams) => {
     setLoading(true);
@@ -59,17 +59,21 @@ export default function UsersPage() {
     }
   };
 
-  const handleLock = async () => {
-    if (!lockId) return;
-    setLocking(true);
+  const handleToggleLock = async () => {
+    if (!toggleTarget) return;
+    setToggling(true);
     try {
-      await usersApi.lock(lockId);
-      setLockId(null);
+      if (toggleTarget.action === 'lock') {
+        await usersApi.lock(toggleTarget.id);
+      } else {
+        await usersApi.unlock(toggleTarget.id);
+      }
+      setToggleTarget(null);
       fetchUsers({ search, status: statusFilter || undefined });
     } catch {
       // handled by interceptor
     } finally {
-      setLocking(false);
+      setToggling(false);
     }
   };
 
@@ -195,13 +199,23 @@ export default function UsersPage() {
                         >
                           ✏️
                         </button>
-                        <button
-                          className="action-btn lock"
-                          title="Lock Account"
-                          onClick={() => setLockId(user.id)}
-                        >
-                          🔒
-                        </button>
+                        {user.status === 'LOCKED' ? (
+                          <button
+                            className="action-btn unlock"
+                            title="Unlock Account"
+                            onClick={() => setToggleTarget({ id: user.id, action: 'unlock' })}
+                          >
+                            🔓
+                          </button>
+                        ) : (
+                          <button
+                            className="action-btn lock"
+                            title="Lock Account"
+                            onClick={() => setToggleTarget({ id: user.id, action: 'lock' })}
+                          >
+                            🔒
+                          </button>
+                        )}
                         <button
                           className="action-btn delete"
                           title="Delete"
@@ -276,24 +290,38 @@ export default function UsersPage() {
         </div>
       )}
 
-      {lockId && (
-        <div className="modal-overlay" onClick={() => setLockId(null)}>
+      {toggleTarget && (
+        <div className="modal-overlay" onClick={() => setToggleTarget(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Lock Account</h2>
-              <button className="modal-close" onClick={() => setLockId(null)}>
+              <h2>{toggleTarget.action === 'lock' ? 'Lock Account' : 'Unlock Account'}</h2>
+              <button className="modal-close" onClick={() => setToggleTarget(null)}>
                 &times;
               </button>
             </div>
             <div className="modal-body">
-              <p>Are you sure you want to lock this account? The user will not be able to log in until it is unlocked.</p>
+              <p>
+                {toggleTarget.action === 'lock'
+                  ? 'Are you sure you want to lock this account? The user will not be able to log in until it is unlocked.'
+                  : 'Are you sure you want to unlock this account? The user will be able to log in again.'}
+              </p>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-cancel" onClick={() => setLockId(null)}>
+              <button className="btn btn-cancel" onClick={() => setToggleTarget(null)}>
                 Cancel
               </button>
-              <button className="btn btn-danger" onClick={handleLock} disabled={locking}>
-                {locking ? 'Locking...' : 'Yes, Lock'}
+              <button
+                className="btn btn-danger"
+                onClick={handleToggleLock}
+                disabled={toggling}
+              >
+                {toggling
+                  ? toggleTarget.action === 'lock'
+                    ? 'Locking...'
+                    : 'Unlocking...'
+                  : toggleTarget.action === 'lock'
+                  ? 'Yes, Lock'
+                  : 'Yes, Unlock'}
               </button>
             </div>
           </div>
