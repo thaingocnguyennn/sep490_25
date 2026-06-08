@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { usersApi } from '../../../api';
-import type { User, PaginationParams } from '../../../types';
+import { useAuth } from '../../../contexts/AuthContext';
+import type { User, PaginationParams, UserStatus } from '../../../types';
 
 export default function UsersPage() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('');
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -29,13 +31,16 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers({ search, status: statusFilter as any });
-  }, [page, search, statusFilter]);
+    if (!isAdmin) {
+      return;
+    }
+    fetchUsers({ search, status: statusFilter || undefined });
+  }, [page, search, statusFilter, isAdmin]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchUsers({ search, status: statusFilter as any });
+    fetchUsers({ search, status: statusFilter || undefined });
   };
 
   const handleDelete = async () => {
@@ -44,7 +49,7 @@ export default function UsersPage() {
     try {
       await usersApi.delete(deleteId);
       setDeleteId(null);
-      fetchUsers({ search, status: statusFilter as any });
+      fetchUsers({ search, status: statusFilter || undefined });
     } catch {
       // handled by interceptor
     } finally {
@@ -60,11 +65,15 @@ export default function UsersPage() {
     return 'inactive';
   };
 
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <>
       <div className="top-bar">
         <h1>User Management</h1>
-        <button className="btn btn-primary" onClick={() => navigate('/users/new')}>
+        <button className="btn btn-primary" onClick={() => navigate('/admin/users/new')}>
           + Create User
         </button>
       </div>
@@ -90,7 +99,7 @@ export default function UsersPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => {
-                  setStatusFilter(e.target.value);
+                  setStatusFilter(e.target.value as UserStatus | '');
                   setPage(1);
                 }}
                 style={{
@@ -141,7 +150,7 @@ export default function UsersPage() {
                       <td>{(page - 1) * limit + index + 1}</td>
                       <td>
                         <Link
-                          to={`/users/${user.id}`}
+                          to={`/admin/users/${user.id}`}
                           style={{ color: '#667eea', fontWeight: 500 }}
                         >
                           {user.username}
@@ -166,7 +175,7 @@ export default function UsersPage() {
                         <button
                           className="action-btn edit"
                           title="Edit"
-                          onClick={() => navigate(`/users/${user.id}/edit`)}
+                          onClick={() => navigate(`/admin/users/${user.id}/edit`)}
                         >
                           ✏️
                         </button>
