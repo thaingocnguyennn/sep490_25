@@ -14,6 +14,8 @@ export default function UsersPage() {
   const [limit] = useState(10);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [roles, setRoles] = useState<string[]>([]);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [toggleTarget, setToggleTarget] = useState<{ id: number; action: 'lock' | 'unlock' } | null>(null);
@@ -22,7 +24,7 @@ export default function UsersPage() {
   const fetchUsers = async (params: PaginationParams) => {
     setLoading(true);
     try {
-      const { data } = await usersApi.getAll({ ...params, page, limit });
+      const { data } = await usersApi.getAll({ ...params, page, limit, role: roleFilter || undefined });
       setUsers(data.data!.items);
       setTotal(data.data!.total);
     } catch {
@@ -37,12 +39,19 @@ export default function UsersPage() {
       return;
     }
     fetchUsers({ search, status: statusFilter || undefined });
-  }, [page, search, statusFilter, isAdmin]);
+  }, [page, search, statusFilter, roleFilter, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    usersApi.getRoles().then(({ data }) => {
+      setRoles(data.data!.map((r) => r.name));
+    });
+  }, [isAdmin]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchUsers({ search, status: statusFilter || undefined });
+    fetchUsers({ search, status: statusFilter || undefined, role: roleFilter || undefined });
   };
 
   const handleDelete = async () => {
@@ -133,6 +142,26 @@ export default function UsersPage() {
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
                 <option value="LOCKED">Locked</option>
+              </select>
+              <select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setPage(1);
+                }}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #dfe6e9',
+                  borderRadius: 6,
+                  fontSize: 14,
+                }}
+              >
+                <option value="">All Roles</option>
+                {roles.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
               </select>
               <button type="submit" className="btn btn-secondary">
                 Search

@@ -13,12 +13,14 @@ export class UsersService {
     limit?: number;
     search?: string;
     status?: string;
+    role?: string;
   }): Promise<UserListResult> {
     return usersRepository.findAll({
       page: params.page ? Number(params.page) : 1,
       limit: params.limit ? Number(params.limit) : 10,
       search: params.search,
       status: params.status as any,
+      role: params.role,
     });
   }
 

@@ -7,6 +7,7 @@ export interface UserListParams {
   limit?: number;
   search?: string;
   status?: UserStatus;
+  role?: string;
 }
 
 export interface UserListResult {
@@ -56,6 +57,16 @@ export class UsersRepository {
 
     if (params.status) {
       where.status = params.status;
+    }
+
+    if (params.role) {
+      where.userRoles = {
+        some: {
+          role: {
+            name: params.role,
+          },
+        },
+      };
     }
 
     if (params.search) {
