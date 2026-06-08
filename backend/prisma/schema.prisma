@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum DocumentType {
+  INCOMING
+  OUTGOING
+  INTERNAL
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum WorkflowStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum StepStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+model Department {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  users       User[]
+}
+
+model User {
+  id              Int          @id @default(autoincrement())
+  username        String       @unique
+  email           String       @unique
+  password        String
+  fullName        String
+  phone           String?
+  avatar          String?
+  status          UserStatus   @default(ACTIVE)
+  isFirstLogin    Boolean      @default(true)
+  lastLogin       DateTime?
+  lockUntil       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  createdBy       Int?
+  updatedBy       Int?
+
+  departmentId    Int?
+  department      Department?  @relation(fields: [departmentId], references: [id])
+
+  userRoles       UserRole[]
+  createdByUser   User?        @relation("CreatedBy", fields: [createdBy], references: [id])
+  createdUsers    User[]       @relation("CreatedBy")
+  updatedByUser   User?        @relation("UpdatedBy", fields: [updatedBy], references: [id])
+  updatedUsers    User[]       @relation("UpdatedBy")
+
+  notifications   Notification[]
+  documentWorkflows DocumentWorkflow[]
+  createdDocuments Document[]    @relation("CreatedBy")
+  updatedDocuments Document[]    @relation("UpdatedBy")
+}
+
+model Role {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userRoles   UserRole[]
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  assignedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Document {
+  id              Int          @id @default(autoincrement())
+  documentNumber  String       @unique
+  title           String
+  description     String?
+  type            DocumentType
+  fileUrl         String?
+  ocrText         String?
+  ocrStatus       String       @default("PENDING")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  createdBy       Int?
+  updatedBy       Int?
+
+  createdByUser   User?        @relation("CreatedBy", fields: [createdBy], references: [id])
+  updatedByUser   User?        @relation("UpdatedBy", fields: [updatedBy], references: [id])
+  incomingDocuments IncomingDocument[]
+  outgoingDocuments OutgoingDocument[]
+  workflows       DocumentWorkflow[]
+}
+
+model IncomingDocument {
+  id              Int       @id @default(autoincrement())
+  documentId      Int       @unique
+  senderName      String
+  senderAddress    String?
+  receivedDate     DateTime
+  referenceNumber  String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  document        Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model OutgoingDocument {
+  id              Int       @id @default(autoincrement())
+  documentId      Int       @unique
+  recipientName   String
+  recipientAddress String?
+  sentDate        DateTime
+  dispatchNumber  String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  document        Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model WorkflowStep {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  stepOrder   Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workflows   DocumentWorkflow[]
+}
+
+model DocumentWorkflow {
+  id              Int           @id @default(autoincrement())
+  documentId      Int
+  workflowStepId  Int
+  userId          Int?
+  status          WorkflowStatus @default(PENDING)
+  notes           String?
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  document        Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workflowStep    WorkflowStep  @relation(fields: [workflowStepId], references: [id])
+  user            User?         @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  title       String
+  message     String
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemLog {
+  id          Int       @id @default(autoincrement())
+  userId      Int?
+  action      String
+  entityType  String?
+  entityId    Int?
+  details     String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+}

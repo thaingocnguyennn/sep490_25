@@ -1,0 +1,88 @@
+import { Request, Response, NextFunction } from 'express';
+import { usersService } from './users.service';
+import { successResponse, paginatedResponse } from '../../shared/utils/response.util';
+
+export class UsersController {
+  async getAll(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { page, limit, search, status } = req.query;
+      const result = await usersService.getAll({
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 10,
+        search: search as string,
+        status: status as string,
+      });
+
+      res.status(200).json(
+        paginatedResponse(result.users, result.total, result.page, result.limit, 'Users retrieved')
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const user = await usersService.getById(id);
+      res.status(200).json(successResponse(user, 'User retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await usersService.create({
+        ...req.body,
+        createdBy: req.user!.userId,
+      });
+      res.status(201).json(successResponse(user, 'User created'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const user = await usersService.update(id, {
+        ...req.body,
+        updatedBy: req.user!.userId,
+      });
+      res.status(200).json(successResponse(user, 'User updated'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+
+      if (id === req.user!.userId) {
+        res.status(400).json({
+          success: false,
+          message: 'Cannot delete your own account',
+        });
+        return;
+      }
+
+      await usersService.delete(id);
+      res.status(200).json(successResponse(null, 'User deleted'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getRoles(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const roles = await usersService.getRoles();
+      res.status(200).json(successResponse(roles, 'Roles retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export const usersController = new UsersController();
