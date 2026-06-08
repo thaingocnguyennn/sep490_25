@@ -25,6 +25,9 @@ export const usersApi = {
   delete: (id: number) =>
     api.delete<ApiResponse>(`/users/${id}`),
 
+  lock: (id: number) =>
+    api.patch<ApiResponse>(`/users/${id}/lock`),
+
   getRoles: () =>
     api.get<ApiResponse<Role[]>>('/users/roles'),
 };

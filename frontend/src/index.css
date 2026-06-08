@@ -394,6 +394,16 @@ button {
   color: #ffffff;
 }
 
+.action-btn.lock {
+  background: #fff4e6;
+  color: #e67e22;
+}
+
+.action-btn.lock:hover {
+  background: #e67e22;
+  color: #ffffff;
+}
+
 .pagination {
   display: flex;
   align-items: center;

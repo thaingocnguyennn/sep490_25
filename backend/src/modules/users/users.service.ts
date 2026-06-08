@@ -105,6 +105,14 @@ export class UsersService {
   async getRoles() {
     return usersRepository.getAllRoles();
   }
+
+  async updateStatus(id: number, status: 'ACTIVE' | 'INACTIVE' | 'LOCKED', updatedBy?: number) {
+    const existing = await usersRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('User not found');
+    }
+    return usersRepository.update(id, { status, updatedBy: updatedBy ?? 0 });
+  }
 }
 
 export const usersService = new UsersService();

@@ -16,6 +16,8 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('');
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [lockId, setLockId] = useState<number | null>(null);
+  const [locking, setLocking] = useState(false);
 
   const fetchUsers = async (params: PaginationParams) => {
     setLoading(true);
@@ -54,6 +56,20 @@ export default function UsersPage() {
       // handled by interceptor
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleLock = async () => {
+    if (!lockId) return;
+    setLocking(true);
+    try {
+      await usersApi.lock(lockId);
+      setLockId(null);
+      fetchUsers({ search, status: statusFilter || undefined });
+    } catch {
+      // handled by interceptor
+    } finally {
+      setLocking(false);
     }
   };
 
@@ -180,6 +196,13 @@ export default function UsersPage() {
                           ✏️
                         </button>
                         <button
+                          className="action-btn lock"
+                          title="Lock Account"
+                          onClick={() => setLockId(user.id)}
+                        >
+                          🔒
+                        </button>
+                        <button
                           className="action-btn delete"
                           title="Delete"
                           onClick={() => setDeleteId(user.id)}
@@ -247,6 +270,30 @@ export default function UsersPage() {
               </button>
               <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
                 {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lockId && (
+        <div className="modal-overlay" onClick={() => setLockId(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Lock Account</h2>
+              <button className="modal-close" onClick={() => setLockId(null)}>
+                &times;
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to lock this account? The user will not be able to log in until it is unlocked.</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-cancel" onClick={() => setLockId(null)}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={handleLock} disabled={locking}>
+                {locking ? 'Locking...' : 'Yes, Lock'}
               </button>
             </div>
           </div>
