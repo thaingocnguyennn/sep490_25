@@ -4,6 +4,9 @@ export interface Role {
   id: number;
   name: string;
   description: string | null;
+  userCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface User {
