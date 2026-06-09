@@ -4,6 +4,8 @@ import MainLayout from '../layouts/MainLayout';
 import LoginPage from '../features/auth/pages/LoginPage';
 import ChangePasswordPage from '../features/auth/pages/ChangePasswordPage';
 import DashboardPage from '../features/dashboard/pages/DashboardPage';
+import ProfilePage from '../features/profile/pages/ProfilePage';
+import ProfileEditPage from '../features/profile/pages/ProfileEditPage';
 import AdminLayout from '../features/admin/components/AdminLayout';
 import AdminDashboardPage from '../features/admin/pages/AdminDashboardPage';
 import UsersPage from '../features/users/pages/UsersPage';
@@ -21,8 +23,10 @@ export const routes: RouteObject[] = [
   {
     path: '/',
     element: <MainLayout />,
-    children: [
+      children: [
       { index: true, element: <DashboardPage /> },
+      { path: 'profile', element: <ProfilePage /> },
+      { path: 'profile/edit', element: <ProfileEditPage /> },
       { path: 'change-password', element: <ChangePasswordPage /> },
     ],
   },

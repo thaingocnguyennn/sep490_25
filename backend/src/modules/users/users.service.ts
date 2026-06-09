@@ -115,6 +115,18 @@ export class UsersService {
     }
     return usersRepository.update(id, { status, updatedBy: updatedBy ?? 0 });
   }
+
+  async updateMyProfile(id: number, data: { fullName?: string; phone?: string }) {
+    const existing = await usersRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('User not found');
+    }
+    return usersRepository.update(id, {
+      fullName: data.fullName,
+      phone: data.phone,
+      updatedBy: id,
+    });
+  }
 }
 
 export const usersService = new UsersService();

@@ -112,6 +112,24 @@ export class UsersController {
       next(error);
     }
   }
+
+  async getMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await usersService.getById(req.user!.userId);
+      res.status(200).json(successResponse(user, 'Profile retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await usersService.updateMyProfile(req.user!.userId, req.body);
+      res.status(200).json(successResponse(user, 'Profile updated'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const usersController = new UsersController();

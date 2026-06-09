@@ -33,4 +33,10 @@ export const usersApi = {
 
   getRoles: () =>
     api.get<ApiResponse<Role[]>>('/users/roles'),
+
+  getMe: () =>
+    api.get<ApiResponse<User>>('/users/me'),
+
+  updateMe: (data: { fullName?: string; phone?: string }) =>
+    api.put<ApiResponse<User>>('/users/me', data),
 };
