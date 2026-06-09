@@ -18,6 +18,18 @@ router.use(authenticate);
 router.get('/roles', requireRole('ADMIN'), usersController.getRoles.bind(usersController));
 
 router.get(
+  '/me',
+  authenticate,
+  usersController.getMe.bind(usersController)
+);
+
+router.put(
+  '/me',
+  authenticate,
+  usersController.updateMe.bind(usersController)
+);
+
+router.get(
   '/',
   requireRole('ADMIN'),
   getUsersValidation,
