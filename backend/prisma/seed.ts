@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seed...');
+  console.log('Starting database seed...');
 
   // Seed roles
   const roles = [
@@ -13,12 +13,16 @@ async function main() {
       description: 'System administrator with full access',
     },
     {
-      name: 'USER',
-      description: 'Regular user with standard access',
+      name: 'DEPARTMENT_HEAD',
+      description: 'Department head with management permissions',
     },
     {
-      name: 'MANAGER',
-      description: 'Department manager with elevated permissions',
+      name: 'SPECIALIST',
+      description: 'Specialist with document processing permissions',
+    },
+    {
+      name: 'DOCUMENT_CLERK',
+      description: 'Document clerk with basic document access',
     },
   ];
 
@@ -29,11 +33,14 @@ async function main() {
       create: role,
     });
   }
-  console.log('✅ Roles seeded');
+  console.log('Roles seeded');
 
-  // Seed default admin user
   const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
-  const hashedPassword = await bcrypt.hash('Admin@123', 12);
+  const deptHeadRole = await prisma.role.findUnique({ where: { name: 'DEPARTMENT_HEAD' } });
+  const specialistRole = await prisma.role.findUnique({ where: { name: 'SPECIALIST' } });
+  const docClerkRole = await prisma.role.findUnique({ where: { name: 'DOCUMENT_CLERK' } });
+
+  const hashedPassword = await bcrypt.hash('Password@123', 12);
 
   const adminUser = await prisma.user.upsert({
     where: { username: 'admin' },
@@ -49,46 +56,78 @@ async function main() {
       createdBy: null,
       updatedBy: null,
       userRoles: {
-        create: {
-          roleId: adminRole!.id,
-        },
+        create: { roleId: adminRole!.id },
       },
     },
   });
-  console.log(`✅ Admin user seeded: username=admin, password=Admin@123`);
+  console.log('Admin user seeded: admin / Password@123');
 
-  // Seed default regular user
-  const userRole = await prisma.role.findUnique({ where: { name: 'USER' } });
-  const userPassword = await bcrypt.hash('User@123', 12);
-
-  const regularUser = await prisma.user.upsert({
-    where: { username: 'user01' },
+  await prisma.user.upsert({
+    where: { username: 'depthead01' },
     update: {},
     create: {
-      username: 'user01',
-      email: 'user01@dms.local',
-      password: userPassword,
-      fullName: 'Nguyen Van A',
+      username: 'depthead01',
+      email: 'depthead01@dms.local',
+      password: hashedPassword,
+      fullName: 'Tran Thi B',
       phone: '0900000002',
       status: UserStatus.ACTIVE,
       isFirstLogin: true,
       createdBy: adminUser.id,
       updatedBy: adminUser.id,
       userRoles: {
-        create: {
-          roleId: userRole!.id,
-        },
+        create: { roleId: deptHeadRole!.id },
       },
     },
   });
-  console.log(`✅ Regular user seeded: username=user01, password=User@123`);
+  console.log('Department Head seeded: depthead01 / Password@123');
 
-  console.log('🎉 Database seeding completed!');
+  await prisma.user.upsert({
+    where: { username: 'specialist01' },
+    update: {},
+    create: {
+      username: 'specialist01',
+      email: 'specialist01@dms.local',
+      password: hashedPassword,
+      fullName: 'Le Van C',
+      phone: '0900000003',
+      status: UserStatus.ACTIVE,
+      isFirstLogin: true,
+      createdBy: adminUser.id,
+      updatedBy: adminUser.id,
+      userRoles: {
+        create: { roleId: specialistRole!.id },
+      },
+    },
+  });
+  console.log('Specialist seeded: specialist01 / Password@123');
+
+  await prisma.user.upsert({
+    where: { username: 'clerk01' },
+    update: {},
+    create: {
+      username: 'clerk01',
+      email: 'clerk01@dms.local',
+      password: hashedPassword,
+      fullName: 'Pham Thi D',
+      phone: '0900000004',
+      status: UserStatus.ACTIVE,
+      isFirstLogin: true,
+      createdBy: adminUser.id,
+      updatedBy: adminUser.id,
+      userRoles: {
+        create: { roleId: docClerkRole!.id },
+      },
+    },
+  });
+  console.log('Document Clerk seeded: clerk01 / Password@123');
+
+  console.log('Database seeding completed!');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seed failed:', e);
+    console.error('Seed failed:', e);
     process.exit(1);
   })
   .finally(async () => {

@@ -30,8 +30,8 @@ export default function LoginPage() {
       const { token, user } = data.data!;
       login(token, user);
 
-      const isAdmin = user.roles?.includes('ADMIN') ?? false;
-      navigate(isAdmin ? '/admin' : '/', { replace: true });
+      const roles: string[] = user.roles ?? [];
+      navigate(roles.includes('ADMIN') ? '/admin' : '/', { replace: true });
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       setError(error.response?.data?.message || 'Login failed. Please try again.');
