@@ -1,12 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { usersApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { User, Role } from '../../../types';
+import type { User, UserStatus, CreateUserRequest, UpdateUserRequest } from '../../../types';
+import { ROLE_NAMES } from '../../../contexts/AuthContext';
 
-type UserStatus = 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+interface RoleOption {
+  id: number;
+  name: string;
+  description: string | null;
+}
 
-interface FormState {
+const STATIC_ROLES: RoleOption[] = [
+  { id: 1, name: ROLE_NAMES.ADMIN, description: 'System administrator with full access' },
+  { id: 2, name: ROLE_NAMES.DEPARTMENT_HEAD, description: 'Department head with management permissions' },
+  { id: 3, name: ROLE_NAMES.SPECIALIST, description: 'Specialist with document processing permissions' },
+  { id: 4, name: ROLE_NAMES.DOCUMENT_CLERK, description: 'Document clerk with basic document access' },
+];
+
+type FormState = {
   username: string;
   email: string;
   password: string;
@@ -14,7 +26,7 @@ interface FormState {
   phone: string;
   status: UserStatus;
   roleIds: number[];
-}
+};
 
 export default function UserFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,44 +43,38 @@ export default function UserFormPage() {
     status: 'ACTIVE',
     roleIds: [],
   });
-  const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetchingUser, setFetchingUser] = useState(isEdit);
 
-  useEffect(() => {
-    if (!isAdmin) {
-      return;
-    }
+  // Pre-load roles from DB to get their IDs; fall back to static roles
+  const [availableRoles, setAvailableRoles] = useState<RoleOption[]>(STATIC_ROLES);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
 
-    const loadRoles = async () => {
-      try {
-        const { data } = await usersApi.getRoles();
-        setRoles(data.data!);
-      } catch {
-        // handled by interceptor
-      }
-    };
-    loadRoles();
+  useEffect(() => {
+    if (!isAdmin) return;
+    usersApi.getRoles()
+      .then(({ data }) => {
+        if (data.data && data.data.length > 0) {
+          setAvailableRoles(data.data.map((r) => ({ id: r.id, name: r.name, description: r.description })));
+        }
+        setRolesLoaded(true);
+      })
+      .catch(() => setRolesLoaded(true));
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!isAdmin || !isEdit) return;
+    if (!isAdmin || !isEdit || !rolesLoaded) return;
 
     const loadUser = async () => {
       setFetchingUser(true);
       try {
         const { data } = await usersApi.getById(Number(id));
         const user: User = data.data!;
-        setForm({
-          username: user.username,
-          email: user.email,
-          password: '',
-          fullName: user.fullName,
-          phone: user.phone || '',
-          status: user.status as UserStatus,
-          roleIds: [],
-        });
+        const roleIds = availableRoles
+          .filter((r) => user.roles.includes(r.name))
+          .map((r) => r.id);
+        setForm((prev) => ({ ...prev, username: user.username, email: user.email, password: '', fullName: user.fullName, phone: user.phone || '', status: user.status, roleIds }));
       } catch {
         navigate('/admin/users');
       } finally {
@@ -77,11 +83,10 @@ export default function UserFormPage() {
     };
 
     loadUser();
-  }, [id, isAdmin, isEdit, navigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isAdmin, isEdit, navigate, rolesLoaded, availableRoles]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setError('');
@@ -120,7 +125,7 @@ export default function UserFormPage() {
 
     try {
       if (isEdit) {
-        const updatePayload = {
+        const updatePayload: UpdateUserRequest = {
           username: form.username,
           email: form.email,
           fullName: form.fullName,
@@ -130,7 +135,7 @@ export default function UserFormPage() {
         };
         await usersApi.update(Number(id), updatePayload);
       } else {
-        const createPayload = {
+        const createPayload: CreateUserRequest = {
           username: form.username,
           email: form.email,
           password: form.password,
@@ -140,7 +145,6 @@ export default function UserFormPage() {
         };
         await usersApi.create(createPayload);
       }
-
       navigate('/admin/users');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -151,16 +155,14 @@ export default function UserFormPage() {
   };
 
   if (!isAdmin) {
-    return <Navigate to="/" replace />;
+    return <div className="page-content"><p>Access denied.</p></div>;
   }
 
   if (fetchingUser) {
     return (
       <>
         <div className="top-bar"><h1>{isEdit ? 'Edit User' : 'Create User'}</h1></div>
-        <div className="page-content">
-          <div className="loading-spinner"><div className="spinner" /></div>
-        </div>
+        <div className="page-content"><div className="loading-spinner"><div className="spinner" /></div></div>
       </>
     );
   }
@@ -169,9 +171,7 @@ export default function UserFormPage() {
     <>
       <div className="top-bar">
         <h1>{isEdit ? 'Edit User' : 'Create User'}</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>
-          Back
-        </button>
+        <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>Back</button>
       </div>
 
       <div className="page-content">
@@ -183,77 +183,39 @@ export default function UserFormPage() {
               <div className="form-grid">
                 <div className="form-group">
                   <label htmlFor="username">Username *</label>
-                  <input
-                    id="username"
-                    name="username"
-                    type="text"
-                    value={form.username}
-                    onChange={handleChange}
-                    placeholder="e.g. john_doe"
-                    disabled={isEdit}
-                  />
+                  <input id="username" name="username" type="text" value={form.username}
+                    onChange={handleChange} placeholder="e.g. john_doe" disabled={isEdit} />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="email">Email *</label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="e.g. john@example.com"
-                  />
+                  <input id="email" name="email" type="email" value={form.email}
+                    onChange={handleChange} placeholder="e.g. john@example.com" />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="fullName">Full Name *</label>
-                  <input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    value={form.fullName}
-                    onChange={handleChange}
-                    placeholder="e.g. John Doe"
-                  />
+                  <input id="fullName" name="fullName" type="text" value={form.fullName}
+                    onChange={handleChange} placeholder="e.g. John Doe" />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="phone">Phone</label>
-                  <input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    value={form.phone}
-                    onChange={handleChange}
-                    placeholder="e.g. 0901234567"
-                  />
+                  <input id="phone" name="phone" type="tel" value={form.phone}
+                    onChange={handleChange} placeholder="e.g. 0901234567" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="password">
-                    Password {isEdit ? '(leave blank to keep current)' : '*'}
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    value={form.password}
-                    onChange={handleChange}
-                    placeholder={isEdit ? '••••••••' : 'Min. 8 characters'}
-                    autoComplete={isEdit ? 'new-password' : 'current-password'}
-                  />
+                  <label htmlFor="password">Password {isEdit ? '(leave blank to keep current)' : '*'}</label>
+                  <input id="password" name="password" type="password" value={form.password}
+                    onChange={handleChange} placeholder={isEdit ? '••••••••' : 'Min. 8 characters'}
+                    autoComplete={isEdit ? 'new-password' : 'current-password'} />
                 </div>
 
                 {isEdit && (
                   <div className="form-group">
                     <label htmlFor="status">Status</label>
-                    <select
-                      id="status"
-                      name="status"
-                      value={form.status}
-                      onChange={handleChange}
-                    >
+                    <select id="status" name="status" value={form.status} onChange={handleChange}>
                       <option value="ACTIVE">Active</option>
                       <option value="INACTIVE">Inactive</option>
                       <option value="LOCKED">Locked</option>
@@ -264,7 +226,7 @@ export default function UserFormPage() {
                 <div className="form-group full-width">
                   <label>Roles *</label>
                   <div className="checkbox-group">
-                    {roles.map((role) => (
+                    {availableRoles.map((role) => (
                       <label key={role.id} className="checkbox-item">
                         <input
                           type="checkbox"
@@ -274,8 +236,7 @@ export default function UserFormPage() {
                         <span style={{ fontWeight: 500 }}>{role.name}</span>
                         {role.description && (
                           <span style={{ color: '#636e72', fontSize: 12 }}>
-                            {' '}
-                            — {role.description}
+                            {' '}&mdash; {role.description}
                           </span>
                         )}
                       </label>
@@ -285,19 +246,9 @@ export default function UserFormPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => navigate('/admin/users')}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                  style={{ flex: 1 }}
-                >
+                <button type="button" className="btn btn-secondary"
+                  onClick={() => navigate('/admin/users')}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
                   {loading ? 'Saving...' : isEdit ? 'Update User' : 'Create User'}
                 </button>
               </div>

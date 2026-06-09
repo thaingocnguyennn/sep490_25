@@ -5,10 +5,10 @@ export const createRoleValidation = [
     .trim()
     .notEmpty()
     .withMessage('Role name is required')
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Role name must be 2-50 characters')
-    .matches(/^[A-Z_]+$/)
-    .withMessage('Role name must be uppercase letters and underscores only (e.g. ROLE_ADMIN, MANAGER)'),
+    .matches(/^[A-Z][A-Z0-9_]*$/)
+    .withMessage(
+      'Role name must be uppercase letters, numbers and underscores only (e.g. ADMIN, DEPARTMENT_HEAD, SPECIALIST)'
+    ),
   body('description')
     .optional()
     .trim()
@@ -17,14 +17,13 @@ export const createRoleValidation = [
 ];
 
 export const updateRoleValidation = [
-  param('id').isInt({ min: 1 }).withMessage('Invalid role ID'),
   body('name')
     .optional()
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Role name must be 2-50 characters')
-    .matches(/^[A-Z_]+$/)
-    .withMessage('Role name must be uppercase letters and underscores only (e.g. ROLE_ADMIN, MANAGER)'),
+    .matches(/^[A-Z][A-Z0-9_]*$/)
+    .withMessage(
+      'Role name must be uppercase letters, numbers and underscores only (e.g. ADMIN, DEPARTMENT_HEAD, SPECIALIST)'
+    ),
   body('description')
     .optional()
     .trim()
@@ -33,9 +32,13 @@ export const updateRoleValidation = [
 ];
 
 export const getRoleByIdValidation = [
-  param('id').isInt({ min: 1 }).withMessage('Invalid role ID'),
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Valid role ID is required'),
 ];
 
 export const deleteRoleValidation = [
-  param('id').isInt({ min: 1 }).withMessage('Invalid role ID'),
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Valid role ID is required'),
 ];

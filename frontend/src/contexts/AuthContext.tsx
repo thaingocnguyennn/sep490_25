@@ -1,12 +1,25 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { User } from '../types';
 import { authApi } from '../api';
+
+export const ROLE_NAMES = {
+  ADMIN: 'ADMIN',
+  DEPARTMENT_HEAD: 'DEPARTMENT_HEAD',
+  SPECIALIST: 'SPECIALIST',
+  DOCUMENT_CLERK: 'DOCUMENT_CLERK',
+} as const;
+
+export type RoleName = (typeof ROLE_NAMES)[keyof typeof ROLE_NAMES];
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isDepartmentHead: boolean;
+  isSpecialist: boolean;
+  isDocumentClerk: boolean;
+  hasRole: (role: RoleName) => boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
   updateUser: (user: User) => void;
@@ -46,7 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updatedUser);
   }, []);
 
-  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const roleFlags = useMemo(() => {
+    const roles: string[] = user?.roles ?? [];
+    return {
+      isAdmin: roles.includes(ROLE_NAMES.ADMIN),
+      isDepartmentHead: roles.includes(ROLE_NAMES.DEPARTMENT_HEAD),
+      isSpecialist: roles.includes(ROLE_NAMES.SPECIALIST),
+      isDocumentClerk: roles.includes(ROLE_NAMES.DOCUMENT_CLERK),
+    };
+  }, [user?.roles]);
+
+  const hasRole = useCallback(
+    (role: RoleName) => user?.roles?.includes(role) ?? false,
+    [user?.roles]
+  );
 
   return (
     <AuthContext.Provider
@@ -54,7 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         token,
         isAuthenticated: !!token && !!user,
-        isAdmin,
+        ...roleFlags,
+        hasRole,
         login,
         logout,
         updateUser,

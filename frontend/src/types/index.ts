@@ -9,6 +9,16 @@ export interface Role {
   updatedAt?: string;
 }
 
+export interface CreateRoleRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateRoleRequest {
+  name?: string;
+  description?: string;
+}
+
 export interface User {
   id: number;
   username: string;
@@ -22,6 +32,18 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   roles: string[];
+  department?: {
+    id: number;
+    name: string;
+  } | null;
+  createdBy?: {
+    id: number;
+    fullName: string;
+  } | null;
+  updatedBy?: {
+    id: number;
+    fullName: string;
+  } | null;
 }
 
 export interface LoginRequest {

@@ -1,24 +1,5 @@
 import api from '../axios';
-import type { ApiResponse } from '../../types';
-
-export interface Role {
-  id: number;
-  name: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-  userCount: number;
-}
-
-export interface CreateRoleRequest {
-  name: string;
-  description?: string;
-}
-
-export interface UpdateRoleRequest {
-  name?: string;
-  description?: string;
-}
+import type { ApiResponse, Role, CreateRoleRequest, UpdateRoleRequest } from '../../types';
 
 const rolesApi = {
   getAll: () =>
