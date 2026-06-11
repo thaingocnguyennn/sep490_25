@@ -5,6 +5,7 @@ import { UserStatus } from '@prisma/client';
 import { BadRequestError, UnauthorizedError } from '../../shared/exceptions/app-error';
 import { generateToken } from '../../shared/utils/jwt.util';
 import { authRepository, UserProfile } from './auth.repository';
+import type { RoleName } from '../../shared/constants/roles';
 
 export class AuthService {
   async login(username: string, password: string) {
@@ -29,7 +30,13 @@ export class AuthService {
 
     await authRepository.updateLastLogin(user.id);
 
-    const token = generateToken({ userId: user.id, username: user.username });
+    const roles = user.userRoles.map((ur) => ur.role.name) as RoleName[];
+
+    const token = generateToken({
+      userId: user.id,
+      username: user.username,
+      roles,
+    });
     const profile = authRepository.formatProfile(user);
 
     return { token, user: profile };

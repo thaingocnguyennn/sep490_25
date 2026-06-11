@@ -1,11 +1,9 @@
 import { Router } from 'express';
 import { usersController } from './users.controller';
-import { authenticate } from '../../shared/middlewares/auth.middleware';
 import { requireRole } from '../../shared/middlewares/require-role.middleware';
+import { ROLES } from '../../shared/constants/roles';
 
 const router = Router();
-
-router.use(authenticate);
 
 router.get(
   '/me',
@@ -19,7 +17,7 @@ router.put(
 
 router.get(
   '/roles',
-  requireRole('ADMIN'),
+  requireRole(ROLES.ADMIN),
   usersController.getRoles.bind(usersController)
 );
 

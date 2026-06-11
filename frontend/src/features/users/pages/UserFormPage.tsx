@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
+import { ROLES } from '../../../shared/constants/roles';
 import type { User, UserStatus, CreateUserRequest, UpdateUserRequest } from '../../../types';
-import { ROLE_NAMES } from '../../../contexts/AuthContext';
 
 interface RoleOption {
   id: number;
@@ -12,10 +12,10 @@ interface RoleOption {
 }
 
 const STATIC_ROLES: RoleOption[] = [
-  { id: 1, name: ROLE_NAMES.ADMIN, description: 'System administrator with full access' },
-  { id: 2, name: ROLE_NAMES.DEPARTMENT_HEAD, description: 'Department head with management permissions' },
-  { id: 3, name: ROLE_NAMES.SPECIALIST, description: 'Specialist with document processing permissions' },
-  { id: 4, name: ROLE_NAMES.DOCUMENT_CLERK, description: 'Document clerk with basic document access' },
+  { id: 1, name: ROLES.ADMIN, description: 'System administrator with full access' },
+  { id: 2, name: ROLES.DEPARTMENT_HEAD, description: 'Department head with management permissions' },
+  { id: 3, name: ROLES.SPECIALIST, description: 'Specialist with document processing permissions' },
+  { id: 4, name: ROLES.DOCUMENT_CLERK, description: 'Document clerk with basic document access' },
 ];
 
 type FormState = {
