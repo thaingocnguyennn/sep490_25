@@ -2,3 +2,12 @@ node_modules/
 dist/
 .env
 *.log
+
+# Prisma
+prisma/migrations/
+prisma/*.db
+prisma/*.db-journal
+
+# OS
+.DS_Store
+Thumbs.db

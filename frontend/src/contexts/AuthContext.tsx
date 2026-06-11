@@ -1,15 +1,9 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { User } from '../types';
 import { authApi } from '../api';
+import { ROLES, type RoleName } from '../shared/constants/roles';
 
-export const ROLE_NAMES = {
-  ADMIN: 'ADMIN',
-  DEPARTMENT_HEAD: 'DEPARTMENT_HEAD',
-  SPECIALIST: 'SPECIALIST',
-  DOCUMENT_CLERK: 'DOCUMENT_CLERK',
-} as const;
-
-export type RoleName = (typeof ROLE_NAMES)[keyof typeof ROLE_NAMES];
+export { ROLES, type RoleName };
 
 interface AuthContextType {
   user: User | null;
@@ -62,10 +56,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const roleFlags = useMemo(() => {
     const roles: string[] = user?.roles ?? [];
     return {
-      isAdmin: roles.includes(ROLE_NAMES.ADMIN),
-      isDepartmentHead: roles.includes(ROLE_NAMES.DEPARTMENT_HEAD),
-      isSpecialist: roles.includes(ROLE_NAMES.SPECIALIST),
-      isDocumentClerk: roles.includes(ROLE_NAMES.DOCUMENT_CLERK),
+      isAdmin: roles.includes(ROLES.ADMIN),
+      isDepartmentHead: roles.includes(ROLES.DEPARTMENT_HEAD),
+      isSpecialist: roles.includes(ROLES.SPECIALIST),
+      isDocumentClerk: roles.includes(ROLES.DOCUMENT_CLERK),
     };
   }, [user?.roles]);
 

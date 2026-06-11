@@ -2,21 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../../config';
 import { UnauthorizedError } from '../exceptions/app-error';
+import { JwtPayload } from '../types/auth.types';
 import prisma from '../../config/database';
 import { UserStatus } from '@prisma/client';
-
-export interface JwtPayload {
-  userId: number;
-  username: string;
-}
-
-declare global {
-  namespace Express {
-    interface Request {
-      user?: JwtPayload;
-    }
-  }
-}
 
 export async function authenticate(
   req: Request,
@@ -34,11 +22,7 @@ export async function authenticate(
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: { role: true },
-        },
-      },
+      select: { id: true, status: true },
     });
 
     if (!user) {
@@ -54,8 +38,9 @@ export async function authenticate(
     }
 
     req.user = {
-      userId: user.id,
-      username: user.username,
+      userId: decoded.userId,
+      username: decoded.username,
+      roles: decoded.roles,
     };
 
     next();
