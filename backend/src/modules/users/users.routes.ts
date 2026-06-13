@@ -21,4 +21,9 @@ router.get(
   usersController.getRoles.bind(usersController)
 );
 
+router.get(
+  '/',
+  usersController.getAllUsers.bind(usersController)
+);
+
 export default router;
