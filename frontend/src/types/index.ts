@@ -102,3 +102,62 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   errors?: unknown;
 }
+
+// ─── Document Management Types ──────────────────────────────────────────────
+
+export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentStatus = 'ACTIVE' | 'DELETED';
+export type PriorityLevel = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type ConfidentialityLevel = 'NORMAL' | 'CONFIDENTIAL' | 'TOP_SECRET';
+
+export interface Document {
+  id: number;
+  documentNumber: string;
+  title: string;
+  description: string | null;
+  type: DocumentType;
+  fileUrl: string | null;
+  documentStatus: DocumentStatus;
+  urgencyLevel: PriorityLevel;
+  confidentialityLevel: ConfidentialityLevel;
+  sendingAgency: string | null;
+  issuanceDate: string | null;
+  category: string | null;
+  originalFileName: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdByUser: { id: number; fullName: string } | null;
+  updatedByUser?: { id: number; fullName: string } | null;
+  department: { id: number; name: string } | null;
+  processor: { id: number; fullName: string } | null;
+}
+
+export interface DocumentFilterParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: DocumentType;
+  status?: DocumentStatus;
+  urgencyLevel?: PriorityLevel;
+  confidentialityLevel?: ConfidentialityLevel;
+  departmentId?: number;
+  processorId?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface UpdateDocumentRequest {
+  documentNumber?: string;
+  title?: string;
+  description?: string;
+  type?: DocumentType;
+  issuanceDate?: string | null;
+  sendingAgency?: string;
+  urgencyLevel?: PriorityLevel;
+  confidentialityLevel?: ConfidentialityLevel;
+  category?: string;
+  departmentId?: number | null;
+  processorId?: number | null;
+}

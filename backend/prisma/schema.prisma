@@ -17,6 +17,7 @@ enum DocumentType {
   INCOMING
   OUTGOING
   INTERNAL
+  ARCHIVAL
 }
 
 enum Priority {
@@ -24,6 +25,19 @@ enum Priority {
   NORMAL
   HIGH
   URGENT
+}
+
+// Document lifecycle status (ACTIVE or soft-deleted)
+enum DocumentStatus {
+  ACTIVE
+  DELETED
+}
+
+// Confidentiality classification for documents
+enum ConfidentialityLevel {
+  NORMAL
+  CONFIDENTIAL
+  TOP_SECRET
 }
 
 enum WorkflowStatus {
@@ -49,6 +63,7 @@ model Department {
   updatedAt   DateTime  @updatedAt
 
   users       User[]
+  documents   Document[] @relation("DocumentDepartment")
 }
 
 model User {
@@ -81,6 +96,7 @@ model User {
   documentWorkflows DocumentWorkflow[]
   createdDocuments Document[]    @relation("CreatedBy")
   updatedDocuments Document[]    @relation("UpdatedBy")
+  processedDocuments Document[] @relation("DocumentProcessor")
 }
 
 model Role {
@@ -105,14 +121,32 @@ model UserRole {
 }
 
 model Document {
-  id              Int          @id @default(autoincrement())
-  documentNumber  String       @unique
-  title           String
-  description     String?
-  type            DocumentType
-  fileUrl         String?
-  ocrText         String?
-  ocrStatus       String       @default("PENDING")
+  id                    Int                  @id @default(autoincrement())
+  documentNumber        String               @unique
+  title                 String
+  description           String?
+  type                  DocumentType
+  fileUrl               String?
+  ocrText               String?
+  ocrStatus             String               @default("PENDING")
+
+  // --- Level 2 fields: basic document management ---
+  issuanceDate          DateTime?            // Ngày ban hành
+  sendingAgency         String?              // Cơ quan gửi
+  urgencyLevel          Priority             @default(NORMAL)    // Mức độ khẩn
+  confidentialityLevel  ConfidentialityLevel  @default(NORMAL)    // Mức độ mật
+  documentStatus        DocumentStatus       @default(ACTIVE)    // Trạng thái soft-delete
+  category              String?              // Phân loại phụ (tuỳ chọn)
+  originalFileName      String?              // Tên file gốc khi upload
+  fileSize              Int?                 // Dung lượng file (bytes)
+  mimeType              String?              // Loại MIME (application/pdf, ...)
+
+  // Department & processor relations
+  departmentId          Int?
+  department            Department?          @relation("DocumentDepartment", fields: [departmentId], references: [id])
+  processorId           Int?
+  processor             User?                @relation("DocumentProcessor", fields: [processorId], references: [id])
+
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   createdBy       Int?
@@ -123,6 +157,11 @@ model Document {
   incomingDocuments IncomingDocument[]
   outgoingDocuments OutgoingDocument[]
   workflows       DocumentWorkflow[]
+
+  @@index([documentStatus])
+  @@index([type])
+  @@index([departmentId])
+  @@index([processorId])
 }
 
 model IncomingDocument {

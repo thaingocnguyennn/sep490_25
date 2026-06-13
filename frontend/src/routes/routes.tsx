@@ -14,6 +14,11 @@ import UserFormPage from '../features/users/pages/UserFormPage';
 import UserDetailPage from '../features/users/pages/UserDetailPage';
 import RolesPage from '../features/roles/pages/RolesPage';
 import RoleFormPage from '../features/roles/pages/RoleFormPage';
+// Document management pages
+import DocumentsPage from '../features/documents/pages/DocumentsPage';
+import DocumentUploadPage from '../features/documents/pages/DocumentUploadPage';
+import DocumentDetailPage from '../features/documents/pages/DocumentDetailPage';
+import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
 
 export const routes: RouteObject[] = [
   {
@@ -29,6 +34,11 @@ export const routes: RouteObject[] = [
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/edit', element: <ProfileEditPage /> },
       { path: 'change-password', element: <ChangePasswordPage /> },
+      // Document management routes
+      { path: 'documents', element: <DocumentsPage /> },
+      { path: 'documents/upload', element: <DocumentUploadPage /> },
+      { path: 'documents/:id', element: <DocumentDetailPage /> },
+      { path: 'documents/:id/edit', element: <DocumentEditPage /> },
     ],
   },
   {
@@ -50,3 +60,4 @@ export const routes: RouteObject[] = [
     element: <Navigate to="/" replace />,
   },
 ];
+

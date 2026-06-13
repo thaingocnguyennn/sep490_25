@@ -4,6 +4,7 @@ import authRoutes from '../modules/auth/auth.routes';
 import usersRoutes from '../modules/users/users.routes';
 import rolesRoutes from '../modules/roles/roles.routes';
 import usersAdminRoutes from '../modules/users/users.admin.routes';
+import documentsRoutes from '../modules/documents/documents.routes';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use(authenticate);
 router.use('/users', usersRoutes);
 router.use('/admin/users', usersAdminRoutes);
 router.use('/admin/roles', rolesRoutes);
+router.use('/documents', documentsRoutes);
 
 export default router;

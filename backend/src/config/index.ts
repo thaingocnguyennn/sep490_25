@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import path from 'path';
 
 dotenv.config();
 
@@ -20,4 +21,7 @@ export const config = {
   bcrypt: {
     saltRounds: 12,
   },
+
+  // Absolute path to the uploads directory for document files
+  uploadDir: path.resolve(__dirname, '../../uploads'),
 };

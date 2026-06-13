@@ -18,6 +18,10 @@ export default defineConfig(({ mode }) => {
           target: env.API_URL || 'http://localhost:5000',
           changeOrigin: true,
         },
+        '/uploads': {
+          target: env.API_URL || 'http://localhost:5000',
+          changeOrigin: true,
+        },
       },
     },
   };
