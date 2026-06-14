@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -41,8 +42,8 @@ export default function LoginPage() {
   };
 
   return (
-    <>
-      <h1>DMS Login</h1>
+    <div className="login-container">
+      <h1 className="login-title">DMS Login</h1>
       <p className="subtitle">Sign in to Document Management System</p>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -61,23 +62,33 @@ export default function LoginPage() {
           />
         </div>
 
-        <div className="form-group">
+        <div className="form-group password-field">
           <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            placeholder="Enter your password"
-            value={form.password}
-            onChange={handleChange}
-            autoComplete="current-password"
-          />
+          <div className="password-input-wrapper">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Enter your password"
+              value={form.password}
+              onChange={handleChange}
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? '👁️' : '👁️‍🗨️'}
+            </button>
+          </div>
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </form>
-    </>
+    </div>
   );
 }

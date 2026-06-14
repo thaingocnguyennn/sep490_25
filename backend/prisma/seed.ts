@@ -122,6 +122,22 @@ async function main() {
   });
   console.log('Document Clerk seeded: clerk01 / Password@123');
 
+  // Seed default workflow steps for incoming documents
+  const defaultSteps = [
+    { name: 'Tiếp nhận văn bản', description: 'Nhân viên tiếp nhận và phân loại văn bản đến', stepOrder: 1, roleName: 'DOCUMENT_CLERK' },
+    { name: 'Trưởng phòng xử lý', description: 'Trưởng phòng xem xét và phân công xử lý', stepOrder: 2, roleName: 'DEPARTMENT_HEAD' },
+    { name: 'Chuyên viên xử lý', description: 'Chuyên viên thực hiện xử lý văn bản', stepOrder: 3, roleName: 'SPECIALIST' },
+    { name: 'Lưu trữ', description: 'Lưu trữ văn bản sau khi xử lý hoàn tất', stepOrder: 4, roleName: null },
+  ];
+
+  const existingSteps = await prisma.workflowStep.count();
+  if (existingSteps === 0) {
+    await prisma.workflowStep.createMany({
+      data: defaultSteps,
+    });
+  }
+  console.log('Workflow steps seeded');
+
   console.log('Database seeding completed!');
 }
 

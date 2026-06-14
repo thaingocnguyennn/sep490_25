@@ -47,6 +47,11 @@ export class DocumentsController {
     }
   }
 
+  // Alias for list (used by dev branch routes)
+  async list(req: Request, res: Response, next: NextFunction) {
+    return this.getAll(req, res, next);
+  }
+
   /**
    * GET /documents/:id
    * Get full details of a single document.
@@ -74,6 +79,23 @@ export class DocumentsController {
         req.user!.userId
       );
       res.status(201).json(successResponse(doc, 'Document uploaded successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /documents
+   * Create a document without file upload.
+   */
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const doc = await documentsService.upload(
+        undefined,
+        req.body,
+        req.user!.userId
+      );
+      res.status(201).json(successResponse(doc, 'Document created successfully'));
     } catch (error) {
       next(error);
     }
@@ -184,6 +206,24 @@ export class DocumentsController {
         res.setHeader('Content-Disposition', 'attachment; filename="documents.xlsx"');
         res.send(buffer);
       }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /documents/ocr
+   * Perform OCR on an uploaded file.
+   */
+  async performOcr(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No file uploaded' });
+        return;
+      }
+      const mimeType = req.body.mimeType || req.file.mimetype;
+      const result = await documentsService.performOcr(req.file.buffer, mimeType);
+      res.status(200).json(successResponse(result, 'OCR completed'));
     } catch (error) {
       next(error);
     }

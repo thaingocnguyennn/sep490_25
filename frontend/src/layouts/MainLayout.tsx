@@ -56,6 +56,15 @@ function Sidebar() {
         >
           <span>📤</span> Upload Document
         </NavLink>
+        <NavLink
+          to="/incoming-documents"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <span>&#128229;</span> Incoming Docs
+        </NavLink>
+        <div className="nav-item" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+          <span>&#128230;</span> Outgoing Docs
+        </div>
       </nav>
 
       <div className="sidebar-footer">

@@ -7,6 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DocumentStatus {
+  DRAFT
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum ProcessorType {
+  XLC  // Primary Processor
+  PHXL // Coordinating Processor
+  XDB  // For Information/Reference Only
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -28,7 +50,7 @@ enum Priority {
 }
 
 // Document lifecycle status (ACTIVE or soft-deleted)
-enum DocumentStatus {
+enum DocumentLifecycleStatus {
   ACTIVE
   DELETED
 }
@@ -38,6 +60,13 @@ enum ConfidentialityLevel {
   NORMAL
   CONFIDENTIAL
   TOP_SECRET
+}
+
+enum Urgency {
+  THUONG      // Thường / Bình thường
+  KHAN        // Khẩn
+  THUONG_KHAU // Thượng khẩn
+  HOA_TOC     // Hỏa tốc
 }
 
 enum WorkflowStatus {
@@ -62,8 +91,9 @@ model Department {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  users       User[]
-  documents   Document[] @relation("DocumentDepartment")
+  users              User[]
+  documents          Document[]       @relation("DocumentDepartment")
+  incomingDocuments  IncomingDocument[]
 }
 
 model User {
@@ -92,11 +122,12 @@ model User {
   updatedByUser   User?        @relation("UpdatedBy", fields: [updatedBy], references: [id])
   updatedUsers    User[]       @relation("UpdatedBy")
 
-  notifications   Notification[]
+  notifications    Notification[]
   documentWorkflows DocumentWorkflow[]
   createdDocuments Document[]    @relation("CreatedBy")
   updatedDocuments Document[]    @relation("UpdatedBy")
-  processedDocuments Document[] @relation("DocumentProcessor")
+  processedDocuments Document[]  @relation("DocumentProcessor")
+  documentProcessors DocumentProcessor[]
 }
 
 model Role {
@@ -121,31 +152,34 @@ model UserRole {
 }
 
 model Document {
-  id                    Int                  @id @default(autoincrement())
-  documentNumber        String               @unique
+  id                    Int                      @id @default(autoincrement())
+  documentNumber        String                   @unique
   title                 String
   description           String?
   type                  DocumentType
   fileUrl               String?
   ocrText               String?
-  ocrStatus             String               @default("PENDING")
+  ocrStatus             OcrStatus                @default(PENDING)
+  status                DocumentStatus           @default(DRAFT)
+  priority              Priority                 @default(NORMAL)
+  deadline              DateTime?
 
   // --- Level 2 fields: basic document management ---
-  issuanceDate          DateTime?            // Ngày ban hành
-  sendingAgency         String?              // Cơ quan gửi
-  urgencyLevel          Priority             @default(NORMAL)    // Mức độ khẩn
-  confidentialityLevel  ConfidentialityLevel  @default(NORMAL)    // Mức độ mật
-  documentStatus        DocumentStatus       @default(ACTIVE)    // Trạng thái soft-delete
-  category              String?              // Phân loại phụ (tuỳ chọn)
-  originalFileName      String?              // Tên file gốc khi upload
-  fileSize              Int?                 // Dung lượng file (bytes)
-  mimeType              String?              // Loại MIME (application/pdf, ...)
+  issuanceDate          DateTime?                // Ngày ban hành
+  sendingAgency         String?                  // Cơ quan gửi
+  urgencyLevel          Priority                 @default(NORMAL)    // Mức độ khẩn
+  confidentialityLevel  ConfidentialityLevel     @default(NORMAL)    // Mức độ mật
+  documentStatus        DocumentLifecycleStatus  @default(ACTIVE)    // Trạng thái soft-delete
+  category              String?                  // Phân loại phụ (tuỳ chọn)
+  originalFileName      String?                  // Tên file gốc khi upload
+  fileSize              Int?                     // Dung lượng file (bytes)
+  mimeType              String?                  // Loại MIME (application/pdf, ...)
 
   // Department & processor relations
   departmentId          Int?
-  department            Department?          @relation("DocumentDepartment", fields: [departmentId], references: [id])
+  department            Department?              @relation("DocumentDepartment", fields: [departmentId], references: [id])
   processorId           Int?
-  processor             User?                @relation("DocumentProcessor", fields: [processorId], references: [id])
+  processor             User?                    @relation("DocumentProcessor", fields: [processorId], references: [id])
 
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -157,6 +191,8 @@ model Document {
   incomingDocuments IncomingDocument[]
   outgoingDocuments OutgoingDocument[]
   workflows       DocumentWorkflow[]
+  processors      DocumentProcessor[]
+  attachments     DocumentAttachment[]
 
   @@index([documentStatus])
   @@index([type])
@@ -165,17 +201,27 @@ model Document {
 }
 
 model IncomingDocument {
-  id              Int       @id @default(autoincrement())
-  documentId      Int       @unique
-  senderName      String
-  senderAddress    String?
-  receivedDate     DateTime
-  referenceNumber  String?
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                     Int         @id @default(autoincrement())
+  documentId             Int         @unique
+  issuer                 String?                     // Cơ quan ban hành
+  documentType           String?                     // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
+  documentNumber         String?                     // Số ký hiệu văn bản
+  arrivalNumber          Int?                        // Số đến (số tự động tăng)
+  signerName             String?                     // Họ tên người ký
+  signerTitle            String?                     // Chức vụ người ký
+  dateLetter             DateTime?                   // Ngày, tháng, năm văn bản
+  dateReceived          DateTime                     // Ngày đến
+  summary                String?     @db.Text         // Trích yếu nội dung
+  pageCount              Int?                        // Số trang văn bản
+  urgency                Urgency?                    // Độ khẩn (Thường / Khẩn / Thượng khẩn / Hỏa tốc)
+  notes                  String?
+  processingInstructions String?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
-  document        Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document              Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  department            Department?  @relation(fields: [departmentId], references: [id])
+  departmentId           Int?
 }
 
 model OutgoingDocument {
@@ -192,11 +238,37 @@ model OutgoingDocument {
   document        Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
+model DocumentProcessor {
+  id            Int           @id @default(autoincrement())
+  documentId    Int
+  userId        Int
+  processorType ProcessorType
+  createdAt     DateTime      @default(now())
+
+  document      Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@unique([documentId, userId, processorType])
+}
+
+model DocumentAttachment {
+  id          Int      @id @default(autoincrement())
+  documentId  Int
+  fileName    String
+  fileUrl     String
+  fileSize    Int?
+  mimeType    String?
+  createdAt   DateTime @default(now())
+
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
 model WorkflowStep {
   id          Int       @id @default(autoincrement())
   name        String
   description String?
   stepOrder   Int       @default(1)
+  roleName    String?   // Optional: restrict this step to a specific role
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

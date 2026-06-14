@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { documentsController } from './documents.controller';
 import { upload } from '../../shared/middlewares/upload.middleware';
 import { validateRequest } from '../../shared/middlewares/validate.middleware';
@@ -8,9 +9,24 @@ import {
   getDocumentsValidation,
   getDocumentByIdValidation,
   deleteDocumentValidation,
+  ocrValidation,
 } from './documents.validation';
 
 const router = Router();
+
+// Multer for OCR (memory storage, accepts images and PDF)
+const ocrUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/tiff', 'image/bmp', 'image/webp', 'application/pdf'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'));
+    }
+  },
+});
 
 // ─── Export must be defined BEFORE /:id to avoid route conflicts ────────────
 
@@ -20,6 +36,15 @@ router.get(
   getDocumentsValidation,
   validateRequest,
   documentsController.exportList.bind(documentsController)
+);
+
+// POST /documents/ocr — Perform OCR on uploaded file
+router.post(
+  '/ocr',
+  ocrUpload.single('file'),
+  ocrValidation,
+  validateRequest,
+  documentsController.performOcr.bind(documentsController)
 );
 
 // ─── CRUD Routes ────────────────────────────────────────────────────────────
@@ -39,6 +64,14 @@ router.post(
   uploadDocumentValidation,
   validateRequest,
   documentsController.upload.bind(documentsController)
+);
+
+// POST /documents — Create a document (without file)
+router.post(
+  '/',
+  uploadDocumentValidation,
+  validateRequest,
+  documentsController.create.bind(documentsController)
 );
 
 // GET /documents/:id — Get document details

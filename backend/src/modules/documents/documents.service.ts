@@ -11,6 +11,7 @@ import {
   DocumentListResult,
   DocumentSummary,
 } from './documents.repository';
+import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
 
 // ─── Service ────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ export class DocumentsService {
   async upload(
     file: Express.Multer.File | undefined,
     data: {
-      documentNumber: string;
+      documentNumber?: string;
       title: string;
       description?: string;
       type: string;
@@ -67,22 +68,20 @@ export class DocumentsService {
     },
     createdBy: number
   ): Promise<DocumentDetail> {
-    // Validate: at least a file must be provided
-    if (!file) {
-      throw new BadRequestError('File is required');
-    }
+    // Generate document number if not provided
+    const documentNumber = data.documentNumber || await documentsRepository.generateDocumentNumber(data.type);
 
     // Validate: document number must be unique
-    const exists = await documentsRepository.existsByDocumentNumber(data.documentNumber);
+    const exists = await documentsRepository.existsByDocumentNumber(documentNumber);
     if (exists) {
       throw new ConflictError('Document number already exists');
     }
 
     // Build the relative file URL for client access
-    const fileUrl = `/uploads/${file.filename}`;
+    const fileUrl = file ? `/uploads/${file.filename}` : undefined;
 
     return documentsRepository.create({
-      documentNumber: data.documentNumber,
+      documentNumber,
       title: data.title,
       description: data.description,
       type: data.type as any,
@@ -92,9 +91,9 @@ export class DocumentsService {
       urgencyLevel: (data.urgencyLevel as any) || 'NORMAL',
       confidentialityLevel: (data.confidentialityLevel as any) || 'NORMAL',
       category: data.category,
-      originalFileName: file.originalname,
-      fileSize: file.size,
-      mimeType: file.mimetype,
+      originalFileName: file?.originalname,
+      fileSize: file?.size,
+      mimeType: file?.mimetype,
       departmentId: data.departmentId ? Number(data.departmentId) : undefined,
       processorId: data.processorId ? Number(data.processorId) : undefined,
       createdBy,
@@ -307,6 +306,20 @@ export class DocumentsService {
 
       doc.end();
     });
+  }
+
+  /**
+   * Perform OCR on an uploaded file buffer.
+   */
+  async performOcr(imageBuffer: Buffer, mimeType: string) {
+    const result = await performOcr(imageBuffer, mimeType);
+    const extractedFields = extractFieldsFromOcrText(result.text);
+
+    return {
+      text: result.text,
+      confidence: result.confidence,
+      extractedFields,
+    };
   }
 }
 

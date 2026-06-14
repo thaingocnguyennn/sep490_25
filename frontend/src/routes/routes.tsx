@@ -19,6 +19,10 @@ import DocumentsPage from '../features/documents/pages/DocumentsPage';
 import DocumentUploadPage from '../features/documents/pages/DocumentUploadPage';
 import DocumentDetailPage from '../features/documents/pages/DocumentDetailPage';
 import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
+// Incoming document pages (from dev branch)
+import IncomingDocumentsPage from '../features/documents/pages/IncomingDocumentsPage';
+import AddIncomingDocumentPage from '../features/documents/pages/AddIncomingDocumentPage';
+import IncomingDocumentDetailPage from '../features/documents/pages/IncomingDocumentDetailPage';
 
 export const routes: RouteObject[] = [
   {
@@ -29,7 +33,7 @@ export const routes: RouteObject[] = [
   {
     path: '/',
     element: <MainLayout />,
-      children: [
+    children: [
       { index: true, element: <DashboardPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/edit', element: <ProfileEditPage /> },
@@ -39,12 +43,16 @@ export const routes: RouteObject[] = [
       { path: 'documents/upload', element: <DocumentUploadPage /> },
       { path: 'documents/:id', element: <DocumentDetailPage /> },
       { path: 'documents/:id/edit', element: <DocumentEditPage /> },
+      // Incoming document routes (from dev branch)
+      { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
+      { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
+      { path: 'incoming-documents/:id', element: <IncomingDocumentDetailPage /> },
     ],
   },
   {
     path: '/admin',
     element: <AdminLayout />,
-      children: [
+    children: [
       { index: true, element: <AdminDashboardPage /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'users/new', element: <UserFormPage /> },
@@ -60,4 +68,3 @@ export const routes: RouteObject[] = [
     element: <Navigate to="/" replace />,
   },
 ];
-

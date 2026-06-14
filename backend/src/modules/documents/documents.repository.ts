@@ -1,5 +1,5 @@
 import prisma from '../../config/database';
-import { DocumentType, DocumentStatus, Priority, ConfidentialityLevel, Prisma } from '@prisma/client';
+import { DocumentType, DocumentLifecycleStatus, Priority, ConfidentialityLevel, Prisma } from '@prisma/client';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -9,7 +9,7 @@ export interface DocumentListParams {
   limit?: number;
   search?: string;
   type?: DocumentType;
-  status?: DocumentStatus;
+  status?: DocumentLifecycleStatus;
   urgencyLevel?: Priority;
   confidentialityLevel?: ConfidentialityLevel;
   departmentId?: number;
@@ -32,7 +32,7 @@ export interface DocumentSummary {
   documentNumber: string;
   title: string;
   type: DocumentType;
-  documentStatus: DocumentStatus;
+  documentStatus: DocumentLifecycleStatus;
   urgencyLevel: Priority;
   confidentialityLevel: ConfidentialityLevel;
   sendingAgency: string | null;
@@ -280,6 +280,19 @@ export class DocumentsRepository {
     return documents.map(this.formatSummary);
   }
 
+  /** Generate a unique document number based on type */
+  async generateDocumentNumber(type: string): Promise<string> {
+    const prefix = type === 'INCOMING' ? 'IN' : type === 'OUTGOING' ? 'OUT' : 'INT';
+    const year = new Date().getFullYear();
+    const count = await prisma.document.count({
+      where: {
+        documentNumber: { startsWith: `${prefix}-${year}` },
+      },
+    });
+    const seq = String(count + 1).padStart(4, '0');
+    return `${prefix}-${year}-${seq}`;
+  }
+
   // ─── Private formatters ──────────────────────────────────────────────────
 
   private formatSummary(doc: {
@@ -287,7 +300,7 @@ export class DocumentsRepository {
     documentNumber: string;
     title: string;
     type: DocumentType;
-    documentStatus: DocumentStatus;
+    documentStatus: DocumentLifecycleStatus;
     urgencyLevel: Priority;
     confidentialityLevel: ConfidentialityLevel;
     sendingAgency: string | null;
@@ -329,7 +342,7 @@ export class DocumentsRepository {
     description: string | null;
     type: DocumentType;
     fileUrl: string | null;
-    documentStatus: DocumentStatus;
+    documentStatus: DocumentLifecycleStatus;
     urgencyLevel: Priority;
     confidentialityLevel: ConfidentialityLevel;
     sendingAgency: string | null;

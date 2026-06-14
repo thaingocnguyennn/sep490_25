@@ -1,14 +1,9 @@
 import { body, query, param } from 'express-validator';
+import { DocumentType, Priority, DocumentLifecycleStatus } from '@prisma/client';
 
 // ─── Validation for uploading a new document ─────────────────────────────────
 
 export const uploadDocumentValidation = [
-  body('documentNumber')
-    .trim()
-    .notEmpty()
-    .withMessage('Document number is required')
-    .isLength({ max: 100 })
-    .withMessage('Document number must be at most 100 characters'),
   body('title')
     .trim()
     .notEmpty()
@@ -174,4 +169,13 @@ export const getDocumentByIdValidation = [
 
 export const deleteDocumentValidation = [
   param('id').isInt({ min: 1 }).withMessage('Invalid document ID'),
+];
+
+// ─── Validation for OCR ─────────────────────────────────────────────────────
+
+export const ocrValidation = [
+  body('mimeType')
+    .optional()
+    .isIn(['image/png', 'image/jpeg', 'image/jpg', 'image/tiff', 'image/bmp', 'image/webp', 'application/pdf'])
+    .withMessage('Unsupported file type'),
 ];
