@@ -112,6 +112,10 @@ export interface CreateIncomingDocumentRequest {
 export const documentsApi = {
   // ─── List & Filter ──────────────────────────────────────────────────────
 
+  /** Get basic document stats */
+  getStats: () =>
+    api.get<ApiResponse<{ total: number; incoming: number; outgoing: number }>>('/documents/stats'),
+
   /** Get paginated & filtered document list */
   getAll: (params?: DocumentFilterParams) =>
     api.get<ApiResponse<PaginatedResponse<Document>>>('/documents', { params }),
@@ -139,6 +143,14 @@ export const documentsApi = {
   /** Soft-delete a document */
   delete: (id: number) =>
     api.delete<ApiResponse>(`/documents/${id}`),
+
+  /** Restore a soft-deleted document */
+  restore: (id: number) =>
+    api.patch<ApiResponse>(`/documents/${id}/restore`),
+
+  /** Hard-delete a document permanently */
+  hardDelete: (id: number) =>
+    api.delete<ApiResponse>(`/documents/${id}/permanent`),
 
   // ─── Preview & Download ───────────────────────────────────────────────
 

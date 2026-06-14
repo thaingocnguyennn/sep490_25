@@ -7,6 +7,19 @@ import { successResponse, paginatedResponse } from '../../shared/utils/response.
 
 export class DocumentsController {
   /**
+   * GET /documents/stats
+   * Get basic document stats.
+   */
+  async getStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const stats = await documentsService.getStats();
+      res.status(200).json(successResponse(stats, 'Stats retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /documents
    * List documents with filtering and pagination.
    */
@@ -128,6 +141,34 @@ export class DocumentsController {
       const id = Number(req.params.id);
       await documentsService.softDelete(id, req.user!.userId);
       res.status(200).json(successResponse(null, 'Document deleted'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /documents/:id/restore
+   * Restore a soft-deleted document.
+   */
+  async restore(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      await documentsService.restore(id, req.user!.userId);
+      res.status(200).json(successResponse(null, 'Document restored'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * DELETE /documents/:id/permanent
+   * Hard-delete a document permanently.
+   */
+  async hardDelete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      await documentsService.hardDelete(id);
+      res.status(200).json(successResponse(null, 'Document permanently deleted'));
     } catch (error) {
       next(error);
     }

@@ -48,6 +48,44 @@ export function useDocumentActions(onSuccess?: () => void) {
     [onSuccess]
   );
 
+  /** Restore a soft-deleted document */
+  const restoreDocument = useCallback(
+    async (id: number) => {
+      setActionLoading(true);
+      setActionError('');
+      try {
+        await documentsApi.restore(id);
+        onSuccess?.();
+      } catch (err: any) {
+        const msg = err.response?.data?.message || 'Khôi phục thất bại';
+        setActionError(msg);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [onSuccess]
+  );
+
+  /** Hard-delete a document permanently */
+  const hardDeleteDocument = useCallback(
+    async (id: number) => {
+      setActionLoading(true);
+      setActionError('');
+      try {
+        await documentsApi.hardDelete(id);
+        onSuccess?.();
+      } catch (err: any) {
+        const msg = err.response?.data?.message || 'Xóa vĩnh viễn thất bại';
+        setActionError(msg);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [onSuccess]
+  );
+
   /** Trigger a file download by creating a temporary link from a Blob response */
   const triggerBlobDownload = (blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
@@ -99,6 +137,8 @@ export function useDocumentActions(onSuccess?: () => void) {
     actionError,
     uploadDocument,
     deleteDocument,
+    restoreDocument,
+    hardDeleteDocument,
     exportExcel,
     exportPdf,
   };

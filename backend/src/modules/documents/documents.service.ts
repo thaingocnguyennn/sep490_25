@@ -162,6 +162,37 @@ export class DocumentsService {
   }
 
   /**
+   * Restore a soft-deleted document (set documentStatus to ACTIVE).
+   */
+  async restore(id: number, updatedBy: number): Promise<void> {
+    const existing = await documentsRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Document not found');
+    }
+    await documentsRepository.restore(id, updatedBy);
+  }
+
+  /**
+   * Hard-delete a document completely from the database.
+   */
+  async hardDelete(id: number): Promise<void> {
+    const existing = await documentsRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Document not found');
+    }
+    // Note: Optionally we could delete the physical file here as well
+    // using fs.unlinkSync(this.getFilePath(existing)) if required.
+    await documentsRepository.hardDelete(id);
+  }
+
+  /**
+   * Get basic stats for dashboard.
+   */
+  async getStats(): Promise<{ total: number; incoming: number; outgoing: number }> {
+    return documentsRepository.getStats();
+  }
+
+  /**
    * Resolve the absolute path to a document's file on disk.
    * Used for download and inline preview.
    */

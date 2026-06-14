@@ -236,6 +236,34 @@ export class DocumentsRepository {
     });
   }
 
+  /** Restore a soft-deleted document by setting its status back to ACTIVE */
+  async restore(id: number, updatedBy: number): Promise<void> {
+    await prisma.document.update({
+      where: { id },
+      data: {
+        documentStatus: 'ACTIVE',
+        updatedBy,
+      },
+    });
+  }
+
+  /** Hard-delete a document permanently */
+  async hardDelete(id: number): Promise<void> {
+    await prisma.document.delete({
+      where: { id },
+    });
+  }
+
+  /** Get basic stats for dashboard */
+  async getStats(): Promise<{ total: number; incoming: number; outgoing: number }> {
+    const [total, incoming, outgoing] = await Promise.all([
+      prisma.document.count({ where: { documentStatus: { not: 'DELETED' } } }),
+      prisma.document.count({ where: { type: 'INCOMING', documentStatus: { not: 'DELETED' } } }),
+      prisma.document.count({ where: { type: 'OUTGOING', documentStatus: { not: 'DELETED' } } }),
+    ]);
+    return { total, incoming, outgoing };
+  }
+
   /** Check if a document number already exists */
   async existsByDocumentNumber(documentNumber: string): Promise<boolean> {
     const count = await prisma.document.count({ where: { documentNumber } });

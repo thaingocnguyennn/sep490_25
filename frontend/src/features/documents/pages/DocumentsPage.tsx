@@ -28,9 +28,11 @@ export default function DocumentsPage() {
 
   // ─── Delete modal state ───────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<{ id: number; title: string } | null>(null);
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<{ id: number; title: string } | null>(null);
 
   const handleSuccess = () => fetchWithFilters();
-  const { deleteDocument, exportExcel, exportPdf, actionLoading } = useDocumentActions(handleSuccess);
+  const { deleteDocument, restoreDocument, hardDeleteDocument, exportExcel, exportPdf, actionLoading } = useDocumentActions(handleSuccess);
 
   /** Build filter params from current state and trigger fetch */
   const fetchWithFilters = () => {
@@ -67,6 +69,18 @@ export default function DocumentsPage() {
     if (!deleteTarget) return;
     await deleteDocument(deleteTarget.id);
     setDeleteTarget(null);
+  };
+
+  const handleRestoreConfirm = async () => {
+    if (!restoreTarget) return;
+    await restoreDocument(restoreTarget.id);
+    setRestoreTarget(null);
+  };
+
+  const handleHardDeleteConfirm = async () => {
+    if (!hardDeleteTarget) return;
+    await hardDeleteDocument(hardDeleteTarget.id);
+    setHardDeleteTarget(null);
   };
 
   /** Build current filter params for export (without pagination) */
@@ -296,28 +310,51 @@ export default function DocumentsPage() {
                         )}
                       </td>
                       <td>
-                        <button
-                          className="action-btn view"
-                          title="Xem chi tiết"
-                          onClick={() => navigate(`/documents/${doc.id}`)}
-                        >
-                          👁
-                        </button>
-                        <button
-                          className="action-btn edit"
-                          title="Sửa"
-                          onClick={() => navigate(`/documents/${doc.id}/edit`)}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          className="action-btn delete"
-                          title="Xóa"
-                          disabled={actionLoading}
-                          onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
-                        >
-                          🗑
-                        </button>
+                        {doc.documentStatus === 'DELETED' ? (
+                          <>
+                            <button
+                              className="action-btn view"
+                              title="Khôi phục"
+                              disabled={actionLoading}
+                              onClick={() => setRestoreTarget({ id: doc.id, title: doc.title })}
+                            >
+                              ↺
+                            </button>
+                            <button
+                              className="action-btn delete"
+                              title="Xóa vĩnh viễn"
+                              disabled={actionLoading}
+                              onClick={() => setHardDeleteTarget({ id: doc.id, title: doc.title })}
+                            >
+                              ✕
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              className="action-btn view"
+                              title="Xem chi tiết"
+                              onClick={() => navigate(`/documents/${doc.id}`)}
+                            >
+                              👁
+                            </button>
+                            <button
+                              className="action-btn edit"
+                              title="Sửa"
+                              onClick={() => navigate(`/documents/${doc.id}/edit`)}
+                            >
+                              ✎
+                            </button>
+                            <button
+                              className="action-btn delete"
+                              title="Xóa"
+                              disabled={actionLoading}
+                              onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
+                            >
+                              🗑
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -370,6 +407,40 @@ export default function DocumentsPage() {
         loading={actionLoading}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmModal
+        open={!!restoreTarget}
+        title="Khôi phục tài liệu"
+        message={
+          <>
+            Bạn có chắc chắn muốn khôi phục tài liệu <strong>{restoreTarget?.title}</strong>?
+          </>
+        }
+        confirmLabel="Khôi phục"
+        variant="info"
+        loading={actionLoading}
+        onConfirm={handleRestoreConfirm}
+        onCancel={() => setRestoreTarget(null)}
+      />
+
+      <ConfirmModal
+        open={!!hardDeleteTarget}
+        title="Xóa vĩnh viễn tài liệu"
+        message={
+          <>
+            Bạn có chắc chắn muốn XÓA VĨNH VIỄN tài liệu <strong>{hardDeleteTarget?.title}</strong>?
+            <br />
+            <span style={{ fontSize: 13, color: '#d63031' }}>
+              Hành động này không thể hoàn tác! Tài liệu sẽ bị xóa hoàn toàn khỏi hệ thống.
+            </span>
+          </>
+        }
+        confirmLabel="Xóa vĩnh viễn"
+        variant="danger"
+        loading={actionLoading}
+        onConfirm={handleHardDeleteConfirm}
+        onCancel={() => setHardDeleteTarget(null)}
       />
     </>
   );

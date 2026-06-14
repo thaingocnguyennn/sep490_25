@@ -30,6 +30,12 @@ const ocrUpload = multer({
 
 // ─── Export must be defined BEFORE /:id to avoid route conflicts ────────────
 
+// GET /documents/stats — Get basic document stats
+router.get(
+  '/stats',
+  documentsController.getStats.bind(documentsController)
+);
+
 // GET /documents/export — Export document list to Excel or PDF
 router.get(
   '/export',
@@ -96,6 +102,22 @@ router.delete(
   deleteDocumentValidation,
   validateRequest,
   documentsController.delete.bind(documentsController)
+);
+
+// PATCH /documents/:id/restore — Restore a soft-deleted document
+router.patch(
+  '/:id/restore',
+  getDocumentByIdValidation,
+  validateRequest,
+  documentsController.restore.bind(documentsController)
+);
+
+// DELETE /documents/:id/permanent — Hard-delete a document
+router.delete(
+  '/:id/permanent',
+  deleteDocumentValidation,
+  validateRequest,
+  documentsController.hardDelete.bind(documentsController)
 );
 
 // GET /documents/:id/preview — View PDF inline in browser
