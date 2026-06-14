@@ -23,7 +23,7 @@ export default function DocumentDetailPage() {
     documentsApi
       .getById(Number(id))
       .then(({ data }) => setDoc(data.data!))
-      .catch(() => setError('Failed to load document'))
+      .catch(() => setError('Lỗi khi tải tài liệu'))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -45,8 +45,8 @@ export default function DocumentDetailPage() {
   if (error || !doc) {
     return (
       <div className="page-content">
-        <div className="alert alert-error">{error || 'Document not found'}</div>
-        <button className="btn btn-secondary" onClick={() => navigate('/documents')}>← Back</button>
+        <div className="alert alert-error">{error || 'Không tìm thấy tài liệu'}</div>
+        <button className="btn btn-secondary" onClick={() => navigate('/documents')}>← Quay lại</button>
       </div>
     );
   }
@@ -57,16 +57,16 @@ export default function DocumentDetailPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>📄 Document Details</h1>
+        <h1>📄 Chi tiết tài liệu</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary" onClick={() => navigate('/documents')}>
-            ← Back
+            ← Quay lại
           </button>
           <button className="btn btn-secondary" onClick={() => navigate(`/documents/${doc.id}/edit`)}>
-            ✏️ Edit
+            ✏️ Sửa
           </button>
           <button className="btn btn-danger" onClick={() => setDeleteOpen(true)}>
-            🗑 Delete
+            🗑 Xóa
           </button>
         </div>
       </div>
@@ -81,41 +81,41 @@ export default function DocumentDetailPage() {
           <div className="card-body">
             <div className="user-detail-grid">
               <div className="detail-item">
-                <label>Document Number</label>
+                <label>Số ký hiệu</label>
                 <span>{doc.documentNumber}</span>
               </div>
               <div className="detail-item">
-                <label>Title</label>
+                <label>Tiêu đề</label>
                 <span>{doc.title}</span>
               </div>
               <div className="detail-item">
-                <label>Type</label>
+                <label>Loại tài liệu</label>
                 <span className={`doc-type-badge ${doc.type.toLowerCase()}`}>{doc.type}</span>
               </div>
               <div className="detail-item">
-                <label>Status</label>
+                <label>Trạng thái</label>
                 <span className={`status-badge ${doc.documentStatus.toLowerCase()}`}>
                   {doc.documentStatus}
                 </span>
               </div>
               <div className="detail-item">
-                <label>Urgency Level</label>
+                <label>Độ khẩn</label>
                 <span className={`doc-badge ${doc.urgencyLevel.toLowerCase()}`}>
                   {doc.urgencyLevel}
                 </span>
               </div>
               <div className="detail-item">
-                <label>Confidentiality</label>
+                <label>Độ bảo mật</label>
                 <span className={`doc-badge ${doc.confidentialityLevel.toLowerCase()}`}>
                   {doc.confidentialityLevel}
                 </span>
               </div>
               <div className="detail-item">
-                <label>Sending Agency</label>
+                <label>Cơ quan gửi/ban hành</label>
                 <span>{doc.sendingAgency || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Issuance Date</label>
+                <label>Ngày ban hành</label>
                 <span>
                   {doc.issuanceDate
                     ? new Date(doc.issuanceDate).toLocaleDateString()
@@ -123,32 +123,32 @@ export default function DocumentDetailPage() {
                 </span>
               </div>
               <div className="detail-item">
-                <label>Category</label>
+                <label>Danh mục</label>
                 <span>{doc.category || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Department</label>
+                <label>Phòng ban</label>
                 <span>{doc.department?.name || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Processor</label>
+                <label>Người xử lý</label>
                 <span>{doc.processor?.fullName || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Created By</label>
+                <label>Người tạo</label>
                 <span>{doc.createdByUser?.fullName || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Created At</label>
+                <label>Ngày tạo</label>
                 <span>{new Date(doc.createdAt).toLocaleString()}</span>
               </div>
               <div className="detail-item">
-                <label>Updated At</label>
+                <label>Cập nhật lần cuối</label>
                 <span>{new Date(doc.updatedAt).toLocaleString()}</span>
               </div>
               {doc.description && (
                 <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                  <label>Description / Abstract</label>
+                  <label>Trích yếu nội dung</label>
                   <span style={{ whiteSpace: 'pre-wrap' }}>{doc.description}</span>
                 </div>
               )}
@@ -160,14 +160,14 @@ export default function DocumentDetailPage() {
         {doc.fileUrl && (
           <div className="card" style={{ marginBottom: 24 }}>
             <div className="card-header">
-              <h2>📎 Attached File</h2>
+              <h2>📎 File đính kèm</h2>
             </div>
             <div className="card-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 32 }}>📄</div>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15 }}>
-                    {doc.originalFileName || 'Document file'}
+                    {doc.originalFileName || 'File tài liệu'}
                   </div>
                   <div style={{ fontSize: 13, color: '#636e72' }}>
                     {doc.mimeType} • {formatFileSize(doc.fileSize)}
@@ -184,7 +184,7 @@ export default function DocumentDetailPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    👁 View Online
+                    👁 Xem Online
                   </a>
                 )}
                 <a
@@ -194,7 +194,7 @@ export default function DocumentDetailPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  ⬇ Download
+                  ⬇ Tải xuống
                 </a>
               </div>
             </div>
@@ -205,17 +205,17 @@ export default function DocumentDetailPage() {
       {/* ─── Delete Confirmation ───────────────────────────────────── */}
       <ConfirmModal
         open={deleteOpen}
-        title="Delete Document"
+        title="Xóa tài liệu"
         message={
           <>
-            Are you sure you want to delete <strong>{doc.title}</strong>?
+            Bạn có chắc chắn muốn xóa <strong>{doc.title}</strong>?
             <br />
             <span style={{ fontSize: 13, color: '#636e72' }}>
-              The document will be soft-deleted and can be recovered later.
+              Tài liệu sẽ được chuyển vào thùng rác và có thể khôi phục sau.
             </span>
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel="Xóa"
         variant="danger"
         loading={actionLoading}
         onConfirm={handleDelete}

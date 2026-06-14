@@ -102,24 +102,24 @@ export default function DocumentsPage() {
     <>
       {/* ─── Top Bar ───────────────────────────────────────────────────── */}
       <div className="top-bar">
-        <h1>📄 Document Management</h1>
+        <h1>📄 Quản lý tài liệu</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             className="btn btn-secondary"
             disabled={actionLoading}
             onClick={() => exportExcel(getExportParams())}
           >
-            📊 Export Excel
+            📊 Xuất Excel
           </button>
           <button
             className="btn btn-secondary"
             disabled={actionLoading}
             onClick={() => exportPdf(getExportParams())}
           >
-            📑 Export PDF
+            📑 Xuất PDF
           </button>
           <button className="btn btn-primary" onClick={() => navigate('/documents/upload')}>
-            + Upload Document
+            + Tải lên tài liệu
           </button>
         </div>
       </div>
@@ -130,13 +130,13 @@ export default function DocumentsPage() {
           {/* ─── Filter Header ──────────────────────────────────────── */}
           <div className="card-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2>All Documents ({total})</h2>
+              <h2>Tất cả tài liệu ({total})</h2>
             </div>
 
             <form onSubmit={handleSearch} className="doc-filter-bar">
               <input
                 type="text"
-                placeholder="Search by number, title, agency..."
+                placeholder="Tìm theo số hiệu, tiêu đề, cơ quan..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="filter-input"
@@ -147,41 +147,41 @@ export default function DocumentsPage() {
                 onChange={(e) => setTypeFilter(e.target.value as DocumentType | '')}
                 className="filter-select"
               >
-                <option value="">All Types</option>
-                <option value="INCOMING">Incoming</option>
-                <option value="OUTGOING">Outgoing</option>
-                <option value="INTERNAL">Internal</option>
-                <option value="ARCHIVAL">Archival</option>
+                <option value="">Tất cả loại</option>
+                <option value="INCOMING">Văn bản đến</option>
+                <option value="OUTGOING">Văn bản đi</option>
+                <option value="INTERNAL">Nội bộ</option>
+                <option value="ARCHIVAL">Lưu trữ</option>
               </select>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as DocumentStatus | '')}
                 className="filter-select"
               >
-                <option value="">Active Only</option>
-                <option value="ACTIVE">Active</option>
-                <option value="DELETED">Deleted</option>
+                <option value="">Chỉ tài liệu đang hoạt động</option>
+                <option value="ACTIVE">Đang hoạt động</option>
+                <option value="DELETED">Đã xóa</option>
               </select>
               <select
                 value={urgencyFilter}
                 onChange={(e) => setUrgencyFilter(e.target.value as PriorityLevel | '')}
                 className="filter-select"
               >
-                <option value="">All Urgency</option>
-                <option value="LOW">Low</option>
-                <option value="NORMAL">Normal</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
+                <option value="">Tất cả độ khẩn</option>
+                <option value="LOW">Thấp</option>
+                <option value="NORMAL">Bình thường</option>
+                <option value="HIGH">Cao</option>
+                <option value="URGENT">Khẩn cấp</option>
               </select>
               <select
                 value={confidentialityFilter}
                 onChange={(e) => setConfidentialityFilter(e.target.value as ConfidentialityLevel | '')}
                 className="filter-select"
               >
-                <option value="">All Confidentiality</option>
-                <option value="NORMAL">Normal</option>
-                <option value="CONFIDENTIAL">Confidential</option>
-                <option value="TOP_SECRET">Top Secret</option>
+                <option value="">Tất cả độ bảo mật</option>
+                <option value="NORMAL">Bình thường</option>
+                <option value="CONFIDENTIAL">Bảo mật</option>
+                <option value="TOP_SECRET">Tuyệt mật</option>
               </select>
               <input
                 type="date"
@@ -198,7 +198,7 @@ export default function DocumentsPage() {
                 title="To date"
               />
               <button type="submit" className="btn btn-secondary">
-                🔍 Search
+                🔍 Tìm kiếm
               </button>
             </form>
           </div>
@@ -209,22 +209,22 @@ export default function DocumentsPage() {
               <LoadingSpinner />
             ) : documents.length === 0 ? (
               <div className="empty-state">
-                <h3>No documents found</h3>
-                <p>Try adjusting your search or filter criteria, or upload a new document.</p>
+                <h3>Không tìm thấy tài liệu</h3>
+                <p>Thử điều chỉnh tiêu chí tìm kiếm hoặc tải lên tài liệu mới.</p>
               </div>
             ) : (
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Document Number</th>
-                    <th>Title</th>
-                    <th>Type</th>
-                    <th>Urgency</th>
-                    <th>Sending Agency</th>
-                    <th>Issuance Date</th>
+                    <th>Số ký hiệu</th>
+                    <th>Tiêu đề</th>
+                    <th>Loại</th>
+                    <th>Độ khẩn</th>
+                    <th>Cơ quan gửi/ban hành</th>
+                    <th>Ngày ban hành</th>
                     <th>File</th>
-                    <th>Actions</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -263,21 +263,21 @@ export default function DocumentsPage() {
                       <td>
                         <button
                           className="action-btn view"
-                          title="View Details"
+                          title="Xem chi tiết"
                           onClick={() => navigate(`/documents/${doc.id}`)}
                         >
                           👁
                         </button>
                         <button
                           className="action-btn edit"
-                          title="Edit"
+                          title="Sửa"
                           onClick={() => navigate(`/documents/${doc.id}/edit`)}
                         >
                           ✎
                         </button>
                         <button
                           className="action-btn delete"
-                          title="Delete"
+                          title="Xóa"
                           disabled={actionLoading}
                           onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
                         >
@@ -294,7 +294,7 @@ export default function DocumentsPage() {
           {/* ─── Pagination ─────────────────────────────────────────── */}
           {totalPages > 1 && (
             <div className="pagination">
-              <button onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</button>
+              <button onClick={() => setPage(page - 1)} disabled={page === 1}>Trước</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
                 .reduce<(number | string)[]>((acc, p, idx, arr) => {
@@ -311,7 +311,7 @@ export default function DocumentsPage() {
                     </button>
                   )
                 )}
-              <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>Next</button>
+              <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>Sau</button>
             </div>
           )}
         </div>
@@ -320,17 +320,17 @@ export default function DocumentsPage() {
       {/* ─── Delete Confirmation Modal ─────────────────────────────── */}
       <ConfirmModal
         open={!!deleteTarget}
-        title="Delete Document"
+        title="Xóa tài liệu"
         message={
           <>
-            Are you sure you want to delete document <strong>{deleteTarget?.title}</strong>?
+            Bạn có chắc chắn muốn xóa tài liệu <strong>{deleteTarget?.title}</strong>?
             <br />
             <span style={{ fontSize: 13, color: '#636e72' }}>
-              The document will be soft-deleted and can be recovered later.
+              Tài liệu sẽ được chuyển vào thùng rác và có thể khôi phục sau.
             </span>
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel="Xóa"
         variant="danger"
         loading={actionLoading}
         onConfirm={handleDeleteConfirm}

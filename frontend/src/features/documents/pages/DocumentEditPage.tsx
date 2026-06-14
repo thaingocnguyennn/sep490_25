@@ -47,7 +47,7 @@ export default function DocumentEditPage() {
         setConfidentialityLevel(d.confidentialityLevel);
         setCategory(d.category || '');
       })
-      .catch(() => setError('Failed to load document'))
+      .catch(() => setError('Lỗi khi tải tài liệu'))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -74,11 +74,11 @@ export default function DocumentEditPage() {
 
     try {
       await documentsApi.update(Number(id), updateData);
-      setSuccessMsg('Document updated successfully!');
+      setSuccessMsg('Đã cập nhật tài liệu thành công!');
       // Navigate back to detail page after a short delay
       setTimeout(() => navigate(`/documents/${id}`), 1000);
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Failed to update document';
+      const msg = err.response?.data?.message || 'Cập nhật tài liệu thất bại';
       setError(msg);
     } finally {
       setSaving(false);
@@ -89,8 +89,8 @@ export default function DocumentEditPage() {
   if (!doc) {
     return (
       <div className="page-content">
-        <div className="alert alert-error">{error || 'Document not found'}</div>
-        <button className="btn btn-secondary" onClick={() => navigate('/documents')}>← Back</button>
+        <div className="alert alert-error">{error || 'Không tìm thấy tài liệu'}</div>
+        <button className="btn btn-secondary" onClick={() => navigate('/documents')}>← Quay lại</button>
       </div>
     );
   }
@@ -98,16 +98,16 @@ export default function DocumentEditPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>✏️ Edit Document</h1>
+        <h1>✏️ Sửa tài liệu</h1>
         <button className="btn btn-secondary" onClick={() => navigate(`/documents/${id}`)}>
-          ← Back to Details
+          ← Quay lại chi tiết
         </button>
       </div>
 
       <div className="page-content">
         <div className="card">
           <div className="card-header">
-            <h2>Edit: {doc.documentNumber}</h2>
+            <h2>Sửa: {doc.documentNumber}</h2>
           </div>
           <div className="card-body">
             {error && <div className="alert alert-error">{error}</div>}
@@ -116,7 +116,7 @@ export default function DocumentEditPage() {
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Document Number *</label>
+                  <label>Số ký hiệu *</label>
                   <input
                     type="text"
                     value={documentNumber}
@@ -125,7 +125,7 @@ export default function DocumentEditPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Title *</label>
+                  <label>Tiêu đề *</label>
                   <input
                     type="text"
                     value={title}
@@ -134,16 +134,16 @@ export default function DocumentEditPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Document Type *</label>
+                  <label>Loại tài liệu *</label>
                   <select value={type} onChange={(e) => setType(e.target.value)}>
-                    <option value="INCOMING">Incoming</option>
-                    <option value="OUTGOING">Outgoing</option>
-                    <option value="INTERNAL">Internal</option>
-                    <option value="ARCHIVAL">Archival</option>
+                    <option value="INCOMING">Văn bản đến</option>
+                    <option value="OUTGOING">Văn bản đi</option>
+                    <option value="INTERNAL">Nội bộ</option>
+                    <option value="ARCHIVAL">Lưu trữ</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Issuance Date</label>
+                  <label>Ngày ban hành</label>
                   <input
                     type="date"
                     value={issuanceDate}
@@ -151,46 +151,46 @@ export default function DocumentEditPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Sending Agency</label>
+                  <label>Cơ quan gửi/ban hành</label>
                   <input
                     type="text"
                     value={sendingAgency}
                     onChange={(e) => setSendingAgency(e.target.value)}
-                    placeholder="Agency/organization name"
+                    placeholder="Tên cơ quan/tổ chức"
                   />
                 </div>
                 <div className="form-group">
-                  <label>Urgency Level</label>
+                  <label>Độ khẩn</label>
                   <select value={urgencyLevel} onChange={(e) => setUrgencyLevel(e.target.value)}>
-                    <option value="LOW">Low</option>
-                    <option value="NORMAL">Normal</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
+                    <option value="LOW">Thấp</option>
+                    <option value="NORMAL">Bình thường</option>
+                    <option value="HIGH">Cao</option>
+                    <option value="URGENT">Khẩn cấp</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Confidentiality</label>
+                  <label>Độ bảo mật</label>
                   <select value={confidentialityLevel} onChange={(e) => setConfidentialityLevel(e.target.value)}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="CONFIDENTIAL">Confidential</option>
-                    <option value="TOP_SECRET">Top Secret</option>
+                    <option value="NORMAL">Bình thường</option>
+                    <option value="CONFIDENTIAL">Bảo mật</option>
+                    <option value="TOP_SECRET">Tuyệt mật</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Category</label>
+                  <label>Danh mục</label>
                   <input
                     type="text"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    placeholder="Optional category"
+                    placeholder="Danh mục tùy chọn"
                   />
                 </div>
                 <div className="form-group full-width">
-                  <label>Description / Abstract</label>
+                  <label>Trích yếu nội dung</label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Brief summary or abstract of the document..."
+                    placeholder="Tóm tắt ngắn gọn hoặc trích yếu nội dung của tài liệu..."
                     rows={4}
                     style={{
                       width: '100%',
@@ -220,7 +220,7 @@ export default function DocumentEditPage() {
                   <div>
                     <div style={{ fontWeight: 500, fontSize: 14 }}>{doc.originalFileName}</div>
                     <div style={{ fontSize: 12, color: '#636e72' }}>
-                      File cannot be changed. Upload a new document to replace.
+                      Không thể thay đổi file. Tải lên một tài liệu mới để thay thế.
                     </div>
                   </div>
                 </div>
@@ -233,7 +233,7 @@ export default function DocumentEditPage() {
                   className="btn btn-secondary"
                   onClick={() => navigate(`/documents/${id}`)}
                 >
-                  Cancel
+                  Hủy
                 </button>
                 <button
                   type="submit"
@@ -241,7 +241,7 @@ export default function DocumentEditPage() {
                   disabled={saving}
                   style={{ width: 'auto' }}
                 >
-                  {saving ? 'Saving...' : '💾 Save Changes'}
+                  {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
                 </button>
               </div>
             </form>

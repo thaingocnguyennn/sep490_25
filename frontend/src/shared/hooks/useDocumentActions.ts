@@ -19,7 +19,7 @@ export function useDocumentActions(onSuccess?: () => void) {
         onSuccess?.();
         return data.data;
       } catch (err: any) {
-        const msg = err.response?.data?.message || 'Upload failed';
+        const msg = err.response?.data?.message || 'Tải lên thất bại';
         setActionError(msg);
         throw err;
       } finally {
@@ -38,7 +38,7 @@ export function useDocumentActions(onSuccess?: () => void) {
         await documentsApi.delete(id);
         onSuccess?.();
       } catch (err: any) {
-        const msg = err.response?.data?.message || 'Delete failed';
+        const msg = err.response?.data?.message || 'Xóa thất bại';
         setActionError(msg);
         throw err;
       } finally {
@@ -69,7 +69,7 @@ export function useDocumentActions(onSuccess?: () => void) {
         const response = await documentsApi.exportExcel(params);
         triggerBlobDownload(response.data, 'documents.xlsx');
       } catch (err: any) {
-        setActionError('Export to Excel failed');
+        setActionError('Xuất file Excel thất bại');
       } finally {
         setActionLoading(false);
       }
@@ -86,7 +86,7 @@ export function useDocumentActions(onSuccess?: () => void) {
         const response = await documentsApi.exportPdf(params);
         triggerBlobDownload(response.data, 'documents.pdf');
       } catch (err: any) {
-        setActionError('Export to PDF failed');
+        setActionError('Xuất file PDF thất bại');
       } finally {
         setActionLoading(false);
       }

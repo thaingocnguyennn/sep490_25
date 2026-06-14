@@ -129,16 +129,16 @@ export default function DocumentUploadPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>📤 Upload Document</h1>
+        <h1>📤 Tải lên tài liệu</h1>
         <button className="btn btn-secondary" onClick={() => navigate('/documents')}>
-          ← Back to Documents
+          ← Quay lại
         </button>
       </div>
 
       <div className="page-content">
         <div className="card">
           <div className="card-header">
-            <h2>New Document</h2>
+            <h2>Tài liệu mới</h2>
           </div>
           <div className="card-body">
             {(formError || actionError) && (
@@ -148,7 +148,7 @@ export default function DocumentUploadPage() {
             <form onSubmit={handleSubmit}>
               {/* ─── File Upload Area ──────────────────────────────── */}
               <div className="form-group">
-                <label>Document File *</label>
+                <label>File tài liệu *</label>
                 <div
                   className={`upload-dropzone ${isDragOver ? 'drag-over' : ''} ${file ? 'has-file' : ''}`}
                   onDrop={handleDrop}
@@ -174,8 +174,8 @@ export default function DocumentUploadPage() {
                   ) : (
                     <div className="upload-placeholder">
                       <div className="upload-icon">📁</div>
-                      <p>Drag & drop your file here, or <strong>click to browse</strong></p>
-                      <p className="upload-hint">Supports: PDF, DOCX, JPEG, PNG, TIFF, BMP (max 10MB)</p>
+                      <p>Kéo & thả file của bạn vào đây, hoặc <strong>nhấp để duyệt</strong></p>
+                      <p className="upload-hint">Hỗ trợ: PDF, DOCX, JPEG, PNG, TIFF, BMP (tối đa 10MB)</p>
                     </div>
                   )}
                   <input
@@ -191,7 +191,7 @@ export default function DocumentUploadPage() {
               {/* ─── Metadata Fields ──────────────────────────────── */}
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Document Number *</label>
+                  <label>Số ký hiệu *</label>
                   <input
                     type="text"
                     value={documentNumber}
@@ -201,26 +201,26 @@ export default function DocumentUploadPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Title *</label>
+                  <label>Tiêu đề *</label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Document title"
+                    placeholder="Tiêu đề tài liệu"
                     required
                   />
                 </div>
                 <div className="form-group">
-                  <label>Document Type *</label>
+                  <label>Loại tài liệu *</label>
                   <select value={type} onChange={(e) => setType(e.target.value)}>
-                    <option value="INCOMING">Incoming</option>
-                    <option value="OUTGOING">Outgoing</option>
-                    <option value="INTERNAL">Internal</option>
-                    <option value="ARCHIVAL">Archival</option>
+                    <option value="INCOMING">Văn bản đến</option>
+                    <option value="OUTGOING">Văn bản đi</option>
+                    <option value="INTERNAL">Nội bộ</option>
+                    <option value="ARCHIVAL">Lưu trữ</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Issuance Date</label>
+                  <label>Ngày ban hành</label>
                   <input
                     type="date"
                     value={issuanceDate}
@@ -228,46 +228,46 @@ export default function DocumentUploadPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Sending Agency</label>
+                  <label>Cơ quan gửi/ban hành</label>
                   <input
                     type="text"
                     value={sendingAgency}
                     onChange={(e) => setSendingAgency(e.target.value)}
-                    placeholder="Agency/organization name"
+                    placeholder="Tên cơ quan/tổ chức"
                   />
                 </div>
                 <div className="form-group">
-                  <label>Urgency Level</label>
+                  <label>Độ khẩn</label>
                   <select value={urgencyLevel} onChange={(e) => setUrgencyLevel(e.target.value)}>
-                    <option value="LOW">Low</option>
-                    <option value="NORMAL">Normal</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
+                    <option value="LOW">Thấp</option>
+                    <option value="NORMAL">Bình thường</option>
+                    <option value="HIGH">Cao</option>
+                    <option value="URGENT">Khẩn cấp</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Confidentiality</label>
+                  <label>Độ bảo mật</label>
                   <select value={confidentialityLevel} onChange={(e) => setConfidentialityLevel(e.target.value)}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="CONFIDENTIAL">Confidential</option>
-                    <option value="TOP_SECRET">Top Secret</option>
+                    <option value="NORMAL">Bình thường</option>
+                    <option value="CONFIDENTIAL">Bảo mật</option>
+                    <option value="TOP_SECRET">Tuyệt mật</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Category</label>
+                  <label>Danh mục</label>
                   <input
                     type="text"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    placeholder="Optional category"
+                    placeholder="Danh mục tùy chọn"
                   />
                 </div>
                 <div className="form-group full-width">
-                  <label>Description / Abstract</label>
+                  <label>Trích yếu nội dung</label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Brief summary or abstract of the document..."
+                    placeholder="Tóm tắt ngắn gọn hoặc trích yếu nội dung của tài liệu..."
                     rows={4}
                     style={{
                       width: '100%',
@@ -289,10 +289,10 @@ export default function DocumentUploadPage() {
                   className="btn btn-secondary"
                   onClick={() => navigate('/documents')}
                 >
-                  Cancel
+                  Hủy
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={actionLoading} style={{ width: 'auto' }}>
-                  {actionLoading ? 'Uploading...' : '📤 Upload Document'}
+                  {actionLoading ? 'Đang tải lên...' : '📤 Tải lên tài liệu'}
                 </button>
               </div>
             </form>
