@@ -22,6 +22,25 @@ export class UsersController {
     }
   }
 
+  async getAllUsers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { page, limit, search, status, role } = req.query;
+      const result = await usersService.getAll({
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 100,
+        search: search as string,
+        status: status as string,
+        role: role as string,
+      });
+
+      res.status(200).json(
+        paginatedResponse(result.users, result.total, result.page, result.limit, 'Users retrieved')
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = Number(req.params.id);

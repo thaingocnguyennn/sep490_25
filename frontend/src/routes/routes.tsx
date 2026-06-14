@@ -14,6 +14,9 @@ import UserFormPage from '../features/users/pages/UserFormPage';
 import UserDetailPage from '../features/users/pages/UserDetailPage';
 import RolesPage from '../features/roles/pages/RolesPage';
 import RoleFormPage from '../features/roles/pages/RoleFormPage';
+import IncomingDocumentsPage from '../features/documents/pages/IncomingDocumentsPage';
+import AddIncomingDocumentPage from '../features/documents/pages/AddIncomingDocumentPage';
+import IncomingDocumentDetailPage from '../features/documents/pages/IncomingDocumentDetailPage';
 
 export const routes: RouteObject[] = [
   {
@@ -24,17 +27,20 @@ export const routes: RouteObject[] = [
   {
     path: '/',
     element: <MainLayout />,
-      children: [
+    children: [
       { index: true, element: <DashboardPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/edit', element: <ProfileEditPage /> },
       { path: 'change-password', element: <ChangePasswordPage /> },
+      { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
+      { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
+      { path: 'incoming-documents/:id', element: <IncomingDocumentDetailPage /> },
     ],
   },
   {
     path: '/admin',
     element: <AdminLayout />,
-      children: [
+    children: [
       { index: true, element: <AdminDashboardPage /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'users/new', element: <UserFormPage /> },

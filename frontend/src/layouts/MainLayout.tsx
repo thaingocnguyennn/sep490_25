@@ -44,14 +44,14 @@ function Sidebar() {
         </NavLink>
 
         <div className="nav-section-title">Documents</div>
+        <NavLink
+          to="/incoming-documents"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <span>&#128229;</span> Incoming Docs
+        </NavLink>
         <div className="nav-item" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-          <span>📄</span> Documents
-        </div>
-        <div className="nav-item" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-          <span>📥</span> Incoming Docs
-        </div>
-        <div className="nav-item" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-          <span>📤</span> Outgoing Docs
+          <span>&#128230;</span> Outgoing Docs
         </div>
       </nav>
 
