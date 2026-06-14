@@ -32,7 +32,8 @@ export interface DocumentSummary {
   documentNumber: string;
   title: string;
   type: DocumentType;
-  documentStatus: DocumentLifecycleStatus;
+  status: string;               // Workflow status: DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
+  documentStatus: DocumentLifecycleStatus;  // Lifecycle: ACTIVE or DELETED (soft-delete)
   urgencyLevel: Priority;
   confidentialityLevel: ConfidentialityLevel;
   sendingAgency: string | null;
@@ -319,6 +320,7 @@ export class DocumentsRepository {
       documentNumber: doc.documentNumber,
       title: doc.title,
       type: doc.type,
+      status: (doc as any).status ?? 'DRAFT',  // Workflow status from Document model
       documentStatus: doc.documentStatus,
       urgencyLevel: doc.urgencyLevel,
       confidentialityLevel: doc.confidentialityLevel,

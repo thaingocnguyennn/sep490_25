@@ -1,10 +1,5 @@
 import api from '../axios';
-import type { ApiResponse, PaginatedResponse } from '../../types';
-import type {
-  Document,
-  DocumentFilterParams,
-  UpdateDocumentRequest,
-} from '../../types';
+import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest } from '../../types';
 
 export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';

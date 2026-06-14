@@ -132,6 +132,29 @@ export interface Document {
   updatedByUser?: { id: number; fullName: string } | null;
   department: { id: number; name: string } | null;
   processor: { id: number; fullName: string } | null;
+  // Optional fields from dev schema (DocumentWorkflow, processors, attachments)
+  status: string; // DocumentStatus enum - DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
+  workflows?: Array<{
+    id: number;
+    status: string;
+    notes: string | null;
+    completedAt: string | null;
+    workflowStep: { id: number; name: string; stepOrder: number; roleName: string | null };
+    user: { id: number; fullName: string } | null;
+  }>;
+  processors?: Array<{
+    id: number;
+    processorType: string;
+    user: { id: number; fullName: string; email: string };
+  }>;
+  attachments?: Array<{
+    id: number;
+    fileName: string;
+    fileUrl: string;
+    fileSize: number | null;
+    mimeType: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface DocumentFilterParams {
