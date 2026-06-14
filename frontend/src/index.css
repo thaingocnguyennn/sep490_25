@@ -795,6 +795,8 @@ button {
 
 .upload-file-size {
   font-size: 13px;
+  color: #636e72;
+}
 
 /* Document Status Badges */
 .doc-status-badge {
