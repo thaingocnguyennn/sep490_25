@@ -12,6 +12,7 @@ export type {
   DocumentStatus,
   Priority,
   ProcessorType,
+  Urgency,
   DocumentProcessor,
   DocumentAttachment,
   DocumentWorkflow,
