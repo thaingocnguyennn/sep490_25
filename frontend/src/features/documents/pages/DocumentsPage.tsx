@@ -20,6 +20,11 @@ export default function DocumentsPage() {
   const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityLevel | ''>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [processorFilter, setProcessorFilter] = useState('');
+  
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const [processors, setProcessors] = useState<{ id: number; fullName: string }[]>([]);
 
   // ─── Delete modal state ───────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
@@ -35,6 +40,8 @@ export default function DocumentsPage() {
       status: statusFilter || undefined,
       urgencyLevel: urgencyFilter || undefined,
       confidentialityLevel: confidentialityFilter || undefined,
+      departmentId: departmentFilter ? Number(departmentFilter) : undefined,
+      processorId: processorFilter ? Number(processorFilter) : undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
     });
@@ -43,6 +50,12 @@ export default function DocumentsPage() {
   // Initial load
   useEffect(() => {
     fetchWithFilters();
+    
+    // Load departments and users for filter dropdowns
+    import('../../../api').then(({ departmentsApi, usersApi }) => {
+      departmentsApi.getAll().then(res => setDepartments(res.data.data || []));
+      usersApi.getAll({ limit: 100 }).then(res => setProcessors(res.data.data?.items || []));
+    }).catch(console.error);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -63,6 +76,8 @@ export default function DocumentsPage() {
     status: statusFilter || undefined,
     urgencyLevel: urgencyFilter || undefined,
     confidentialityLevel: confidentialityFilter || undefined,
+    departmentId: departmentFilter ? Number(departmentFilter) : undefined,
+    processorId: processorFilter ? Number(processorFilter) : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   });
@@ -161,6 +176,26 @@ export default function DocumentsPage() {
                 <option value="">Chỉ tài liệu đang hoạt động</option>
                 <option value="ACTIVE">Đang hoạt động</option>
                 <option value="DELETED">Đã xóa</option>
+              </select>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="filter-select"
+              >
+                <option value="">Tất cả phòng ban</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <select
+                value={processorFilter}
+                onChange={(e) => setProcessorFilter(e.target.value)}
+                className="filter-select"
+              >
+                <option value="">Tất cả người xử lý</option>
+                {processors.map(p => (
+                  <option key={p.id} value={p.id}>{p.fullName}</option>
+                ))}
               </select>
               <select
                 value={urgencyFilter}
