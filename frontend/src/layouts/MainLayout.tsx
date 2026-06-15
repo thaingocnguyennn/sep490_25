@@ -50,12 +50,14 @@ function Sidebar() {
         >
           <span>📄</span> Tất cả tài liệu
         </NavLink>
-        <NavLink
-          to="/documents/upload"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>📤</span> Tải lên tài liệu
-        </NavLink>
+        {user?.roles?.includes('DOCUMENT_CLERK') && (
+          <NavLink
+            to="/documents/upload"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <span>📤</span> Tải lên tài liệu
+          </NavLink>
+        )}
         <NavLink
           to="/incoming-documents"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}

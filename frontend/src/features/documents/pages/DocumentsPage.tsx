@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useDocuments, useDocumentActions } from '../../../shared/hooks';
 import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
 import type { DocumentType, DocumentStatus, PriorityLevel, ConfidentialityLevel } from '../../../types';
+import { useAuth } from '../../../contexts/AuthContext';
 
 /**
  * DocumentsPage – Main list view for all documents.
@@ -10,6 +11,8 @@ import type { DocumentType, DocumentStatus, PriorityLevel, ConfidentialityLevel 
  */
 export default function DocumentsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isClerk = user?.roles?.includes('DOCUMENT_CLERK');
   const { documents, total, page, limit, loading, fetch, setPage } = useDocuments({ pageSize: 10 });
 
   // ─── Filter state ─────────────────────────────────────────────────────
@@ -147,9 +150,11 @@ export default function DocumentsPage() {
           >
             📑 Xuất PDF
           </button>
-          <button className="btn btn-primary" onClick={() => navigate('/documents/upload')}>
-            + Tải lên tài liệu
-          </button>
+          {isClerk && (
+            <button className="btn btn-primary" onClick={() => navigate('/documents/upload')}>
+              + Tải lên tài liệu
+            </button>
+          )}
         </div>
       </div>
 
@@ -312,22 +317,26 @@ export default function DocumentsPage() {
                       <td>
                         {doc.documentStatus === 'DELETED' ? (
                           <>
-                            <button
-                              className="action-btn view"
-                              title="Khôi phục"
-                              disabled={actionLoading}
-                              onClick={() => setRestoreTarget({ id: doc.id, title: doc.title })}
-                            >
-                              ↺
-                            </button>
-                            <button
-                              className="action-btn delete"
-                              title="Xóa vĩnh viễn"
-                              disabled={actionLoading}
-                              onClick={() => setHardDeleteTarget({ id: doc.id, title: doc.title })}
-                            >
-                              ✕
-                            </button>
+                            {isClerk && (
+                              <>
+                                <button
+                                  className="action-btn view"
+                                  title="Khôi phục"
+                                  disabled={actionLoading}
+                                  onClick={() => setRestoreTarget({ id: doc.id, title: doc.title })}
+                                >
+                                  ↺
+                                </button>
+                                <button
+                                  className="action-btn delete"
+                                  title="Xóa vĩnh viễn"
+                                  disabled={actionLoading}
+                                  onClick={() => setHardDeleteTarget({ id: doc.id, title: doc.title })}
+                                >
+                                  ✕
+                                </button>
+                              </>
+                            )}
                           </>
                         ) : (
                           <>
@@ -338,21 +347,25 @@ export default function DocumentsPage() {
                             >
                               👁
                             </button>
-                            <button
-                              className="action-btn edit"
-                              title="Sửa"
-                              onClick={() => navigate(`/documents/${doc.id}/edit`)}
-                            >
-                              ✎
-                            </button>
-                            <button
-                              className="action-btn delete"
-                              title="Xóa"
-                              disabled={actionLoading}
-                              onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
-                            >
-                              🗑
-                            </button>
+                            {isClerk && (
+                              <>
+                                <button
+                                  className="action-btn edit"
+                                  title="Sửa"
+                                  onClick={() => navigate(`/documents/${doc.id}/edit`)}
+                                >
+                                  ✎
+                                </button>
+                                <button
+                                  className="action-btn delete"
+                                  title="Xóa"
+                                  disabled={actionLoading}
+                                  onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
+                                >
+                                  🗑
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                       </td>
