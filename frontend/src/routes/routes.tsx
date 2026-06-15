@@ -16,6 +16,7 @@ import RolesPage from '../features/roles/pages/RolesPage';
 import RoleFormPage from '../features/roles/pages/RoleFormPage';
 // Document management pages
 import DocumentsPage from '../features/documents/pages/DocumentsPage';
+import ArchivedDocumentsPage from '../features/documents/pages/ArchivedDocumentsPage';
 import DocumentUploadPage from '../features/documents/pages/DocumentUploadPage';
 import DocumentDetailPage from '../features/documents/pages/DocumentDetailPage';
 import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
@@ -41,6 +42,7 @@ export const routes: RouteObject[] = [
       // Document management routes
       { path: 'documents', element: <DocumentsPage /> },
       { path: 'documents/upload', element: <DocumentUploadPage /> },
+      { path: 'documents/archived', element: <ArchivedDocumentsPage /> },
       { path: 'documents/:id', element: <DocumentDetailPage /> },
       { path: 'documents/:id/edit', element: <DocumentEditPage /> },
       // Incoming document routes (from dev branch)
