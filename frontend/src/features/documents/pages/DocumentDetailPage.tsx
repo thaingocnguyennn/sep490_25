@@ -4,6 +4,7 @@ import { documentsApi } from '../../../api';
 import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
 import { useDocumentActions } from '../../../shared/hooks';
 import type { Document } from '../../../types';
+import { useAuth } from '../../../contexts/AuthContext';
 
 /**
  * DocumentDetailPage – View full document details, preview PDF, and download.
@@ -11,6 +12,8 @@ import type { Document } from '../../../types';
 export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isClerk = user?.roles?.includes('DOCUMENT_CLERK');
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -62,12 +65,16 @@ export default function DocumentDetailPage() {
           <button className="btn btn-secondary" onClick={() => navigate('/documents')}>
             ← Quay lại
           </button>
-          <button className="btn btn-secondary" onClick={() => navigate(`/documents/${doc.id}/edit`)}>
-            ✏️ Sửa
-          </button>
-          <button className="btn btn-danger" onClick={() => setDeleteOpen(true)}>
-            🗑 Xóa
-          </button>
+          {isClerk && (
+            <>
+              <button className="btn btn-secondary" onClick={() => navigate(`/documents/${doc.id}/edit`)}>
+                ✏️ Sửa
+              </button>
+              <button className="btn btn-danger" onClick={() => setDeleteOpen(true)}>
+                🗑 Xóa
+              </button>
+            </>
+          )}
         </div>
       </div>
 

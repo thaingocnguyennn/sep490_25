@@ -3,6 +3,7 @@ import multer from 'multer';
 import { documentsController } from './documents.controller';
 import { upload } from '../../shared/middlewares/upload.middleware';
 import { validateRequest } from '../../shared/middlewares/validate.middleware';
+import { requireRole } from '../../shared/middlewares/require-role.middleware';
 import {
   uploadDocumentValidation,
   updateDocumentValidation,
@@ -47,6 +48,7 @@ router.get(
 // POST /documents/ocr — Perform OCR on uploaded file
 router.post(
   '/ocr',
+  requireRole('DOCUMENT_CLERK'),
   ocrUpload.single('file'),
   ocrValidation,
   validateRequest,
@@ -66,6 +68,7 @@ router.get(
 // POST /documents/upload — Upload a new document (file + metadata)
 router.post(
   '/upload',
+  requireRole('DOCUMENT_CLERK'),
   upload.single('file'),
   uploadDocumentValidation,
   validateRequest,
@@ -75,6 +78,7 @@ router.post(
 // POST /documents — Create a document (without file)
 router.post(
   '/',
+  requireRole('DOCUMENT_CLERK'),
   uploadDocumentValidation,
   validateRequest,
   documentsController.create.bind(documentsController)
@@ -91,6 +95,7 @@ router.get(
 // PUT /documents/:id — Update document metadata
 router.put(
   '/:id',
+  requireRole('DOCUMENT_CLERK'),
   updateDocumentValidation,
   validateRequest,
   documentsController.update.bind(documentsController)
@@ -99,6 +104,7 @@ router.put(
 // DELETE /documents/:id — Soft-delete a document
 router.delete(
   '/:id',
+  requireRole('DOCUMENT_CLERK'),
   deleteDocumentValidation,
   validateRequest,
   documentsController.delete.bind(documentsController)
@@ -107,6 +113,7 @@ router.delete(
 // PATCH /documents/:id/restore — Restore a soft-deleted document
 router.patch(
   '/:id/restore',
+  requireRole('DOCUMENT_CLERK'),
   getDocumentByIdValidation,
   validateRequest,
   documentsController.restore.bind(documentsController)
@@ -115,6 +122,7 @@ router.patch(
 // DELETE /documents/:id/permanent — Hard-delete a document
 router.delete(
   '/:id/permanent',
+  requireRole('DOCUMENT_CLERK'),
   deleteDocumentValidation,
   validateRequest,
   documentsController.hardDelete.bind(documentsController)

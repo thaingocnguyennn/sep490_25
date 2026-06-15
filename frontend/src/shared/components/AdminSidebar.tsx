@@ -48,19 +48,6 @@ export default function AdminSidebar() {
           <span>🛡️</span> Role Management
         </NavLink>
 
-        <div className="nav-section-title">Documents</div>
-        <NavLink
-          to="/documents"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>📄</span> All Documents
-        </NavLink>
-        <NavLink
-          to="/documents/upload"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>📤</span> Upload Document
-        </NavLink>
       </nav>
 
       <div className="sidebar-footer">
