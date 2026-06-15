@@ -126,6 +126,15 @@ export class DocumentsService {
       throw new NotFoundError('Document not found');
     }
 
+    // Không cho phép sửa nếu văn bản đã hoàn tất, bị huỷ, hoặc đã lưu trữ
+    const readonlyStatuses = ['COMPLETED', 'CANCELLED', 'REJECTED'];
+    if (
+      readonlyStatuses.includes(existing.status) ||
+      existing.type === 'ARCHIVAL'
+    ) {
+      throw new BadRequestError('Cannot update a completed, cancelled, or archival document');
+    }
+
     // If document number is being changed, check for conflicts
     if (data.documentNumber && data.documentNumber !== existing.documentNumber) {
       const conflict = await documentsRepository.existsByDocumentNumber(data.documentNumber);
