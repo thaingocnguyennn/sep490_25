@@ -148,6 +148,10 @@ export const documentsApi = {
   restore: (id: number) =>
     api.patch<ApiResponse>(`/documents/${id}/restore`),
 
+  /** Archive a completed document */
+  archiveDocument: (id: number) =>
+    api.patch<ApiResponse>(`/documents/${id}/archive`),
+
   /** Hard-delete a document permanently */
   hardDelete: (id: number) =>
     api.delete<ApiResponse>(`/documents/${id}/permanent`),

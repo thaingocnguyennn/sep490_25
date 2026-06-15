@@ -19,6 +19,8 @@ enum DocumentStatus {
   PENDING
   IN_PROGRESS
   COMPLETED
+  ISSUED
+  APPROVED
   REJECTED
   CANCELLED
 }
@@ -174,6 +176,7 @@ model Document {
   originalFileName      String?                  // Tên file gốc khi upload
   fileSize              Int?                     // Dung lượng file (bytes)
   mimeType              String?                  // Loại MIME (application/pdf, ...)
+  isArchived            Boolean                  @default(false)     // Đã lưu trữ
 
   // Department & processor relations
   departmentId          Int?

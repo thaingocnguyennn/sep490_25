@@ -33,9 +33,10 @@ export default function DocumentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<{ id: number; title: string } | null>(null);
   const [hardDeleteTarget, setHardDeleteTarget] = useState<{ id: number; title: string } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: number; title: string } | null>(null);
 
   const handleSuccess = () => fetchWithFilters();
-  const { deleteDocument, restoreDocument, hardDeleteDocument, exportExcel, exportPdf, actionLoading } = useDocumentActions(handleSuccess);
+  const { deleteDocument, restoreDocument, archiveDocument, hardDeleteDocument, exportExcel, exportPdf, actionLoading } = useDocumentActions(handleSuccess);
 
   /** Build filter params from current state and trigger fetch */
   const fetchWithFilters = () => {
@@ -84,6 +85,12 @@ export default function DocumentsPage() {
     if (!hardDeleteTarget) return;
     await hardDeleteDocument(hardDeleteTarget.id);
     setHardDeleteTarget(null);
+  };
+
+  const handleArchiveConfirm = async () => {
+    if (!archiveTarget) return;
+    await archiveDocument(archiveTarget.id);
+    setArchiveTarget(null);
   };
 
   /** Build current filter params for export (without pagination) */
@@ -356,6 +363,16 @@ export default function DocumentsPage() {
                                 >
                                   ✎
                                 </button>
+                                {['COMPLETED', 'ISSUED', 'APPROVED'].includes(doc.status) && !doc.isArchived && (
+                                  <button
+                                    className="action-btn"
+                                    style={{ color: '#0984e3' }}
+                                    title="Lưu trữ"
+                                    onClick={() => setArchiveTarget({ id: doc.id, title: doc.title })}
+                                  >
+                                    📦
+                                  </button>
+                                )}
                                 <button
                                   className="action-btn delete"
                                   title="Xóa"
@@ -435,6 +452,25 @@ export default function DocumentsPage() {
         loading={actionLoading}
         onConfirm={handleRestoreConfirm}
         onCancel={() => setRestoreTarget(null)}
+      />
+
+      <ConfirmModal
+        open={!!archiveTarget}
+        title="Lưu trữ tài liệu"
+        message={
+          <>
+            Bạn có chắc chắn muốn đưa tài liệu <strong>{archiveTarget?.title}</strong> vào kho lưu trữ?
+            <br />
+            <span style={{ fontSize: 13, color: '#636e72' }}>
+              Tài liệu sẽ được quản lý ở phân hệ Lưu trữ và không thể chỉnh sửa.
+            </span>
+          </>
+        }
+        confirmLabel="Lưu trữ"
+        variant="info"
+        loading={actionLoading}
+        onConfirm={handleArchiveConfirm}
+        onCancel={() => setArchiveTarget(null)}
       />
 
       <ConfirmModal
