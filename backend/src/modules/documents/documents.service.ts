@@ -131,7 +131,8 @@ export class DocumentsService {
     const readonlyStatuses = ['COMPLETED', 'CANCELLED', 'REJECTED'];
     if (
       readonlyStatuses.includes(existing.status) ||
-      existing.type === 'ARCHIVAL'
+      existing.type === 'ARCHIVAL' ||
+      existing.isArchived
     ) {
       throw new BadRequestError('Cannot update a completed, cancelled, or archival document');
     }

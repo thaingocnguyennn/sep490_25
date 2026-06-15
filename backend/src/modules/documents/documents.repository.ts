@@ -47,6 +47,7 @@ export interface DocumentSummary {
   createdByUser: { id: number; fullName: string } | null;
   department: { id: number; name: string } | null;
   processor: { id: number; fullName: string } | null;
+  isArchived: boolean;
 }
 
 /** Full document details including description, file URL, etc. */
@@ -341,6 +342,7 @@ export class DocumentsRepository {
     originalFileName: string | null;
     fileSize: number | null;
     mimeType: string | null;
+    isArchived: boolean;
     createdAt: Date;
     updatedAt: Date;
     createdByUser: { id: number; fullName: string } | null;
@@ -366,6 +368,7 @@ export class DocumentsRepository {
       createdByUser: doc.createdByUser,
       department: doc.department,
       processor: doc.processor,
+      isArchived: doc.isArchived,
     };
   }
 
@@ -385,6 +388,7 @@ export class DocumentsRepository {
     originalFileName: string | null;
     fileSize: number | null;
     mimeType: string | null;
+    isArchived: boolean;
     createdAt: Date;
     updatedAt: Date;
     createdByUser: { id: number; fullName: string } | null;
