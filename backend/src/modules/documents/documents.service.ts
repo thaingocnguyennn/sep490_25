@@ -66,6 +66,14 @@ export class DocumentsService {
       category?: string;
       departmentId?: string;
       processorId?: string;
+      // New incoming fields
+      documentType?: string;
+      signerName?: string;
+      signerTitle?: string;
+      pageCount?: string;
+      arrivalNumber?: string;
+      dateReceived?: string;
+      notes?: string;
     },
     createdBy: number
   ): Promise<DocumentDetail> {
@@ -81,7 +89,7 @@ export class DocumentsService {
     // Build the relative file URL for client access
     const fileUrl = file ? `/uploads/${file.filename}` : undefined;
 
-    return documentsRepository.create({
+    const doc = await documentsRepository.create({
       documentNumber,
       title: data.title,
       description: data.description,
@@ -99,6 +107,34 @@ export class DocumentsService {
       processorId: data.processorId ? Number(data.processorId) : undefined,
       createdBy,
     });
+
+    // Theo Nghị định 30: Đồng bộ dữ liệu sang sổ Văn bản đến / Văn bản đi
+    if (data.type === 'INCOMING') {
+      await prisma.incomingDocument.create({
+        data: {
+          documentId: doc.id,
+          dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
+          issuer: data.sendingAgency || '',
+          departmentId: data.departmentId ? Number(data.departmentId) : undefined,
+          documentType: data.documentType,
+          signerName: data.signerName,
+          signerTitle: data.signerTitle,
+          pageCount: data.pageCount ? Number(data.pageCount) : undefined,
+          arrivalNumber: data.arrivalNumber ? Number(data.arrivalNumber) : undefined,
+          notes: data.notes,
+        },
+      });
+    } else if (data.type === 'OUTGOING') {
+      await prisma.outgoingDocument.create({
+        data: {
+          documentId: doc.id,
+          recipientName: 'Chưa cập nhật',
+          sentDate: new Date(),
+        },
+      });
+    }
+
+    return doc;
   }
 
   /**
@@ -145,7 +181,7 @@ export class DocumentsService {
       }
     }
 
-    return documentsRepository.update(id, {
+    const updatedDoc = await documentsRepository.update(id, {
       documentNumber: data.documentNumber,
       title: data.title,
       description: data.description,
@@ -159,6 +195,27 @@ export class DocumentsService {
       processorId: data.processorId,
       updatedBy,
     });
+
+    // Handle type change sync
+    if (data.type && data.type !== existing.type) {
+      if (data.type === 'INCOMING') {
+        const incomingExist = await prisma.incomingDocument.findUnique({ where: { documentId: id } });
+        if (!incomingExist) {
+          await prisma.incomingDocument.create({
+            data: { documentId: id, dateReceived: new Date(), issuer: data.sendingAgency || '' }
+          });
+        }
+      } else if (data.type === 'OUTGOING') {
+        const outgoingExist = await prisma.outgoingDocument.findUnique({ where: { documentId: id } });
+        if (!outgoingExist) {
+          await prisma.outgoingDocument.create({
+            data: { documentId: id, recipientName: 'Chưa cập nhật', sentDate: new Date() }
+          });
+        }
+      }
+    }
+
+    return updatedDoc;
   }
 
   /**
@@ -199,6 +256,79 @@ export class DocumentsService {
           entityType: 'Document',
           entityId: id,
           details: 'Document archived',
+        },
+      }),
+    ]);
+  }
+
+  /**
+   * Reopen an archived document.
+   */
+  async reopenDocument(id: number, updatedBy: number, reason: string): Promise<void> {
+    const existing = await documentsRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Document not found');
+    }
+
+    if (!existing.isArchived) {
+      throw new BadRequestError('Document is not archived');
+    }
+
+    // Begin transaction for update and logging
+    await prisma.$transaction([
+      prisma.document.update({
+        where: { id },
+        data: {
+          isArchived: false,
+          status: 'IN_PROGRESS', // Cập nhật lại status để mở khóa thao tác
+          updatedBy,
+        },
+      }),
+      prisma.systemLog.create({
+        data: {
+          userId: updatedBy,
+          action: 'REOPEN_DOCUMENT',
+          entityType: 'Document',
+          entityId: id,
+          details: `Document reopened. Reason: ${reason}`,
+        },
+      }),
+    ]);
+  }
+
+  /**
+   * Cập nhật trạng thái của tài liệu
+   */
+  async updateStatus(id: number, status: string, updatedBy: number): Promise<void> {
+    const existing = await documentsRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Document not found');
+    }
+
+    if (existing.isArchived) {
+      throw new BadRequestError('Cannot update status of an archived document');
+    }
+
+    const validStatuses = ['DRAFT', 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'ISSUED', 'APPROVED', 'REJECTED', 'CANCELLED'];
+    if (!validStatuses.includes(status)) {
+      throw new BadRequestError('Invalid document status');
+    }
+
+    await prisma.$transaction([
+      prisma.document.update({
+        where: { id },
+        data: {
+          status: status as any,
+          updatedBy,
+        },
+      }),
+      prisma.systemLog.create({
+        data: {
+          userId: updatedBy,
+          action: 'UPDATE_DOCUMENT_STATUS',
+          entityType: 'Document',
+          entityId: id,
+          details: `Document status changed from ${existing.status} to ${status}`,
         },
       }),
     ]);

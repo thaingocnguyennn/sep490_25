@@ -22,6 +22,15 @@ export default function DocumentUploadPage() {
   const [urgencyLevel, setUrgencyLevel] = useState('NORMAL');
   const [confidentialityLevel, setConfidentialityLevel] = useState('NORMAL');
   const [category, setCategory] = useState('');
+  
+  // ─── Incoming specific fields ─────────────────────────────────────────
+  const [documentType, setDocumentType] = useState('');
+  const [signerName, setSignerName] = useState('');
+  const [signerTitle, setSignerTitle] = useState('');
+  const [pageCount, setPageCount] = useState('');
+  const [arrivalNumber, setArrivalNumber] = useState('');
+  const [dateReceived, setDateReceived] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
 
   // ─── Drag & drop state ────────────────────────────────────────────────
   const [isDragOver, setIsDragOver] = useState(false);
@@ -117,6 +126,16 @@ export default function DocumentUploadPage() {
     formData.append('urgencyLevel', urgencyLevel);
     formData.append('confidentialityLevel', confidentialityLevel);
     if (category.trim()) formData.append('category', category.trim());
+
+    if (type === 'INCOMING') {
+      if (documentType.trim()) formData.append('documentType', documentType.trim());
+      if (signerName.trim()) formData.append('signerName', signerName.trim());
+      if (signerTitle.trim()) formData.append('signerTitle', signerTitle.trim());
+      if (pageCount.trim()) formData.append('pageCount', pageCount.trim());
+      if (arrivalNumber.trim()) formData.append('arrivalNumber', arrivalNumber.trim());
+      if (dateReceived) formData.append('dateReceived', new Date(dateReceived).toISOString());
+      if (notes.trim()) formData.append('notes', notes.trim());
+    }
 
     try {
       const doc = await uploadDocument(formData);
@@ -262,6 +281,96 @@ export default function DocumentUploadPage() {
                     placeholder="Danh mục tùy chọn"
                   />
                 </div>
+
+                {type === 'INCOMING' && (
+                  <div className="form-group full-width" style={{ marginTop: '16px', borderTop: '1px solid #eee', paddingTop: '16px' }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: '16px', color: '#2d3436' }}>Thông tin Văn bản đến bổ sung</h3>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>Loại văn bản cụ thể</label>
+                        <input
+                          type="text"
+                          value={documentType}
+                          onChange={(e) => setDocumentType(e.target.value)}
+                          placeholder="VD: QUYẾT ĐỊNH, CÔNG VĂN..."
+                          list="docTypeSuggestions"
+                        />
+                        <datalist id="docTypeSuggestions">
+                          <option value="QUYẾT ĐỊNH" />
+                          <option value="CÔNG VĂN" />
+                          <option value="THÔNG BÁO" />
+                          <option value="TỜ TRÌNH" />
+                          <option value="BÁO CÁO" />
+                        </datalist>
+                      </div>
+                      <div className="form-group">
+                        <label>Số trang</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={pageCount}
+                          onChange={(e) => setPageCount(e.target.value)}
+                          placeholder="VD: 3"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Họ tên người ký</label>
+                        <input
+                          type="text"
+                          value={signerName}
+                          onChange={(e) => setSignerName(e.target.value)}
+                          placeholder="VD: Nguyễn Anh Chức"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Chức vụ người ký</label>
+                        <input
+                          type="text"
+                          value={signerTitle}
+                          onChange={(e) => setSignerTitle(e.target.value)}
+                          placeholder="VD: PHÓ CHỦ TỊCH"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Số đến (Arrival Number)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={arrivalNumber}
+                          onChange={(e) => setArrivalNumber(e.target.value)}
+                          placeholder="Để trống sẽ tự sinh"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Ngày đến</label>
+                        <input
+                          type="date"
+                          value={dateReceived}
+                          onChange={(e) => setDateReceived(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group full-width">
+                        <label>Ghi chú</label>
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Ghi chú thêm cho văn bản đến..."
+                          rows={2}
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            border: '1px solid #dfe6e9',
+                            borderRadius: 8,
+                            fontSize: 14,
+                            resize: 'vertical',
+                            fontFamily: 'inherit',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="form-group full-width">
                   <label>Trích yếu nội dung</label>
                   <textarea

@@ -152,9 +152,17 @@ export const documentsApi = {
   archiveDocument: (id: number) =>
     api.patch<ApiResponse>(`/documents/${id}/archive`),
 
+  /** Reopen an archived document */
+  reopenDocument: (id: number, reason: string) =>
+    api.patch<ApiResponse>(`/documents/${id}/reopen`, { reason }),
+
   /** Hard-delete a document permanently */
   hardDelete: (id: number) =>
     api.delete<ApiResponse>(`/documents/${id}/permanent`),
+
+  /** Update document status (e.g. DRAFT -> COMPLETED) */
+  updateDocumentStatus: (id: number, status: string) =>
+    api.patch<ApiResponse>(`/documents/${id}/status`, { status }),
 
   // ─── Preview & Download ───────────────────────────────────────────────
 

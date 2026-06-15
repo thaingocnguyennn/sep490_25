@@ -134,6 +134,21 @@ export class DocumentsController {
   }
 
   /**
+   * PATCH /documents/:id/status
+   * Update the status of a document (DRAFT, COMPLETED, etc.)
+   */
+  async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const { status } = req.body;
+      await documentsService.updateStatus(id, status, req.user!.userId);
+      res.status(200).json(successResponse(null, 'Document status updated'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * PATCH /documents/:id/archive
    * Archive a document
    */
@@ -142,6 +157,21 @@ export class DocumentsController {
       const id = Number(req.params.id);
       await documentsService.archiveDocument(id, req.user!.userId);
       res.status(200).json(successResponse(null, 'Document archived'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /documents/:id/reopen
+   * Reopen an archived document
+   */
+  async reopen(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const { reason } = req.body;
+      await documentsService.reopenDocument(id, req.user!.userId, reason);
+      res.status(200).json(successResponse(null, 'Document reopened'));
     } catch (error) {
       next(error);
     }

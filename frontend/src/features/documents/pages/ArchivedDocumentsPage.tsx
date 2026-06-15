@@ -29,8 +29,11 @@ export default function ArchivedDocumentsPage() {
   const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [processors, setProcessors] = useState<{ id: number; fullName: string }[]>([]);
 
+  const [reopenTarget, setReopenTarget] = useState<{ id: number; title: string } | null>(null);
+  const [reopenReason, setReopenReason] = useState('');
+
   const handleSuccess = () => fetchWithFilters();
-  const { exportExcel, exportPdf, actionLoading } = useDocumentActions(handleSuccess);
+  const { reopenDocument, exportExcel, exportPdf, actionLoading } = useDocumentActions(handleSuccess);
 
   /** Build filter params from current state and trigger fetch */
   const fetchWithFilters = () => {
@@ -58,6 +61,18 @@ export default function ArchivedDocumentsPage() {
       usersApi.getAll({ limit: 100 }).then(res => setProcessors(res.data.data?.items || []));
     }).catch(console.error);
   }, []);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    fetchWithFilters();
+  };
+
+  const handleReopenConfirm = async () => {
+    if (!reopenTarget || !reopenReason.trim()) return;
+    await reopenDocument(reopenTarget.id, reopenReason);
+    setReopenTarget(null);
+    setReopenReason('');
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,17 +165,13 @@ export default function ArchivedDocumentsPage() {
                 className="filter-input"
                 style={{ minWidth: 240 }}
               />
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as DocumentType | '')}
-                className="filter-select"
-              >
-                <option value="">Tất cả loại</option>
-                <option value="INCOMING">Văn bản đến</option>
-                <option value="OUTGOING">Văn bản đi</option>
-                <option value="INTERNAL">Nội bộ</option>
-                <option value="ARCHIVAL">Lưu trữ</option>
-              </select>
+              <select className="form-control" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)}>
+              <option value="">-- Tất cả loại --</option>
+              <option value="INCOMING">Văn bản đến</option>
+              <option value="OUTGOING">Văn bản đi</option>
+              <option value="INTERNAL">Nội bộ</option>
+              <option value="ARCHIVAL">Lưu trữ</option>
+            </select>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as DocumentStatus | '')}
@@ -289,13 +300,29 @@ export default function ArchivedDocumentsPage() {
                         )}
                       </td>
                       <td>
-                        <button
-                          className="action-btn view"
-                          title="Xem chi tiết"
-                          onClick={() => navigate(`/documents/${doc.id}`)}
-                        >
-                          👁
-                        </button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            className="action-btn view"
+                            title="Xem chi tiết"
+                            onClick={() => navigate(`/documents/${doc.id}`)}
+                          >
+                            👁
+                          </button>
+                          {isClerk && (
+                            <button
+                              className="action-btn"
+                              style={{ color: '#e17055' }}
+                              title="Mở lại (Reopen)"
+                              disabled={actionLoading}
+                              onClick={() => {
+                                setReopenTarget({ id: doc.id, title: doc.title });
+                                setReopenReason('');
+                              }}
+                            >
+                              🔓
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -329,6 +356,46 @@ export default function ArchivedDocumentsPage() {
           )}
         </div>
       </div>
+
+      {/* ─── Reopen Confirmation Modal ─────────────────────────────── */}
+      <ConfirmModal
+        open={!!reopenTarget}
+        title="Mở lại tài liệu"
+        message={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              Bạn có chắc chắn muốn mở lại tài liệu <strong>{reopenTarget?.title}</strong>?
+              <br />
+              <span style={{ fontSize: 13, color: '#636e72' }}>
+                Tài liệu sẽ được gỡ khỏi trạng thái lưu trữ và quay lại hoạt động bình thường.
+              </span>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, marginBottom: 4, fontWeight: 500 }}>
+                Lý do mở lại <span style={{ color: 'red' }}>*</span>
+              </label>
+              <textarea
+                className="form-control"
+                rows={3}
+                placeholder="Nhập lý do cần thiết để mở lại tài liệu này..."
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+          </div>
+        }
+        confirmLabel="Mở lại"
+        variant="warning"
+        loading={actionLoading}
+        onConfirm={handleReopenConfirm}
+        onCancel={() => {
+          setReopenTarget(null);
+          setReopenReason('');
+        }}
+        // Only allow confirm if reason is provided
+        confirmDisabled={!reopenReason.trim()}
+      />
     </>
   );
 }

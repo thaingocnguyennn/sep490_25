@@ -10,6 +10,7 @@ interface ConfirmModalProps {
   loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  confirmDisabled?: boolean;
 }
 
 const VARIANT_CLASS: Record<string, string> = {
@@ -28,6 +29,7 @@ export function ConfirmModal({
   loading = false,
   onConfirm,
   onCancel,
+  confirmDisabled = false,
 }: ConfirmModalProps) {
   if (!open) return null;
 
@@ -48,7 +50,7 @@ export function ConfirmModal({
           <button
             className={`btn ${VARIANT_CLASS[variant]}`}
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
           >
             {loading ? 'Please wait...' : confirmLabel}
           </button>

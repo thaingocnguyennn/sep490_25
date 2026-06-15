@@ -168,7 +168,17 @@ export const getDocumentByIdValidation = [
 ];
 
 export const deleteDocumentValidation = [
-  param('id').isInt({ min: 1 }).withMessage('Invalid document ID'),
+  param('id').isInt().withMessage('Mã tài liệu phải là số nguyên'),
+];
+
+export const reopenDocumentValidation = [
+  param('id').isInt().withMessage('Mã tài liệu phải là số nguyên'),
+  body('reason').notEmpty().withMessage('Lý do mở lại không được để trống'),
+];
+
+export const updateDocumentStatusValidation = [
+  param('id').isInt().withMessage('Mã tài liệu phải là số nguyên'),
+  body('status').notEmpty().withMessage('Trạng thái không được để trống'),
 ];
 
 // ─── Validation for OCR ─────────────────────────────────────────────────────

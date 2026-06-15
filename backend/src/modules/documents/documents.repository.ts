@@ -91,6 +91,13 @@ export class DocumentsRepository {
     // Default: show only non-archived documents unless explicitly filtering
     where.isArchived = params.isArchived !== undefined ? params.isArchived : false;
 
+    // Double-check protection: if fetching archived documents, strictly enforce valid statuses
+    if (where.isArchived === true) {
+      where.status = {
+        in: ['COMPLETED', 'ISSUED', 'APPROVED'],
+      };
+    }
+
     if (params.type) {
       where.type = params.type;
     }
