@@ -10,6 +10,8 @@ import {
   getDocumentsValidation,
   getDocumentByIdValidation,
   deleteDocumentValidation,
+  reopenDocumentValidation,
+  updateDocumentStatusValidation,
   ocrValidation,
 } from './documents.validation';
 
@@ -110,6 +112,15 @@ router.delete(
   documentsController.delete.bind(documentsController)
 );
 
+// PATCH /documents/:id/status — Update the status of a document
+router.patch(
+  '/:id/status',
+  requireRole('DOCUMENT_CLERK'),
+  updateDocumentStatusValidation,
+  validateRequest,
+  documentsController.updateStatus.bind(documentsController)
+);
+
 // PATCH /documents/:id/archive — Archive a document
 router.patch(
   '/:id/archive',
@@ -117,6 +128,15 @@ router.patch(
   getDocumentByIdValidation,
   validateRequest,
   documentsController.archive.bind(documentsController)
+);
+
+// PATCH /documents/:id/reopen — Reopen an archived document
+router.patch(
+  '/:id/reopen',
+  requireRole('DOCUMENT_CLERK'),
+  reopenDocumentValidation,
+  validateRequest,
+  documentsController.reopen.bind(documentsController)
 );
 
 // PATCH /documents/:id/restore — Restore a soft-deleted document

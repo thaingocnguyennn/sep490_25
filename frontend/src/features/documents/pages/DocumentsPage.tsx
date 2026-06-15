@@ -34,9 +34,20 @@ export default function DocumentsPage() {
   const [restoreTarget, setRestoreTarget] = useState<{ id: number; title: string } | null>(null);
   const [hardDeleteTarget, setHardDeleteTarget] = useState<{ id: number; title: string } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<{ id: number; title: string } | null>(null);
+  const [statusUpdateTarget, setStatusUpdateTarget] = useState<{ id: number; title: string; currentStatus: string } | null>(null);
+  const [newStatus, setNewStatus] = useState<string>('');
 
   const handleSuccess = () => fetchWithFilters();
-  const { deleteDocument, restoreDocument, archiveDocument, hardDeleteDocument, exportExcel, exportPdf, actionLoading } = useDocumentActions(handleSuccess);
+  const { 
+    deleteDocument, 
+    restoreDocument, 
+    hardDeleteDocument,
+    archiveDocument,
+    updateDocumentStatus,
+    exportExcel, 
+    exportPdf, 
+    actionLoading 
+  } = useDocumentActions(handleSuccess);
 
   /** Build filter params from current state and trigger fetch */
   const fetchWithFilters = () => {
@@ -85,12 +96,6 @@ export default function DocumentsPage() {
     if (!hardDeleteTarget) return;
     await hardDeleteDocument(hardDeleteTarget.id);
     setHardDeleteTarget(null);
-  };
-
-  const handleArchiveConfirm = async () => {
-    if (!archiveTarget) return;
-    await archiveDocument(archiveTarget.id);
-    setArchiveTarget(null);
   };
 
   /** Build current filter params for export (without pagination) */
@@ -284,6 +289,7 @@ export default function DocumentsPage() {
                     <th>Độ khẩn</th>
                     <th>Cơ quan gửi/ban hành</th>
                     <th>Ngày ban hành</th>
+                    <th>Trạng thái</th>
                     <th>File</th>
                     <th>Thao tác</th>
                   </tr>
@@ -311,6 +317,11 @@ export default function DocumentsPage() {
                         {doc.issuanceDate
                           ? new Date(doc.issuanceDate).toLocaleDateString()
                           : '—'}
+                      </td>
+                      <td>
+                        <span className={`status-badge ${doc.status.toLowerCase()}`}>
+                          {doc.status}
+                        </span>
                       </td>
                       <td>
                         {doc.originalFileName ? (
@@ -357,12 +368,23 @@ export default function DocumentsPage() {
                             {isClerk && (
                               <>
                                 <button
-                                  className="action-btn edit"
-                                  title="Sửa"
-                                  onClick={() => navigate(`/documents/${doc.id}/edit`)}
-                                >
-                                  ✎
-                                </button>
+                                    className="action-btn edit"
+                                    title="Sửa metadata"
+                                    onClick={() => navigate(`/documents/${doc.id}/edit`)}
+                                  >
+                                    ✎
+                                  </button>
+                                  <button
+                                    className="action-btn"
+                                    style={{ color: '#00b894' }}
+                                    title="Đổi trạng thái"
+                                    onClick={() => {
+                                      setStatusUpdateTarget({ id: doc.id, title: doc.title, currentStatus: doc.status });
+                                      setNewStatus(doc.status);
+                                    }}
+                                  >
+                                    🔄
+                                  </button>
                                 {['COMPLETED', 'ISSUED', 'APPROVED'].includes(doc.status) && !doc.isArchived && (
                                   <button
                                     className="action-btn"
@@ -459,18 +481,65 @@ export default function DocumentsPage() {
         title="Lưu trữ tài liệu"
         message={
           <>
-            Bạn có chắc chắn muốn đưa tài liệu <strong>{archiveTarget?.title}</strong> vào kho lưu trữ?
+            Bạn có chắc chắn muốn đưa tài liệu <strong>{archiveTarget?.title}</strong> vào hồ sơ lưu trữ?
             <br />
-            <span style={{ fontSize: 13, color: '#636e72' }}>
-              Tài liệu sẽ được quản lý ở phân hệ Lưu trữ và không thể chỉnh sửa.
-            </span>
+            <br />
+            <small style={{ color: '#636e72' }}>
+              Sau khi lưu trữ, tài liệu sẽ bị khóa và chỉ có thể xem/tải xuống ở mục "Hồ sơ lưu trữ".
+            </small>
           </>
         }
-        confirmLabel="Lưu trữ"
+        confirmLabel="Đồng ý lưu trữ"
         variant="info"
         loading={actionLoading}
-        onConfirm={handleArchiveConfirm}
+        onConfirm={async () => {
+          if (archiveTarget) {
+            await archiveDocument(archiveTarget.id);
+            setArchiveTarget(null);
+          }
+        }}
         onCancel={() => setArchiveTarget(null)}
+      />
+
+      <ConfirmModal
+        open={!!statusUpdateTarget}
+        title="Đổi trạng thái tài liệu"
+        message={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              Đổi trạng thái cho tài liệu: <strong>{statusUpdateTarget?.title}</strong>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, marginBottom: 4, fontWeight: 500 }}>
+                Trạng thái mới
+              </label>
+              <select 
+                className="form-control" 
+                value={newStatus} 
+                onChange={(e) => setNewStatus(e.target.value)}
+              >
+                <option value="DRAFT">Dự thảo (DRAFT)</option>
+                <option value="PENDING">Chờ xử lý (PENDING)</option>
+                <option value="IN_PROGRESS">Đang xử lý (IN_PROGRESS)</option>
+                <option value="COMPLETED">Hoàn tất (COMPLETED)</option>
+                <option value="ISSUED">Ban hành (ISSUED)</option>
+                <option value="APPROVED">Đã duyệt (APPROVED)</option>
+                <option value="REJECTED">Từ chối (REJECTED)</option>
+                <option value="CANCELLED">Đã hủy (CANCELLED)</option>
+              </select>
+            </div>
+          </div>
+        }
+        confirmLabel="Cập nhật"
+        variant="info"
+        loading={actionLoading}
+        onConfirm={async () => {
+          if (statusUpdateTarget) {
+            await updateDocumentStatus(statusUpdateTarget.id, newStatus);
+            setStatusUpdateTarget(null);
+          }
+        }}
+        onCancel={() => setStatusUpdateTarget(null)}
       />
 
       <ConfirmModal

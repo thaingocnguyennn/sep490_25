@@ -86,6 +86,44 @@ export function useDocumentActions(onSuccess?: () => void) {
     [onSuccess]
   );
 
+  /** Reopen an archived document */
+  const reopenDocument = useCallback(
+    async (id: number, reason: string) => {
+      setActionLoading(true);
+      setActionError('');
+      try {
+        await documentsApi.reopenDocument(id, reason);
+        onSuccess?.();
+      } catch (err: any) {
+        const msg = err.response?.data?.message || 'Mở lại tài liệu thất bại';
+        setActionError(msg);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [onSuccess]
+  );
+
+  /** Update document status */
+  const updateDocumentStatus = useCallback(
+    async (id: number, status: string) => {
+      setActionLoading(true);
+      setActionError('');
+      try {
+        await documentsApi.updateDocumentStatus(id, status);
+        onSuccess?.();
+      } catch (err: any) {
+        const msg = err.response?.data?.message || 'Cập nhật trạng thái thất bại';
+        setActionError(msg);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [onSuccess]
+  );
+
   /** Hard-delete a document permanently */
   const hardDeleteDocument = useCallback(
     async (id: number) => {
@@ -158,6 +196,8 @@ export function useDocumentActions(onSuccess?: () => void) {
     deleteDocument,
     restoreDocument,
     archiveDocument,
+    reopenDocument,
+    updateDocumentStatus,
     hardDeleteDocument,
     exportExcel,
     exportPdf,
