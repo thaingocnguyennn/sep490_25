@@ -110,6 +110,15 @@ router.delete(
   documentsController.delete.bind(documentsController)
 );
 
+// PATCH /documents/:id/archive — Archive a document
+router.patch(
+  '/:id/archive',
+  requireRole('DOCUMENT_CLERK'),
+  getDocumentByIdValidation,
+  validateRequest,
+  documentsController.archive.bind(documentsController)
+);
+
 // PATCH /documents/:id/restore — Restore a soft-deleted document
 router.patch(
   '/:id/restore',

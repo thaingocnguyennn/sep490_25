@@ -44,6 +44,7 @@ export class DocumentsController {
         processorId: processorId ? Number(processorId) : undefined,
         dateFrom: dateFrom as string,
         dateTo: dateTo as string,
+        isArchived: req.query.isArchived ? req.query.isArchived === 'true' : undefined,
       });
 
       res.status(200).json(
@@ -127,6 +128,20 @@ export class DocumentsController {
         req.user!.userId
       );
       res.status(200).json(successResponse(doc, 'Document updated'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /documents/:id/archive
+   * Archive a document
+   */
+  async archive(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      await documentsService.archiveDocument(id, req.user!.userId);
+      res.status(200).json(successResponse(null, 'Document archived'));
     } catch (error) {
       next(error);
     }
@@ -230,6 +245,7 @@ export class DocumentsController {
         processorId: req.query.processorId ? Number(req.query.processorId) : undefined,
         dateFrom: req.query.dateFrom as string,
         dateTo: req.query.dateTo as string,
+        isArchived: req.query.isArchived ? req.query.isArchived === 'true' : undefined,
       };
 
       if (format === 'pdf') {

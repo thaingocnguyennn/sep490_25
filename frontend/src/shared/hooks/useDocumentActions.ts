@@ -67,6 +67,25 @@ export function useDocumentActions(onSuccess?: () => void) {
     [onSuccess]
   );
 
+  /** Archive a completed document */
+  const archiveDocument = useCallback(
+    async (id: number) => {
+      setActionLoading(true);
+      setActionError('');
+      try {
+        await documentsApi.archiveDocument(id);
+        onSuccess?.();
+      } catch (err: any) {
+        const msg = err.response?.data?.message || 'Lưu trữ thất bại';
+        setActionError(msg);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [onSuccess]
+  );
+
   /** Hard-delete a document permanently */
   const hardDeleteDocument = useCallback(
     async (id: number) => {
@@ -138,6 +157,7 @@ export function useDocumentActions(onSuccess?: () => void) {
     uploadDocument,
     deleteDocument,
     restoreDocument,
+    archiveDocument,
     hardDeleteDocument,
     exportExcel,
     exportPdf,

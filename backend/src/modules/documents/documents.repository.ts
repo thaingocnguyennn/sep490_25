@@ -16,6 +16,7 @@ export interface DocumentListParams {
   processorId?: number;
   dateFrom?: string; // ISO date string
   dateTo?: string;   // ISO date string
+  isArchived?: boolean; // Filter by archive status
 }
 
 /** Paginated result returned by findAll() */
@@ -85,6 +86,9 @@ export class DocumentsRepository {
 
     // Default: show only ACTIVE documents unless explicitly filtering
     where.documentStatus = params.status || 'ACTIVE';
+    
+    // Default: show only non-archived documents unless explicitly filtering
+    where.isArchived = params.isArchived !== undefined ? params.isArchived : false;
 
     if (params.type) {
       where.type = params.type;

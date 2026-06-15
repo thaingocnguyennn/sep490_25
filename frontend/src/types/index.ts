@@ -118,6 +118,7 @@ export interface Document {
   type: DocumentType;
   fileUrl: string | null;
   documentStatus: DocumentStatus;
+  isArchived: boolean;
   urgencyLevel: PriorityLevel;
   confidentialityLevel: ConfidentialityLevel;
   sendingAgency: string | null;
@@ -163,6 +164,7 @@ export interface DocumentFilterParams {
   search?: string;
   type?: DocumentType;
   status?: DocumentStatus;
+  isArchived?: boolean;
   urgencyLevel?: PriorityLevel;
   confidentialityLevel?: ConfidentialityLevel;
   departmentId?: number;

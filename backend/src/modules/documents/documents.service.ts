@@ -12,6 +12,7 @@ import {
   DocumentSummary,
 } from './documents.repository';
 import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
+import prisma from '../../config/database';
 
 // ─── Service ────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,49 @@ export class DocumentsService {
       processorId: data.processorId,
       updatedBy,
     });
+  }
+
+  /**
+   * Archive a completed document.
+   */
+  async archiveDocument(id: number, updatedBy: number): Promise<void> {
+    const existing = await documentsRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Document not found');
+    }
+
+    if (existing.documentStatus === 'DELETED') {
+      throw new BadRequestError('Cannot archive a deleted document');
+    }
+
+    const validStatuses = ['COMPLETED', 'ISSUED', 'APPROVED'];
+    if (!validStatuses.includes(existing.status)) {
+      throw new BadRequestError('Only completed, issued, or approved documents can be archived');
+    }
+
+    if (existing.isArchived) {
+      throw new BadRequestError('Document is already archived');
+    }
+
+    // Begin transaction for update and logging
+    await prisma.$transaction([
+      prisma.document.update({
+        where: { id },
+        data: {
+          isArchived: true,
+          updatedBy,
+        },
+      }),
+      prisma.systemLog.create({
+        data: {
+          userId: updatedBy,
+          action: 'ARCHIVE_DOCUMENT',
+          entityType: 'Document',
+          entityId: id,
+          details: 'Document archived',
+        },
+      }),
+    ]);
   }
 
   /**
