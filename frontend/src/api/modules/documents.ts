@@ -1,7 +1,7 @@
 import api from '../axios';
-import type { ApiResponse, PaginatedResponse } from '../../types';
+import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest } from '../../types';
 
-export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL';
+export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
 export type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 export type ProcessorType = 'XLC' | 'PHXL' | 'XDB';
@@ -41,27 +41,6 @@ export interface DocumentWorkflow {
 }
 
 export type WorkflowStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED' | 'SKIPPED';
-
-export interface Document {
-  id: number;
-  documentNumber: string;
-  title: string;
-  description: string | null;
-  type: DocumentType;
-  fileUrl: string | null;
-  ocrText: string | null;
-  ocrStatus: string;
-  status: DocumentStatus;
-  priority: Priority;
-  deadline: string | null;
-  createdAt: string;
-  updatedAt: string;
-  createdByUser: { id: number; fullName: string } | null;
-  updatedByUser: { id: number; fullName: string } | null;
-  processors?: DocumentProcessor[];
-  attachments?: DocumentAttachment[];
-  workflows?: DocumentWorkflow[];
-}
 
 export interface IncomingDocumentDetail {
   id: number;
@@ -131,16 +110,79 @@ export interface CreateIncomingDocumentRequest {
 }
 
 export const documentsApi = {
+  // ─── List & Filter ──────────────────────────────────────────────────────
+
+  /** Get basic document stats */
+  getStats: () =>
+    api.get<ApiResponse<{ total: number; incoming: number; outgoing: number }>>('/documents/stats'),
+
+  /** Get paginated & filtered document list */
+  getAll: (params?: DocumentFilterParams) =>
+    api.get<ApiResponse<PaginatedResponse<Document>>>('/documents', { params }),
+
+  /** Get full details of a single document */
+  getById: (id: number) =>
+    api.get<ApiResponse<Document>>(`/documents/${id}`),
+
+  // ─── Upload ─────────────────────────────────────────────────────────────
+
+  /** Upload a new document (file + metadata as FormData) */
+  upload: (formData: FormData) =>
+    api.post<ApiResponse<Document>>('/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
+  // ─── Update Metadata ──────────────────────────────────────────────────
+
+  /** Update document metadata (no file change) */
+  update: (id: number, data: UpdateDocumentRequest) =>
+    api.put<ApiResponse<Document>>(`/documents/${id}`, data),
+
+  // ─── Soft Delete ──────────────────────────────────────────────────────
+
+  /** Soft-delete a document */
+  delete: (id: number) =>
+    api.delete<ApiResponse>(`/documents/${id}`),
+
+  /** Restore a soft-deleted document */
+  restore: (id: number) =>
+    api.patch<ApiResponse>(`/documents/${id}/restore`),
+
+  /** Hard-delete a document permanently */
+  hardDelete: (id: number) =>
+    api.delete<ApiResponse>(`/documents/${id}/permanent`),
+
+  // ─── Preview & Download ───────────────────────────────────────────────
+
+  /** Get the preview URL for in-browser PDF viewing */
+  getPreviewUrl: (id: number) => `/api/documents/${id}/preview`,
+
+  /** Get the download URL */
+  getDownloadUrl: (id: number) => `/api/documents/${id}/download`,
+
+  // ─── Export ───────────────────────────────────────────────────────────
+
+  /** Export document list to Excel (returns a blob download URL) */
+  exportExcel: (params?: DocumentFilterParams) =>
+    api.get('/documents/export', {
+      params: { ...params, format: 'excel' },
+      responseType: 'blob',
+    }),
+
+  /** Export document list to PDF (returns a blob download URL) */
+  exportPdf: (params?: DocumentFilterParams) =>
+    api.get('/documents/export', {
+      params: { ...params, format: 'pdf' },
+      responseType: 'blob',
+    }),
+
+  // ─── OCR ──────────────────────────────────────────────────────────────
+
+  /** Perform OCR on an uploaded file */
   getOcr: (formData: FormData) =>
     api.post<ApiResponse<OcrResult>>('/documents/ocr', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
-
-  getAll: (params?: { page?: number; limit?: number; search?: string; type?: string; status?: string }) =>
-    api.get<ApiResponse<PaginatedResponse<Document>>>('/documents', { params }),
-
-  getById: (id: number) =>
-    api.get<ApiResponse<Document>>(`/documents/${id}`),
 };
 
 export const incomingDocumentsApi = {

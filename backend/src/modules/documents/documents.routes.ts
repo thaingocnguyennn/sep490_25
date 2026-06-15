@@ -1,20 +1,21 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
 import { documentsController } from './documents.controller';
+import { upload } from '../../shared/middlewares/upload.middleware';
 import { validateRequest } from '../../shared/middlewares/validate.middleware';
-import { authenticate } from '../../shared/middlewares/auth.middleware';
-import { requireRole } from '../../shared/middlewares/require-role.middleware';
-import { ROLES } from '../../shared/constants/roles';
 import {
-  createDocumentValidation,
+  uploadDocumentValidation,
   updateDocumentValidation,
+  getDocumentsValidation,
+  getDocumentByIdValidation,
+  deleteDocumentValidation,
   ocrValidation,
 } from './documents.validation';
 
 const router = Router();
 
-const upload = multer({
+// Multer for OCR (memory storage, accepts images and PDF)
+const ocrUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
   fileFilter: (_req, file, cb) => {
@@ -27,50 +28,112 @@ const upload = multer({
   },
 });
 
+// ─── Export must be defined BEFORE /:id to avoid route conflicts ────────────
+
+// GET /documents/stats — Get basic document stats
+router.get(
+  '/stats',
+  documentsController.getStats.bind(documentsController)
+);
+
+// GET /documents/export — Export document list to Excel or PDF
+router.get(
+  '/export',
+  getDocumentsValidation,
+  validateRequest,
+  documentsController.exportList.bind(documentsController)
+);
+
+// POST /documents/ocr — Perform OCR on uploaded file
 router.post(
   '/ocr',
-  authenticate,
-  upload.single('file'),
+  ocrUpload.single('file'),
   ocrValidation,
   validateRequest,
   documentsController.performOcr.bind(documentsController)
 );
 
+// ─── CRUD Routes ────────────────────────────────────────────────────────────
+
+// GET /documents — List documents with filters and pagination
+router.get(
+  '/',
+  getDocumentsValidation,
+  validateRequest,
+  documentsController.getAll.bind(documentsController)
+);
+
+// POST /documents/upload — Upload a new document (file + metadata)
+router.post(
+  '/upload',
+  upload.single('file'),
+  uploadDocumentValidation,
+  validateRequest,
+  documentsController.upload.bind(documentsController)
+);
+
+// POST /documents — Create a document (without file)
 router.post(
   '/',
-  authenticate,
-  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  createDocumentValidation,
+  uploadDocumentValidation,
   validateRequest,
   documentsController.create.bind(documentsController)
 );
 
-router.get(
-  '/',
-  authenticate,
-  documentsController.list.bind(documentsController)
-);
-
+// GET /documents/:id — Get document details
 router.get(
   '/:id',
-  authenticate,
+  getDocumentByIdValidation,
+  validateRequest,
   documentsController.getById.bind(documentsController)
 );
 
+// PUT /documents/:id — Update document metadata
 router.put(
   '/:id',
-  authenticate,
-  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   updateDocumentValidation,
   validateRequest,
   documentsController.update.bind(documentsController)
 );
 
+// DELETE /documents/:id — Soft-delete a document
 router.delete(
   '/:id',
-  authenticate,
-  requireRole(ROLES.ADMIN),
+  deleteDocumentValidation,
+  validateRequest,
   documentsController.delete.bind(documentsController)
+);
+
+// PATCH /documents/:id/restore — Restore a soft-deleted document
+router.patch(
+  '/:id/restore',
+  getDocumentByIdValidation,
+  validateRequest,
+  documentsController.restore.bind(documentsController)
+);
+
+// DELETE /documents/:id/permanent — Hard-delete a document
+router.delete(
+  '/:id/permanent',
+  deleteDocumentValidation,
+  validateRequest,
+  documentsController.hardDelete.bind(documentsController)
+);
+
+// GET /documents/:id/preview — View PDF inline in browser
+router.get(
+  '/:id/preview',
+  getDocumentByIdValidation,
+  validateRequest,
+  documentsController.preview.bind(documentsController)
+);
+
+// GET /documents/:id/download — Download the original file
+router.get(
+  '/:id/download',
+  getDocumentByIdValidation,
+  validateRequest,
+  documentsController.download.bind(documentsController)
 );
 
 export default router;

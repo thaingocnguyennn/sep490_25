@@ -23,35 +23,47 @@ function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h2>DMS System</h2>
-        <p style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>Document Management</p>
+        <h2>Hệ thống DMS</h2>
+        <p style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>Quản lý tài liệu</p>
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section-title">Main</div>
+        <div className="nav-section-title">Chính</div>
         <NavLink
           to="/"
           end
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>🏠</span> Dashboard
+          <span>🏠</span> Bảng điều khiển
         </NavLink>
         <NavLink
           to="/profile"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>👤</span> My Profile
+          <span>👤</span> Hồ sơ cá nhân
         </NavLink>
 
-        <div className="nav-section-title">Documents</div>
+        <div className="nav-section-title">Tài liệu</div>
+        <NavLink
+          to="/documents"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <span>📄</span> Tất cả tài liệu
+        </NavLink>
+        <NavLink
+          to="/documents/upload"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <span>📤</span> Tải lên tài liệu
+        </NavLink>
         <NavLink
           to="/incoming-documents"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>&#128229;</span> Incoming Docs
+          <span>&#128229;</span> Văn bản đến
         </NavLink>
         <div className="nav-item" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-          <span>&#128230;</span> Outgoing Docs
+          <span>&#128230;</span> Văn bản đi
         </div>
       </nav>
 
@@ -68,14 +80,14 @@ function Sidebar() {
           style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
           onClick={() => navigate('/change-password')}
         >
-          Change Password
+          Đổi mật khẩu
         </button>
         <button
           className="btn btn-secondary"
           style={{ width: '100%', fontSize: 13 }}
           onClick={handleLogout}
         >
-          Logout
+          Đăng xuất
         </button>
       </div>
     </aside>

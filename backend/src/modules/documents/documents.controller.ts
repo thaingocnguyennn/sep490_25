@@ -1,26 +1,57 @@
 import { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import { documentsService } from './documents.service';
-import { successResponse } from '../../shared/utils/response.util';
+import { successResponse, paginatedResponse } from '../../shared/utils/response.util';
+
+// ─── Controller ─────────────────────────────────────────────────────────────
 
 export class DocumentsController {
-  async list(req: Request, res: Response, next: NextFunction) {
+  /**
+   * GET /documents/stats
+   * Get basic document stats.
+   */
+  async getStats(req: Request, res: Response, next: NextFunction) {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const search = req.query.search as string;
-      const type = req.query.type as string;
-      const status = req.query.status as string;
+      const stats = await documentsService.getStats();
+      res.status(200).json(successResponse(stats, 'Stats retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
 
-      const result = await documentsService.list({ page, limit, search, type, status });
+  /**
+   * GET /documents
+   * List documents with filtering and pagination.
+   */
+  async getAll(req: Request, res: Response, next: NextFunction) {
+    try {
+      const {
+        page, limit, search, type, status,
+        urgencyLevel, confidentialityLevel,
+        departmentId, processorId,
+        dateFrom, dateTo,
+      } = req.query;
+
+      const result = await documentsService.getAll({
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 10,
+        search: search as string,
+        type: type as any,
+        status: status as any,
+        urgencyLevel: urgencyLevel as any,
+        confidentialityLevel: confidentialityLevel as any,
+        departmentId: departmentId ? Number(departmentId) : undefined,
+        processorId: processorId ? Number(processorId) : undefined,
+        dateFrom: dateFrom as string,
+        dateTo: dateTo as string,
+      });
+
       res.status(200).json(
-        successResponse(
-          {
-            items: result.items,
-            total: result.total,
-            page,
-            limit,
-            totalPages: Math.ceil(result.total / limit),
-          },
+        paginatedResponse(
+          result.documents,
+          result.total,
+          result.page,
+          result.limit,
           'Documents retrieved'
         )
       );
@@ -29,51 +60,202 @@ export class DocumentsController {
     }
   }
 
+  // Alias for list (used by dev branch routes)
+  async list(req: Request, res: Response, next: NextFunction) {
+    return this.getAll(req, res, next);
+  }
+
+  /**
+   * GET /documents/:id
+   * Get full details of a single document.
+   */
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const idParam = req.params.id as string;
-      const document = await documentsService.getById(parseInt(idParam));
-      res.status(200).json(successResponse(document, 'Document retrieved'));
+      const id = Number(req.params.id);
+      const doc = await documentsService.getById(id);
+      res.status(200).json(successResponse(doc, 'Document retrieved'));
     } catch (error) {
       next(error);
     }
   }
 
+  /**
+   * POST /documents/upload
+   * Upload a file and create a document record.
+   * Uses multer middleware (file is in req.file).
+   */
+  async upload(req: Request, res: Response, next: NextFunction) {
+    try {
+      const doc = await documentsService.upload(
+        req.file,
+        req.body,
+        req.user!.userId
+      );
+      res.status(201).json(successResponse(doc, 'Document uploaded successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /documents
+   * Create a document without file upload.
+   */
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const document = await documentsService.create({
-        ...req.body,
-        createdBy: req.user!.userId,
-      });
-      res.status(201).json(successResponse(document, 'Document created successfully'));
+      const doc = await documentsService.upload(
+        undefined,
+        req.body,
+        req.user!.userId
+      );
+      res.status(201).json(successResponse(doc, 'Document created successfully'));
     } catch (error) {
       next(error);
     }
   }
 
+  /**
+   * PUT /documents/:id
+   * Update document metadata (does not replace the file).
+   */
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const idParam = req.params.id as string;
-      const document = await documentsService.update(
-        parseInt(idParam),
-        { ...req.body, updatedBy: req.user!.userId }
+      const id = Number(req.params.id);
+      const doc = await documentsService.updateMetadata(
+        id,
+        req.body,
+        req.user!.userId
       );
-      res.status(200).json(successResponse(document, 'Document updated successfully'));
+      res.status(200).json(successResponse(doc, 'Document updated'));
     } catch (error) {
       next(error);
     }
   }
 
+  /**
+   * DELETE /documents/:id
+   * Soft-delete a document (set status to DELETED).
+   */
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const idParam = req.params.id as string;
-      await documentsService.delete(parseInt(idParam));
-      res.status(200).json(successResponse(null, 'Document deleted successfully'));
+      const id = Number(req.params.id);
+      await documentsService.softDelete(id, req.user!.userId);
+      res.status(200).json(successResponse(null, 'Document deleted'));
     } catch (error) {
       next(error);
     }
   }
 
+  /**
+   * PATCH /documents/:id/restore
+   * Restore a soft-deleted document.
+   */
+  async restore(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      await documentsService.restore(id, req.user!.userId);
+      res.status(200).json(successResponse(null, 'Document restored'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * DELETE /documents/:id/permanent
+   * Hard-delete a document permanently.
+   */
+  async hardDelete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      await documentsService.hardDelete(id);
+      res.status(200).json(successResponse(null, 'Document permanently deleted'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /documents/:id/preview
+   * Stream the PDF file inline for in-browser viewing.
+   */
+  async preview(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const doc = await documentsService.getById(id);
+      const filePath = documentsService.getFilePath(doc);
+
+      // Determine content type from stored MIME or file extension
+      const contentType = doc.mimeType || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', 'inline'); // display in browser
+      res.sendFile(filePath);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /documents/:id/download
+   * Force-download the original file as an attachment.
+   */
+  async download(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const doc = await documentsService.getById(id);
+      const filePath = documentsService.getFilePath(doc);
+
+      // Use the original filename if available, otherwise the stored filename
+      const downloadName = doc.originalFileName || path.basename(filePath);
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+      res.sendFile(filePath);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /documents/export?format=excel|pdf
+   * Export the filtered document list to Excel or PDF.
+   */
+  async exportList(req: Request, res: Response, next: NextFunction) {
+    try {
+      const format = (req.query.format as string) || 'excel';
+      const filterParams = {
+        search: req.query.search as string,
+        type: req.query.type as any,
+        status: req.query.status as any,
+        urgencyLevel: req.query.urgencyLevel as any,
+        confidentialityLevel: req.query.confidentialityLevel as any,
+        departmentId: req.query.departmentId ? Number(req.query.departmentId) : undefined,
+        processorId: req.query.processorId ? Number(req.query.processorId) : undefined,
+        dateFrom: req.query.dateFrom as string,
+        dateTo: req.query.dateTo as string,
+      };
+
+      if (format === 'pdf') {
+        const buffer = await documentsService.exportToPdf(filterParams);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename="documents.pdf"');
+        res.send(buffer);
+      } else {
+        // Default: Excel
+        const buffer = await documentsService.exportToExcel(filterParams);
+        res.setHeader(
+          'Content-Type',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+        res.setHeader('Content-Disposition', 'attachment; filename="documents.xlsx"');
+        res.send(buffer);
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /documents/ocr
+   * Perform OCR on an uploaded file.
+   */
   async performOcr(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.file) {

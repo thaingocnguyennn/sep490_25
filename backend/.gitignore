@@ -8,6 +8,9 @@ prisma/migrations/
 prisma/*.db
 prisma/*.db-journal
 
+# Uploaded document files
+uploads/
+
 # OS
 .DS_Store
 Thumbs.db

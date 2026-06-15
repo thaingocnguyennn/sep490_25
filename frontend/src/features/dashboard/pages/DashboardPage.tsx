@@ -1,7 +1,18 @@
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { documentsApi } from '../../../api';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [stats, setStats] = useState({ total: 0, incoming: 0, outgoing: 0 });
+
+  useEffect(() => {
+    documentsApi.getStats()
+      .then(res => {
+        if (res.data.data) setStats(res.data.data);
+      })
+      .catch(err => console.error('Failed to load stats', err));
+  }, []);
 
   return (
     <>
@@ -18,9 +29,9 @@ export default function DashboardPage() {
             </p>
             <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {[
-                { label: 'Documents', count: '—', icon: '📄' },
-                { label: 'Incoming', count: '—', icon: '📥' },
-                { label: 'Outgoing', count: '—', icon: '📤' },
+                { label: 'Documents', count: stats.total, icon: '📄' },
+                { label: 'Incoming', count: stats.incoming, icon: '📥' },
+                { label: 'Outgoing', count: stats.outgoing, icon: '📤' },
               ].map((item) => (
                 <div
                   key={item.label}

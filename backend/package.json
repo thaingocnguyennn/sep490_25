@@ -21,6 +21,7 @@
     "canvas": "^3.2.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
     "express": "^4.21.1",
     "express-validator": "^7.2.0",
     "helmet": "^8.0.0",
@@ -30,6 +31,7 @@
     "pdf-parse": "^2.4.5",
     "pdf2pic": "^3.2.0",
     "pdfjs-dist": "^5.4.296",
+    "pdfkit": "^0.19.1",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
@@ -41,6 +43,7 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^22.9.0",
     "@types/pdf-parse": "^1.1.5",
+    "@types/pdfkit": "^0.17.6",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",

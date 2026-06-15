@@ -14,6 +14,12 @@ import UserFormPage from '../features/users/pages/UserFormPage';
 import UserDetailPage from '../features/users/pages/UserDetailPage';
 import RolesPage from '../features/roles/pages/RolesPage';
 import RoleFormPage from '../features/roles/pages/RoleFormPage';
+// Document management pages
+import DocumentsPage from '../features/documents/pages/DocumentsPage';
+import DocumentUploadPage from '../features/documents/pages/DocumentUploadPage';
+import DocumentDetailPage from '../features/documents/pages/DocumentDetailPage';
+import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
+// Incoming document pages (from dev branch)
 import IncomingDocumentsPage from '../features/documents/pages/IncomingDocumentsPage';
 import AddIncomingDocumentPage from '../features/documents/pages/AddIncomingDocumentPage';
 import IncomingDocumentDetailPage from '../features/documents/pages/IncomingDocumentDetailPage';
@@ -32,6 +38,12 @@ export const routes: RouteObject[] = [
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/edit', element: <ProfileEditPage /> },
       { path: 'change-password', element: <ChangePasswordPage /> },
+      // Document management routes
+      { path: 'documents', element: <DocumentsPage /> },
+      { path: 'documents/upload', element: <DocumentUploadPage /> },
+      { path: 'documents/:id', element: <DocumentDetailPage /> },
+      { path: 'documents/:id/edit', element: <DocumentEditPage /> },
+      // Incoming document routes (from dev branch)
       { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
       { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
       { path: 'incoming-documents/:id', element: <IncomingDocumentDetailPage /> },

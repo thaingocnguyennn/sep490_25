@@ -4,7 +4,6 @@ export { rolesApi } from './modules/roles';
 export { documentsApi, incomingDocumentsApi } from './modules/documents';
 export { departmentsApi } from './modules/departments';
 export type {
-  Document,
   IncomingDocumentDetail,
   IncomingDocumentListItem,
   OcrResult,

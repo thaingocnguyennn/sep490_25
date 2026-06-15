@@ -102,3 +102,85 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   errors?: unknown;
 }
+
+// ─── Document Management Types ──────────────────────────────────────────────
+
+export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentStatus = 'ACTIVE' | 'DELETED';
+export type PriorityLevel = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type ConfidentialityLevel = 'NORMAL' | 'CONFIDENTIAL' | 'TOP_SECRET';
+
+export interface Document {
+  id: number;
+  documentNumber: string;
+  title: string;
+  description: string | null;
+  type: DocumentType;
+  fileUrl: string | null;
+  documentStatus: DocumentStatus;
+  urgencyLevel: PriorityLevel;
+  confidentialityLevel: ConfidentialityLevel;
+  sendingAgency: string | null;
+  issuanceDate: string | null;
+  category: string | null;
+  originalFileName: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdByUser: { id: number; fullName: string } | null;
+  updatedByUser?: { id: number; fullName: string } | null;
+  department: { id: number; name: string } | null;
+  processor: { id: number; fullName: string } | null;
+  // Optional fields from dev schema (DocumentWorkflow, processors, attachments)
+  status: string; // DocumentStatus enum - DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
+  workflows?: Array<{
+    id: number;
+    status: string;
+    notes: string | null;
+    completedAt: string | null;
+    workflowStep: { id: number; name: string; stepOrder: number; roleName: string | null };
+    user: { id: number; fullName: string } | null;
+  }>;
+  processors?: Array<{
+    id: number;
+    processorType: string;
+    user: { id: number; fullName: string; email: string };
+  }>;
+  attachments?: Array<{
+    id: number;
+    fileName: string;
+    fileUrl: string;
+    fileSize: number | null;
+    mimeType: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface DocumentFilterParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: DocumentType;
+  status?: DocumentStatus;
+  urgencyLevel?: PriorityLevel;
+  confidentialityLevel?: ConfidentialityLevel;
+  departmentId?: number;
+  processorId?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface UpdateDocumentRequest {
+  documentNumber?: string;
+  title?: string;
+  description?: string;
+  type?: DocumentType;
+  issuanceDate?: string | null;
+  sendingAgency?: string;
+  urgencyLevel?: PriorityLevel;
+  confidentialityLevel?: ConfidentialityLevel;
+  category?: string;
+  departmentId?: number | null;
+  processorId?: number | null;
+}
