@@ -72,9 +72,13 @@ function Sidebar() {
         >
           <span>&#128229;</span> Văn bản đến
         </NavLink>
-        <div className="nav-item" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+        <NavLink
+          to="/outgoing-documents"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
           <span>&#128230;</span> Văn bản đi
-        </div>
+        </NavLink>
+
       </nav>
 
       <div className="sidebar-footer">

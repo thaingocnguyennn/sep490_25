@@ -24,6 +24,12 @@ import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
 import IncomingDocumentsPage from '../features/documents/pages/IncomingDocumentsPage';
 import AddIncomingDocumentPage from '../features/documents/pages/AddIncomingDocumentPage';
 import IncomingDocumentDetailPage from '../features/documents/pages/IncomingDocumentDetailPage';
+// Outgoing document pages
+import OutgoingDocumentsPage from '../features/documents/pages/OutgoingDocumentsPage';
+import CreateOutgoingDocumentPage from '../features/documents/pages/CreateOutgoingDocumentPage';
+import OutgoingDocumentDetailPage from '../features/documents/pages/OutgoingDocumentDetailPage';
+import OutgoingDocumentEditPage from '../features/documents/pages/OutgoingDocumentEditPage';
+
 
 export const routes: RouteObject[] = [
   {
@@ -49,6 +55,12 @@ export const routes: RouteObject[] = [
       { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
       { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
       { path: 'incoming-documents/:id', element: <IncomingDocumentDetailPage /> },
+      // Outgoing document routes
+      { path: 'outgoing-documents', element: <OutgoingDocumentsPage /> },
+      { path: 'outgoing-documents/new', element: <CreateOutgoingDocumentPage /> },
+      { path: 'outgoing-documents/trash', element: <OutgoingDocumentsPage /> },
+      { path: 'outgoing-documents/:id', element: <OutgoingDocumentDetailPage /> },
+      { path: 'outgoing-documents/:id/edit', element: <OutgoingDocumentEditPage /> },
     ],
   },
   {

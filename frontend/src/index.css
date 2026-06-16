@@ -814,6 +814,15 @@ button {
 .status-rejected { background: #ffeaea; color: #e74c3c; }
 .status-cancelled { background: #f1f2f6; color: #636e72; }
 
+/* Trạng thái văn bản đi */
+.status-submitted    { background: #e0e7ff; color: #3730a3; }
+.status-returned     { background: #fff3cd; color: #92400e; }
+.status-approved     { background: #d1fae5; color: #065f46; }
+.status-waiting      { background: #fce7f3; color: #9d174d; }
+.status-issued       { background: #ede9fe; color: #5b21b6; }
+.status-recalled     { background: #fee2e2; color: #991b1b; }
+.status-trashed      { background: #f3f4f6; color: #6b7280; }
+
 /* Priority Badges */
 .priority-badge {
   display: inline-block;
@@ -850,9 +859,10 @@ button {
   font-weight: 700;
   text-transform: uppercase;
 }
-.urgency-khan { background: #fff3cd; color: #e67e22; }
-.urgency-thuong_khau { background: #ffeaea; color: #c0392b; }
-.urgency-hoa_toc { background: #e74c3c; color: #fff; }
+.urgency-thuong      { background: #edf2f7; color: #718096; }
+.urgency-khan        { background: #fff3cd; color: #e67e22; }
+.urgency-thuong-khau { background: #ffeaea; color: #c0392b; }
+.urgency-hoa-toc     { background: #e74c3c; color: #fff; }
 
 /* Step Indicator */
 .step-indicator {

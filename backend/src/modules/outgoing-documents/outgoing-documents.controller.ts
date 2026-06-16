@@ -1,0 +1,177 @@
+import { Request, Response, NextFunction } from 'express';
+import { outgoingDocumentsService } from './outgoing-documents.service';
+import { successResponse } from '../../shared/utils/response.util';
+
+export class OutgoingDocumentsController {
+  /**
+   * GET /outgoing-documents
+   * Lấy danh sách văn bản đi với phân trang và filter.
+   */
+  async list(req: Request, res: Response, next: NextFunction) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string | undefined;
+      const status = req.query.status as string | undefined;
+      const urgency = req.query.urgency as string | undefined;
+
+      const result = await outgoingDocumentsService.list({ page, limit, search, status, urgency });
+
+      res.status(200).json(
+        successResponse(
+          {
+            items: result.items,
+            total: result.total,
+            page,
+            limit,
+            totalPages: Math.ceil(result.total / limit),
+          },
+          'Danh sách văn bản đi',
+        ),
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /outgoing-documents/trash
+   * Lấy danh sách văn bản đi trong thùng rác.
+   */
+  async listTrashed(req: Request, res: Response, next: NextFunction) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string | undefined;
+
+      const result = await outgoingDocumentsService.listTrashed({ page, limit, search });
+
+      res.status(200).json(
+        successResponse(
+          {
+            items: result.items,
+            total: result.total,
+            page,
+            limit,
+            totalPages: Math.ceil(result.total / limit),
+          },
+          'Danh sách văn bản đi trong thùng rác',
+        ),
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /outgoing-documents/:id
+   * Lấy chi tiết văn bản đi.
+   */
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const result = await outgoingDocumentsService.getById(id);
+      res.status(200).json(successResponse(result, 'Chi tiết văn bản đi'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /outgoing-documents
+   * Tạo văn bản đi mới (chức năng #1).
+   */
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await outgoingDocumentsService.create({
+        ...req.body,
+        createdBy: req.user!.userId,
+      });
+      res.status(201).json(successResponse(result, 'Tạo văn bản đi thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /outgoing-documents/:id/upload
+   * Upload file nháp (chức năng #2).
+   */
+  async uploadFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const file = req.file;
+
+      if (!file) {
+        res.status(400).json({ success: false, message: 'Không có file nào được upload' });
+        return;
+      }
+
+      const result = await outgoingDocumentsService.uploadDraftFile(
+        id,
+        file,
+        req.user!.userId,
+      );
+
+      res.status(200).json(successResponse(result, 'Upload file nháp thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /outgoing-documents/:id/ocr
+   * Chạy OCR để trích xuất thông tin (chức năng #3).
+   */
+  async runOcr(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const result = await outgoingDocumentsService.runOcr(id);
+      res.status(200).json(successResponse(result, 'OCR hoàn tất'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /outgoing-documents/:id/metadata
+   * Cập nhật metadata văn bản đi (chức năng #4).
+   */
+  async updateMetadata(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const result = await outgoingDocumentsService.updateMetadata(
+        id,
+        req.body,
+        req.user!.userId,
+      );
+      res.status(200).json(successResponse(result, 'Cập nhật thông tin văn bản đi thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /outgoing-documents/:id/status
+   * Cập nhật trạng thái workflow (dùng cho nhiều chức năng: submit, approve, return, issue, recall, trash...).
+   */
+  async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const { status, returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress } = req.body;
+
+      const result = await outgoingDocumentsService.updateStatus(
+        id,
+        status as string,
+        req.user!.userId,
+        { returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress },
+      );
+
+      res.status(200).json(successResponse(result, 'Cập nhật trạng thái thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export const outgoingDocumentsController = new OutgoingDocumentsController();
