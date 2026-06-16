@@ -186,3 +186,156 @@ export interface UpdateDocumentRequest {
   departmentId?: number | null;
   processorId?: number | null;
 }
+
+// ─── Outgoing Document Types ─────────────────────────────────────────────────
+
+export type OutgoingDocumentStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RETURNED'
+  | 'APPROVED'
+  | 'WAITING_FOR_ISSUE'
+  | 'ISSUED'
+  | 'COMPLETED'
+  | 'RECALLED'
+  | 'TRASHED'
+  | 'REJECTED'
+  | 'CANCELLED';
+
+export type UrgencyLevel = 'THUONG' | 'KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
+
+export interface OutgoingDocument {
+  id: number;
+  documentId: number;
+  documentType: string | null;
+  documentNumber: string | null;
+  dispatchNumber: string | null;
+  issuanceDate: string | null;
+  signerName: string | null;
+  signerTitle: string | null;
+  urgency: UrgencyLevel | null;
+  recipientName: string | null;
+  recipientAddress: string | null;
+  sentDate: string | null;
+  pageCount: number | null;
+  // Workflow tracking
+  submittedAt: string | null;
+  submittedBy: number | null;
+  approvedAt: string | null;
+  approvedBy: number | null;
+  returnedAt: string | null;
+  returnedBy: number | null;
+  returnReason: string | null;
+  forwardedAt: string | null;
+  forwardedBy: number | null;
+  issuedAt: string | null;
+  issuedBy: number | null;
+  recalledAt: string | null;
+  recalledBy: number | null;
+  recallReason: string | null;
+  trashedAt: string | null;
+  trashedBy: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Relations
+  document: {
+    id: number;
+    documentNumber: string;
+    title: string;
+    description: string | null;
+    type: string;
+    fileUrl: string | null;
+    ocrText: string | null;
+    ocrStatus: string;
+    status: OutgoingDocumentStatus;
+    urgencyLevel: PriorityLevel;
+    confidentialityLevel: ConfidentialityLevel;
+    documentStatus: DocumentStatus;
+    isArchived: boolean;
+    originalFileName: string | null;
+    fileSize: number | null;
+    mimeType: string | null;
+    createdAt: string;
+    updatedAt: string;
+    createdByUser: { id: number; fullName: string } | null;
+    updatedByUser: { id: number; fullName: string } | null;
+    department: { id: number; name: string } | null;
+    attachments: Array<{
+      id: number;
+      fileName: string;
+      fileUrl: string;
+      fileSize: number | null;
+      mimeType: string | null;
+    }>;
+  };
+  submittedByUser: { id: number; fullName: string } | null;
+  approvedByUser: { id: number; fullName: string } | null;
+  returnedByUser: { id: number; fullName: string } | null;
+  forwardedByUser: { id: number; fullName: string } | null;
+  issuedByUser: { id: number; fullName: string } | null;
+  recalledByUser: { id: number; fullName: string } | null;
+  trashedByUser: { id: number; fullName: string } | null;
+}
+
+export interface CreateOutgoingDocumentRequest {
+  title: string;
+  description?: string;
+  urgency?: UrgencyLevel;
+  confidentialityLevel?: ConfidentialityLevel;
+  departmentId?: number;
+  documentType?: string;
+  recipientName?: string;
+  recipientAddress?: string;
+  notes?: string;
+}
+
+export interface UpdateOutgoingMetadataRequest {
+  title?: string;
+  description?: string;
+  urgency?: UrgencyLevel;
+  confidentialityLevel?: ConfidentialityLevel;
+  departmentId?: number | null;
+  documentType?: string;
+  documentNumber?: string;
+  signerName?: string;
+  signerTitle?: string;
+  recipientName?: string;
+  recipientAddress?: string;
+  pageCount?: number;
+  notes?: string;
+}
+
+export interface UpdateOutgoingStatusRequest {
+  status: OutgoingDocumentStatus;
+  returnReason?: string;
+  recallReason?: string;
+  dispatchNumber?: string;
+  issuanceDate?: string;
+  sentDate?: string;
+  recipientName?: string;
+  recipientAddress?: string;
+}
+
+export interface OutgoingDocumentFilterParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: OutgoingDocumentStatus;
+  urgency?: UrgencyLevel;
+}
+
+export interface OcrResult {
+  ocrText: string;
+  confidence: number;
+  extractedFields: {
+    issuer?: string;
+    documentNumber?: string;
+    dateLetter?: string;
+    documentType?: string;
+    summary?: string;
+    pageCount?: string;
+    signerName?: string;
+    signerTitle?: string;
+  };
+}

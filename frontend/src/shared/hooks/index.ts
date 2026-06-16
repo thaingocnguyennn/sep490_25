@@ -7,3 +7,6 @@ export { useDocumentActions } from './useDocumentActions';
 export { useIncomingDocuments } from './useIncomingDocuments';
 export { useProcessors } from './useProcessors';
 export type { ProcessorOption } from './useProcessors';
+export { useOutgoingDocuments } from './useOutgoingDocuments';
+export { useOutgoingDocumentActions } from './useOutgoingDocumentActions';
+

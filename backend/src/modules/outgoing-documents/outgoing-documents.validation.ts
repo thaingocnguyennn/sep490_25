@@ -1,0 +1,170 @@
+import { body, param, query } from 'express-validator';
+
+// ─── Validation tạo văn bản đi ────────────────────────────────────────────────
+
+export const createOutgoingDocumentValidation = [
+  body('title')
+    .notEmpty().withMessage('Tiêu đề văn bản không được để trống')
+    .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
+
+  body('description')
+    .optional()
+    .isString().withMessage('Mô tả phải là chuỗi ký tự'),
+
+  body('urgency')
+    .optional()
+    .isIn(['THUONG', 'KHAN', 'THUONG_KHAU', 'HOA_TOC'])
+    .withMessage('Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAU, HOA_TOC'),
+
+  body('confidentialityLevel')
+    .optional()
+    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
+    .withMessage('Mức độ mật không hợp lệ'),
+
+  body('departmentId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID phòng ban phải là số nguyên dương'),
+
+  body('documentType')
+    .optional()
+    .isString().withMessage('Loại văn bản phải là chuỗi ký tự'),
+
+  body('recipientName')
+    .optional()
+    .isString().withMessage('Tên người nhận phải là chuỗi ký tự'),
+
+  body('recipientAddress')
+    .optional()
+    .isString().withMessage('Địa chỉ người nhận phải là chuỗi ký tự'),
+
+  body('notes')
+    .optional()
+    .isString().withMessage('Ghi chú phải là chuỗi ký tự'),
+];
+
+// ─── Validation cập nhật metadata ────────────────────────────────────────────
+
+export const updateOutgoingMetadataValidation = [
+  param('id')
+    .isInt({ min: 1 }).withMessage('ID văn bản phải là số nguyên dương'),
+
+  body('title')
+    .optional()
+    .notEmpty().withMessage('Tiêu đề không được rỗng nếu được cung cấp')
+    .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
+
+  body('description')
+    .optional()
+    .isString(),
+
+  body('urgency')
+    .optional()
+    .isIn(['THUONG', 'KHAN', 'THUONG_KHAU', 'HOA_TOC'])
+    .withMessage('Độ khẩn không hợp lệ'),
+
+  body('confidentialityLevel')
+    .optional()
+    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
+    .withMessage('Mức độ mật không hợp lệ'),
+
+  body('departmentId')
+    .optional({ nullable: true })
+    .isInt({ min: 1 }).withMessage('ID phòng ban phải là số nguyên dương'),
+
+  body('documentType')
+    .optional()
+    .isString(),
+
+  body('documentNumber')
+    .optional()
+    .isString(),
+
+  body('signerName')
+    .optional()
+    .isString(),
+
+  body('signerTitle')
+    .optional()
+    .isString(),
+
+  body('recipientName')
+    .optional()
+    .isString(),
+
+  body('recipientAddress')
+    .optional()
+    .isString(),
+
+  body('pageCount')
+    .optional()
+    .isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
+
+  body('notes')
+    .optional()
+    .isString(),
+];
+
+// ─── Validation cập nhật trạng thái ─────────────────────────────────────────
+
+const VALID_STATUSES = [
+  'DRAFT', 'SUBMITTED', 'RETURNED', 'APPROVED',
+  'WAITING_FOR_ISSUE', 'ISSUED', 'COMPLETED',
+  'RECALLED', 'TRASHED', 'REJECTED', 'CANCELLED',
+];
+
+export const updateOutgoingStatusValidation = [
+  param('id')
+    .isInt({ min: 1 }).withMessage('ID văn bản phải là số nguyên dương'),
+
+  body('status')
+    .notEmpty().withMessage('Trạng thái không được để trống')
+    .isIn(VALID_STATUSES).withMessage(`Trạng thái không hợp lệ. Hợp lệ: ${VALID_STATUSES.join(', ')}`),
+
+  body('returnReason')
+    .if(body('status').equals('RETURNED'))
+    .notEmpty().withMessage('Lý do trả lại bắt buộc khi trả lại văn bản'),
+
+  body('recallReason')
+    .if(body('status').equals('RECALLED'))
+    .notEmpty().withMessage('Lý do thu hồi bắt buộc khi thu hồi văn bản'),
+
+  body('dispatchNumber')
+    .optional()
+    .isString(),
+
+  body('issuanceDate')
+    .optional()
+    .isISO8601().withMessage('Ngày ban hành không đúng định dạng ISO8601'),
+
+  body('sentDate')
+    .optional()
+    .isISO8601().withMessage('Ngày gửi không đúng định dạng ISO8601'),
+];
+
+// ─── Validation params ID chung ───────────────────────────────────────────────
+
+export const outgoingIdParamValidation = [
+  param('id')
+    .isInt({ min: 1 }).withMessage('ID văn bản phải là số nguyên dương'),
+];
+
+// ─── Validation query danh sách ───────────────────────────────────────────────
+
+export const listOutgoingDocumentsValidation = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
+
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 }).withMessage('Giới hạn mỗi trang từ 1 đến 100'),
+
+  query('status')
+    .optional()
+    .isIn(VALID_STATUSES).withMessage('Trạng thái lọc không hợp lệ'),
+
+  query('urgency')
+    .optional()
+    .isIn(['THUONG', 'KHAN', 'THUONG_KHAU', 'HOA_TOC'])
+    .withMessage('Độ khẩn không hợp lệ'),
+];
