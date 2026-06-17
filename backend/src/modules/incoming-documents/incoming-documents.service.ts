@@ -4,6 +4,28 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError } from '../../shared/exceptions/app-error';
 import { DocumentStatus, WorkflowStatus } from '@prisma/client';
 
+function parseDateOrNull(input: string): Date | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    const year = y.length === 2 ? `20${y}` : y;
+    const iso = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const fallback = new Date(trimmed);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
 interface ProcessorInput {
   userId: number;
   processorType: 'XLC' | 'PHXL' | 'XDB';
@@ -25,6 +47,166 @@ export class IncomingDocumentsService {
     return incomingDocumentsRepository.findById(id);
   }
 
+  async listPendingForHead(params: { page: number; limit: number; search?: string }) {
+    return incomingDocumentsRepository.findAllPendingForHead(params);
+  }
+
+  async processByHead(
+    id: number,
+    action: 'FINISH' | 'FORWARD' | 'RETURN',
+    payload: {
+      processorIds?: ProcessorInput[];
+      processingInstructions?: string;
+      deadline?: string;
+      reason?: string;
+      attachments?: AttachmentInput[];
+    },
+    userId: number
+  ) {
+    const incoming = await incomingDocumentsRepository.findById(id);
+    const documentId = incoming.documentId;
+
+    const headStep = await prisma.documentWorkflow.findFirst({
+      where: {
+        documentId,
+        workflowStep: { stepOrder: 2, roleName: 'DEPARTMENT_HEAD' },
+      },
+    });
+    if (!headStep) {
+      throw new BadRequestError('Văn bản này không có bước xử lý của Trưởng phòng');
+    }
+    if (headStep.status !== 'PENDING') {
+      throw new BadRequestError('Bước xử lý của Trưởng phòng không ở trạng thái chờ xử lý');
+    }
+
+    if (action === 'FORWARD') {
+      const processorIds = payload.processorIds || [];
+      if (processorIds.length === 0) {
+        throw new BadRequestError('Phải chọn ít nhất một người xử lý');
+      }
+      const userIds = processorIds.map((p) => p.userId);
+      const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true },
+      });
+      if (users.length !== userIds.length) {
+        throw new BadRequestError('Một hoặc nhiều người dùng được chỉ định không tồn tại');
+      }
+      const hasPrimary = processorIds.some((p) => p.processorType === 'XLC');
+      if (!hasPrimary) {
+        throw new BadRequestError('Phải chọn ít nhất một Người xử lý chính (XLC)');
+      }
+
+      const deadlineDate = payload.deadline ? parseDateOrNull(payload.deadline) : null;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.documentProcessor.deleteMany({ where: { documentId } });
+        await tx.documentProcessor.createMany({
+          data: processorIds.map((p) => ({
+            documentId,
+            userId: p.userId,
+            processorType: p.processorType,
+          })),
+        });
+
+        await tx.documentWorkflow.update({
+          where: { id: headStep.id },
+          data: {
+            status: WorkflowStatus.COMPLETED,
+            userId,
+            completedAt: new Date(),
+            notes:
+              payload.processingInstructions ||
+              'Trưởng phòng chuyển xử lý cho chuyên viên',
+          },
+        });
+
+        await tx.incomingDocument.update({
+          where: { id },
+          data: {
+            processingInstructions: payload.processingInstructions,
+          },
+        });
+
+        await tx.document.update({
+          where: { id: documentId },
+          data: {
+            status: DocumentStatus.IN_PROGRESS,
+            ...(deadlineDate ? { deadline: deadlineDate } : {}),
+          },
+        });
+
+        if (payload.attachments && payload.attachments.length > 0) {
+          await tx.documentAttachment.createMany({
+            data: payload.attachments.map((a) => ({
+              documentId,
+              fileName: a.fileName,
+              fileUrl: a.fileUrl,
+              fileSize: a.fileSize,
+              mimeType: a.mimeType,
+            })),
+          });
+        }
+      });
+    } else if (action === 'FINISH') {
+      await prisma.$transaction(async (tx) => {
+        await tx.documentWorkflow.update({
+          where: { id: headStep.id },
+          data: {
+            status: WorkflowStatus.COMPLETED,
+            userId,
+            completedAt: new Date(),
+            notes: payload.processingInstructions || 'Trưởng phòng hoàn thành xử lý',
+          },
+        });
+
+        const allWorkflows = await tx.documentWorkflow.findMany({
+          where: { documentId },
+          orderBy: { workflowStep: { stepOrder: 'asc' } },
+        });
+        const remaining = allWorkflows.filter((w) => w.id !== headStep.id);
+        for (const wf of remaining) {
+          await tx.documentWorkflow.update({
+            where: { id: wf.id },
+            data: {
+              status: WorkflowStatus.CANCELLED,
+              completedAt: new Date(),
+              notes: 'Bỏ qua do Trưởng phòng đã hoàn thành xử lý',
+            },
+          });
+        }
+
+        await tx.document.update({
+          where: { id: documentId },
+          data: { status: DocumentStatus.COMPLETED },
+        });
+      });
+    } else if (action === 'RETURN') {
+      await prisma.$transaction(async (tx) => {
+        await tx.documentWorkflow.update({
+          where: { id: headStep.id },
+          data: {
+            status: WorkflowStatus.REJECTED,
+            userId,
+            completedAt: new Date(),
+            notes: payload.reason || 'Trả lại cho văn thư',
+          },
+        });
+
+        await tx.document.update({
+          where: { id: documentId },
+          data: { status: DocumentStatus.RETURNED },
+        });
+
+        await tx.documentProcessor.deleteMany({ where: { documentId } });
+      });
+    } else {
+      throw new BadRequestError('Hành động không hợp lệ');
+    }
+
+    return this.getById(id);
+  }
+
   async create(data: {
     issuer?: string;
     documentType?: string;
@@ -39,7 +221,6 @@ export class IncomingDocumentsService {
     urgency?: string;
     notes?: string;
     processingInstructions?: string;
-    departmentId?: number;
     processorIds: ProcessorInput[];
     attachments?: AttachmentInput[];
     createdBy: number;
@@ -85,14 +266,13 @@ export class IncomingDocumentsService {
           arrivalNumber: data.arrivalNumber,
           signerName: data.signerName,
           signerTitle: data.signerTitle,
-          dateLetter: data.dateLetter ? new Date(data.dateLetter) : undefined,
+          dateLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
           dateReceived: new Date(data.dateReceived),
           summary: data.summary,
           pageCount: data.pageCount,
           urgency: data.urgency as any,
           notes: data.notes,
           processingInstructions: data.processingInstructions,
-          departmentId: data.departmentId,
         },
       });
 

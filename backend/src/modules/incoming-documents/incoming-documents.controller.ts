@@ -84,6 +84,45 @@ export class IncomingDocumentsController {
       next(error);
     }
   }
+
+  async listPendingForHead(req: Request, res: Response, next: NextFunction) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string | undefined;
+
+      const result = await incomingDocumentsService.listPendingForHead({ page, limit, search });
+      res.status(200).json(
+        successResponse(
+          {
+            items: result.items,
+            total: result.total,
+            page,
+            limit,
+            totalPages: Math.ceil(result.total / limit),
+          },
+          'Danh sách văn bản chờ Trưởng phòng xử lý'
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async processByHead(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = req.params.id as string;
+      const incoming = await incomingDocumentsService.processByHead(
+        parseInt(idParam),
+        req.body.action,
+        req.body,
+        req.user!.userId
+      );
+      res.status(200).json(successResponse(incoming, 'Xử lý văn bản thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const incomingDocumentsController = new IncomingDocumentsController();

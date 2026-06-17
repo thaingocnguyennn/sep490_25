@@ -8,6 +8,8 @@ export type {
   IncomingDocumentListItem,
   OcrResult,
   CreateIncomingDocumentRequest,
+  ProcessIncomingDocumentRequest,
+  HeadAction,
   DocumentStatus,
   Priority,
   ProcessorType,

@@ -3,10 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   documentsApi,
   incomingDocumentsApi,
-  departmentsApi,
   type OcrResult,
   type ProcessorType,
-  type Department,
   type Urgency,
 } from '../../../api';
 import { useProcessors } from '../../../shared/hooks';
@@ -30,6 +28,32 @@ const URGENCY_LABELS: Record<Urgency, string> = {
   HOA_TOC: 'Hỏa tốc',
 };
 
+function normalizeDate(input: string | undefined): string | undefined {
+  if (!input) return undefined;
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  // Already ISO YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  // dd/mm/yyyy or dd-mm-yyyy
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    const year = y.length === 2 ? `20${y}` : y;
+    const iso = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    if (!Number.isNaN(new Date(iso).getTime())) return iso;
+  }
+
+  // Fallback: rely on Date parser; return ISO if valid, else original string
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+
+  return trimmed;
+}
+
 type Step = 1 | 2;
 
 export default function AddIncomingDocumentPage() {
@@ -45,9 +69,6 @@ export default function AddIncomingDocumentPage() {
   const [ocrRawText, setOcrRawText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loadingDepts, setLoadingDepts] = useState(false);
 
   // OCR-extracted fields
   const [form, setForm] = useState({
@@ -65,7 +86,6 @@ export default function AddIncomingDocumentPage() {
   const [arrivalNumber, setArrivalNumber] = useState('');
   const [dateReceived, setDateReceived] = useState(new Date().toISOString().split('T')[0]);
   const [urgency, setUrgency] = useState<Urgency>('THUONG');
-  const [departmentId, setDepartmentId] = useState('');
   const [notes, setNotes] = useState('');
   const [processingInstructions, setProcessingInstructions] = useState('');
 
@@ -88,12 +108,6 @@ export default function AddIncomingDocumentPage() {
 
   useEffect(() => {
     fetchProcessors();
-    setLoadingDepts(true);
-    departmentsApi
-      .getAll()
-      .then(({ data }) => setDepartments(data.data || []))
-      .catch(() => setDepartments([]))
-      .finally(() => setLoadingDepts(false));
   }, [fetchProcessors]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -230,14 +244,13 @@ export default function AddIncomingDocumentPage() {
         arrivalNumber: arrivalNumber ? Number(arrivalNumber) : undefined,
         signerName: form.signerName || undefined,
         signerTitle: form.signerTitle || undefined,
-        dateLetter: form.dateLetter || undefined,
+        dateLetter: normalizeDate(form.dateLetter),
         dateReceived,
         summary: form.summary || undefined,
         pageCount: form.pageCount ? Number(form.pageCount) : undefined,
         urgency,
         notes: notes || undefined,
         processingInstructions: processingInstructions || undefined,
-        departmentId: departmentId ? Number(departmentId) : undefined,
         processorIds: processorsList,
         attachments: attachments.map((a) => ({
           fileName: a.name,
@@ -513,21 +526,6 @@ export default function AddIncomingDocumentPage() {
                   </select>
                 </div>
 
-                <div className="form-group">
-                  <label htmlFor="departmentId">Phòng ban tiếp nhận</label>
-                  <select
-                    id="departmentId"
-                    value={departmentId}
-                    onChange={(e) => setDepartmentId(e.target.value)}
-                    disabled={loadingDepts}
-                  >
-                    <option value="">-- Chọn phòng ban --</option>
-                    {departments.map((dept) => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="form-group full-width">
                   <label htmlFor="notes">Ghi chú</label>
                   <textarea
@@ -682,12 +680,6 @@ export default function AddIncomingDocumentPage() {
                     <div className="summary-item">
                       <span className="summary-label">Độ khẩn</span>
                       <span className="summary-value">{URGENCY_LABELS[urgency]}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Phòng ban</span>
-                      <span className="summary-value">
-                        {departments.find((d) => d.id === Number(departmentId))?.name || 'Chưa chọn'}
-                      </span>
                     </div>
                     <div className="summary-item">
                       <span className="summary-label">Tệp đính kèm</span>

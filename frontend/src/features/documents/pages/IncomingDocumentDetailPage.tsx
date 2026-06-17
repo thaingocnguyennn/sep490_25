@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { incomingDocumentsApi, type IncomingDocumentDetail, type WorkflowStatus } from '../../../api';
 import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
+import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
 
 const WORKFLOW_ACTION_LABELS: Record<string, string> = {
   PENDING: 'Chưa xử lý',
@@ -30,11 +31,13 @@ const URGENCY_LABELS: Record<string, string> = {
 export default function IncomingDocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, isDepartmentHead, isAdmin } = useAuth();
   const [doc, setDoc] = useState<IncomingDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingStep, setUpdatingStep] = useState<number | null>(null);
+  const [processOpen, setProcessOpen] = useState(false);
 
   const fetchDoc = () => {
     if (!id) return;
@@ -49,6 +52,12 @@ export default function IncomingDocumentDetailPage() {
   useEffect(() => {
     fetchDoc();
   }, [id]);
+
+  useEffect(() => {
+    if (searchParams.get('process') === '1' && doc) {
+      setProcessOpen(true);
+    }
+  }, [searchParams, doc]);
 
   const handleWorkflowStepAction = async (workflowId: number, action: string) => {
     if (!doc || !user) return;
@@ -119,11 +128,38 @@ export default function IncomingDocumentDetailPage() {
   const isRejected = d.status === 'REJECTED';
   const isCompleted = d.status === 'COMPLETED';
 
+  const headStep = d.workflows?.find((w) => w.workflowStep.stepOrder === 2);
+  const canProcess =
+    (isDepartmentHead || isAdmin) &&
+    d.status === 'PENDING' &&
+    !!headStep &&
+    headStep.status === 'PENDING';
+
+  const handleProcessClose = () => {
+    setProcessOpen(false);
+    if (searchParams.get('process') === '1') {
+      const next = new URLSearchParams(searchParams);
+      next.delete('process');
+      setSearchParams(next, { replace: true });
+    }
+  };
+
   return (
     <>
       <div className="top-bar">
         <h1>Chi tiết Văn bản đến</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại danh sách</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canProcess && (
+            <button
+              className="btn btn-primary"
+              onClick={() => setProcessOpen(true)}
+              title="Xử lý văn bản này"
+            >
+              Xử lý
+            </button>
+          )}
+          <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại danh sách</button>
+        </div>
       </div>
 
       <div className="page-content">
@@ -384,6 +420,18 @@ export default function IncomingDocumentDetailPage() {
           )}
         </div>
       </div>
+
+      {doc && (
+        <ProcessIncomingDocumentModal
+          open={processOpen}
+          doc={doc}
+          onClose={handleProcessClose}
+          onSuccess={() => {
+            handleProcessClose();
+            fetchDoc();
+          }}
+        />
+      )}
     </>
   );
 }

@@ -27,6 +27,7 @@ import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
 import IncomingDocumentsPage from '../features/documents/pages/IncomingDocumentsPage';
 import AddIncomingDocumentPage from '../features/documents/pages/AddIncomingDocumentPage';
 import IncomingDocumentDetailPage from '../features/documents/pages/IncomingDocumentDetailPage';
+import PendingIncomingDocumentsPage from '../features/documents/pages/PendingIncomingDocumentsPage';
 // Outgoing document pages
 import OutgoingDocumentsPage from '../features/documents/pages/OutgoingDocumentsPage';
 import CreateOutgoingDocumentPage from '../features/documents/pages/CreateOutgoingDocumentPage';
@@ -57,6 +58,7 @@ export const routes: RouteObject[] = [
       // Incoming document routes (from dev branch)
       { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
       { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
+      { path: 'incoming-documents/pending', element: <PendingIncomingDocumentsPage /> },
       { path: 'incoming-documents/:id', element: <IncomingDocumentDetailPage /> },
       // Outgoing document routes
       { path: 'outgoing-documents', element: <OutgoingDocumentsPage /> },

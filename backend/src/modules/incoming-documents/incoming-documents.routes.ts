@@ -4,7 +4,10 @@ import { validateRequest } from '../../shared/middlewares/validate.middleware';
 import { authenticate } from '../../shared/middlewares/auth.middleware';
 import { requireRole } from '../../shared/middlewares/require-role.middleware';
 import { ROLES } from '../../shared/constants/roles';
-import { createIncomingDocumentValidation } from './incoming-documents.validation';
+import {
+  createIncomingDocumentValidation,
+  processIncomingDocumentValidation,
+} from './incoming-documents.validation';
 
 const router = Router();
 
@@ -15,6 +18,13 @@ router.post(
   createIncomingDocumentValidation,
   validateRequest,
   incomingDocumentsController.create.bind(incomingDocumentsController)
+);
+
+router.get(
+  '/pending-for-head',
+  authenticate,
+  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
+  incomingDocumentsController.listPendingForHead.bind(incomingDocumentsController)
 );
 
 router.get(
@@ -39,6 +49,15 @@ router.patch(
   '/:id/workflow/:workflowId',
   authenticate,
   incomingDocumentsController.updateWorkflowStep.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/process',
+  authenticate,
+  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
+  processIncomingDocumentValidation,
+  validateRequest,
+  incomingDocumentsController.processByHead.bind(incomingDocumentsController)
 );
 
 export default router;
