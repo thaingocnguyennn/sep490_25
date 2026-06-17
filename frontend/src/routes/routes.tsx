@@ -14,6 +14,9 @@ import UserFormPage from '../features/users/pages/UserFormPage';
 import UserDetailPage from '../features/users/pages/UserDetailPage';
 import RolesPage from '../features/roles/pages/RolesPage';
 import RoleFormPage from '../features/roles/pages/RoleFormPage';
+import DepartmentsPage from '../features/departments/pages/DepartmentsPage';
+import DepartmentFormPage from '../features/departments/pages/DepartmentFormPage';
+import DepartmentDetailPage from '../features/departments/pages/DepartmentDetailPage';
 // Document management pages
 import DocumentsPage from '../features/documents/pages/DocumentsPage';
 import ArchivedDocumentsPage from '../features/documents/pages/ArchivedDocumentsPage';
@@ -75,6 +78,10 @@ export const routes: RouteObject[] = [
       { path: 'roles', element: <RolesPage /> },
       { path: 'roles/new', element: <RoleFormPage /> },
       { path: 'roles/:id/edit', element: <RoleFormPage /> },
+      { path: 'departments', element: <DepartmentsPage /> },
+      { path: 'departments/new', element: <DepartmentFormPage /> },
+      { path: 'departments/:id', element: <DepartmentDetailPage /> },
+      { path: 'departments/:id/edit', element: <DepartmentFormPage /> },
     ],
   },
   {

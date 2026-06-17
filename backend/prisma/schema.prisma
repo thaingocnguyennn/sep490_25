@@ -15,25 +15,25 @@ enum OcrStatus {
 }
 
 enum DocumentStatus {
-  DRAFT             // Bản nháp
-  PENDING           // Chờ xử lý (văn bản đến)
-  IN_PROGRESS       // Đang xử lý
-  SUBMITTED         // Đã trình duyệt (văn bản đi - chờ trưởng phòng duyệt)
-  RETURNED          // Trả lại để chỉnh sửa
-  APPROVED          // Đã duyệt (trưởng phòng duyệt)
+  DRAFT // Bản nháp
+  PENDING // Chờ xử lý (văn bản đến)
+  IN_PROGRESS // Đang xử lý
+  SUBMITTED // Đã trình duyệt (văn bản đi - chờ trưởng phòng duyệt)
+  RETURNED // Trả lại để chỉnh sửa
+  APPROVED // Đã duyệt (trưởng phòng duyệt)
   WAITING_FOR_ISSUE // Chờ văn thư cấp số và phát hành
-  ISSUED            // Đã phát hành
-  COMPLETED         // Hoàn tất
-  RECALLED          // Thu hồi
-  TRASHED           // Đã chuyển vào thùng rác
-  REJECTED          // Bị từ chối
-  CANCELLED         // Đã huỷ
+  ISSUED // Đã phát hành
+  COMPLETED // Hoàn tất
+  RECALLED // Thu hồi
+  TRASHED // Đã chuyển vào thùng rác
+  REJECTED // Bị từ chối
+  CANCELLED // Đã huỷ
 }
 
 enum ProcessorType {
-  XLC  // Primary Processor
+  XLC // Primary Processor
   PHXL // Coordinating Processor
-  XDB  // For Information/Reference Only
+  XDB // For Information/Reference Only
 }
 
 enum UserStatus {
@@ -70,10 +70,10 @@ enum ConfidentialityLevel {
 }
 
 enum Urgency {
-  THUONG      // Thường / Bình thường
-  KHAN        // Khẩn
+  THUONG // Thường / Bình thường
+  KHAN // Khẩn
   THUONG_KHAU // Thượng khẩn
-  HOA_TOC     // Hỏa tốc
+  HOA_TOC // Hỏa tốc
 }
 
 enum WorkflowStatus {
@@ -92,68 +92,75 @@ enum StepStatus {
 }
 
 model Department {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
+  id          Int      @id @default(autoincrement())
+  name        String
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  parentId    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  users              User[]
-  documents          Document[]       @relation("DocumentDepartment")
-  incomingDocuments  IncomingDocument[]
+  parent   Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children Department[] @relation("DepartmentHierarchy")
+
+  users             User[]
+  documents         Document[]         @relation("DocumentDepartment")
+  incomingDocuments IncomingDocument[]
+
+  @@unique([name, parentId])
+  @@index([parentId])
 }
 
 model User {
-  id              Int          @id @default(autoincrement())
-  username        String       @unique
-  email           String       @unique
-  password        String
-  fullName        String
-  phone           String?
-  avatar          String?
-  status          UserStatus   @default(ACTIVE)
-  isFirstLogin    Boolean      @default(true)
-  lastLogin       DateTime?
-  lockUntil       DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  createdBy       Int?
-  updatedBy       Int?
+  id           Int        @id @default(autoincrement())
+  username     String     @unique
+  email        String     @unique
+  password     String
+  fullName     String
+  phone        String?
+  avatar       String?
+  status       UserStatus @default(ACTIVE)
+  isFirstLogin Boolean    @default(true)
+  lastLogin    DateTime?
+  lockUntil    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  createdBy    Int?
+  updatedBy    Int?
 
-  departmentId    Int?
-  department      Department?  @relation(fields: [departmentId], references: [id])
+  departmentId Int?
+  department   Department? @relation(fields: [departmentId], references: [id])
 
-  userRoles       UserRole[]
-  createdByUser   User?        @relation("CreatedBy", fields: [createdBy], references: [id])
-  createdUsers    User[]       @relation("CreatedBy")
-  updatedByUser   User?        @relation("UpdatedBy", fields: [updatedBy], references: [id])
-  updatedUsers    User[]       @relation("UpdatedBy")
+  userRoles     UserRole[]
+  createdByUser User?      @relation("CreatedBy", fields: [createdBy], references: [id])
+  createdUsers  User[]     @relation("CreatedBy")
+  updatedByUser User?      @relation("UpdatedBy", fields: [updatedBy], references: [id])
+  updatedUsers  User[]     @relation("UpdatedBy")
 
-  notifications    Notification[]
-  documentWorkflows DocumentWorkflow[]
-  createdDocuments Document[]    @relation("CreatedBy")
-  updatedDocuments Document[]    @relation("UpdatedBy")
-  processedDocuments Document[]  @relation("DocumentProcessor")
+  notifications      Notification[]
+  documentWorkflows  DocumentWorkflow[]
+  createdDocuments   Document[]          @relation("CreatedBy")
+  updatedDocuments   Document[]          @relation("UpdatedBy")
+  processedDocuments Document[]          @relation("DocumentProcessor")
   documentProcessors DocumentProcessor[]
 
   // Outgoing document workflow relations
-  outgoingSubmitted  OutgoingDocument[] @relation("OutgoingSubmittedBy")
-  outgoingApproved   OutgoingDocument[] @relation("OutgoingApprovedBy")
-  outgoingReturned   OutgoingDocument[] @relation("OutgoingReturnedBy")
-  outgoingForwarded  OutgoingDocument[] @relation("OutgoingForwardedBy")
-  outgoingIssued     OutgoingDocument[] @relation("OutgoingIssuedBy")
-  outgoingRecalled   OutgoingDocument[] @relation("OutgoingRecalledBy")
-  outgoingTrashed    OutgoingDocument[] @relation("OutgoingTrashedBy")
+  outgoingSubmitted OutgoingDocument[] @relation("OutgoingSubmittedBy")
+  outgoingApproved  OutgoingDocument[] @relation("OutgoingApprovedBy")
+  outgoingReturned  OutgoingDocument[] @relation("OutgoingReturnedBy")
+  outgoingForwarded OutgoingDocument[] @relation("OutgoingForwardedBy")
+  outgoingIssued    OutgoingDocument[] @relation("OutgoingIssuedBy")
+  outgoingRecalled  OutgoingDocument[] @relation("OutgoingRecalledBy")
+  outgoingTrashed   OutgoingDocument[] @relation("OutgoingTrashedBy")
 }
 
 model Role {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  userRoles   UserRole[]
+  userRoles UserRole[]
 }
 
 model UserRole {
@@ -161,55 +168,55 @@ model UserRole {
   roleId     Int
   assignedAt DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
 }
 
 model Document {
-  id                    Int                      @id @default(autoincrement())
-  documentNumber        String                   @unique
-  title                 String
-  description           String?
-  type                  DocumentType
-  fileUrl               String?
-  ocrText               String?
-  ocrStatus             OcrStatus                @default(PENDING)
-  status                DocumentStatus           @default(DRAFT)
-  priority              Priority                 @default(NORMAL)
-  deadline              DateTime?
+  id             Int            @id @default(autoincrement())
+  documentNumber String         @unique
+  title          String
+  description    String?
+  type           DocumentType
+  fileUrl        String?
+  ocrText        String?
+  ocrStatus      OcrStatus      @default(PENDING)
+  status         DocumentStatus @default(DRAFT)
+  priority       Priority       @default(NORMAL)
+  deadline       DateTime?
 
   // --- Level 2 fields: basic document management ---
-  issuanceDate          DateTime?                // Ngày ban hành
-  sendingAgency         String?                  // Cơ quan gửi
-  urgencyLevel          Priority                 @default(NORMAL)    // Mức độ khẩn
-  confidentialityLevel  ConfidentialityLevel     @default(NORMAL)    // Mức độ mật
-  documentStatus        DocumentLifecycleStatus  @default(ACTIVE)    // Trạng thái soft-delete
-  category              String?                  // Phân loại phụ (tuỳ chọn)
-  originalFileName      String?                  // Tên file gốc khi upload
-  fileSize              Int?                     // Dung lượng file (bytes)
-  mimeType              String?                  // Loại MIME (application/pdf, ...)
-  isArchived            Boolean                  @default(false)     // Đã lưu trữ
+  issuanceDate         DateTime? // Ngày ban hành
+  sendingAgency        String? // Cơ quan gửi
+  urgencyLevel         Priority                @default(NORMAL) // Mức độ khẩn
+  confidentialityLevel ConfidentialityLevel    @default(NORMAL) // Mức độ mật
+  documentStatus       DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
+  category             String? // Phân loại phụ (tuỳ chọn)
+  originalFileName     String? // Tên file gốc khi upload
+  fileSize             Int? // Dung lượng file (bytes)
+  mimeType             String? // Loại MIME (application/pdf, ...)
+  isArchived           Boolean                 @default(false) // Đã lưu trữ
 
   // Department & processor relations
-  departmentId          Int?
-  department            Department?              @relation("DocumentDepartment", fields: [departmentId], references: [id])
-  processorId           Int?
-  processor             User?                    @relation("DocumentProcessor", fields: [processorId], references: [id])
+  departmentId Int?
+  department   Department? @relation("DocumentDepartment", fields: [departmentId], references: [id])
+  processorId  Int?
+  processor    User?       @relation("DocumentProcessor", fields: [processorId], references: [id])
 
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  createdBy       Int?
-  updatedBy       Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy Int?
+  updatedBy Int?
 
-  createdByUser   User?        @relation("CreatedBy", fields: [createdBy], references: [id])
-  updatedByUser   User?        @relation("UpdatedBy", fields: [updatedBy], references: [id])
+  createdByUser     User?                @relation("CreatedBy", fields: [createdBy], references: [id])
+  updatedByUser     User?                @relation("UpdatedBy", fields: [updatedBy], references: [id])
   incomingDocuments IncomingDocument[]
   outgoingDocuments OutgoingDocument[]
-  workflows       DocumentWorkflow[]
-  processors      DocumentProcessor[]
-  attachments     DocumentAttachment[]
+  workflows         DocumentWorkflow[]
+  processors        DocumentProcessor[]
+  attachments       DocumentAttachment[]
 
   @@index([documentStatus])
   @@index([type])
@@ -218,78 +225,78 @@ model Document {
 }
 
 model IncomingDocument {
-  id                     Int         @id @default(autoincrement())
-  documentId             Int         @unique
-  issuer                 String?                     // Cơ quan ban hành
-  documentType           String?                     // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
-  documentNumber         String?                     // Số ký hiệu văn bản
-  arrivalNumber          Int?                        // Số đến (số tự động tăng)
-  signerName             String?                     // Họ tên người ký
-  signerTitle            String?                     // Chức vụ người ký
-  dateLetter             DateTime?                   // Ngày, tháng, năm văn bản
-  dateReceived          DateTime                     // Ngày đến
-  summary                String?     @db.Text         // Trích yếu nội dung
-  pageCount              Int?                        // Số trang văn bản
-  urgency                Urgency?                    // Độ khẩn (Thường / Khẩn / Thượng khẩn / Hỏa tốc)
+  id                     Int       @id @default(autoincrement())
+  documentId             Int       @unique
+  issuer                 String? // Cơ quan ban hành
+  documentType           String? // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
+  documentNumber         String? // Số ký hiệu văn bản
+  arrivalNumber          Int? // Số đến (số tự động tăng)
+  signerName             String? // Họ tên người ký
+  signerTitle            String? // Chức vụ người ký
+  dateLetter             DateTime? // Ngày, tháng, năm văn bản
+  dateReceived           DateTime // Ngày đến
+  summary                String?   @db.Text // Trích yếu nội dung
+  pageCount              Int? // Số trang văn bản
+  urgency                Urgency? // Độ khẩn (Thường / Khẩn / Thượng khẩn / Hỏa tốc)
   notes                  String?
   processingInstructions String?
-  createdAt              DateTime    @default(now())
-  updatedAt              DateTime    @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  document              Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  department            Department?  @relation(fields: [departmentId], references: [id])
-  departmentId           Int?
+  document     Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId Int?
 }
 
 model OutgoingDocument {
-  id                  Int       @id @default(autoincrement())
-  documentId          Int       @unique
+  id         Int @id @default(autoincrement())
+  documentId Int @unique
 
   // Thông tin cơ bản văn bản đi
-  documentType        String?                     // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
-  documentNumber      String?                     // Số ký hiệu văn bản gốc
-  dispatchNumber      String?                     // Số phát hành chính thức (do văn thư cấp)
-  issuanceDate        DateTime?                   // Ngày ban hành chính thức
-  signerName          String?                     // Họ tên người ký
-  signerTitle         String?                     // Chức vụ người ký
-  urgency             Urgency?                    // Độ khẩn
+  documentType   String? // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
+  documentNumber String? // Số ký hiệu văn bản gốc
+  dispatchNumber String? // Số phát hành chính thức (do văn thư cấp)
+  issuanceDate   DateTime? // Ngày ban hành chính thức
+  signerName     String? // Họ tên người ký
+  signerTitle    String? // Chức vụ người ký
+  urgency        Urgency? // Độ khẩn
 
   // Thông tin phát hành
-  recipientName       String?                     // Tên người/cơ quan nhận
-  recipientAddress    String?                     // Địa chỉ người nhận
-  sentDate            DateTime?                   // Ngày gửi/phát hành
-  pageCount           Int?                        // Số trang
+  recipientName    String? // Tên người/cơ quan nhận
+  recipientAddress String? // Địa chỉ người nhận
+  sentDate         DateTime? // Ngày gửi/phát hành
+  pageCount        Int? // Số trang
 
   // Workflow notes
-  submittedAt         DateTime?                   // Thời điểm trình duyệt
-  submittedBy         Int?                        // Người trình duyệt
-  approvedAt          DateTime?                   // Thời điểm duyệt
-  approvedBy          Int?                        // Người duyệt
-  returnedAt          DateTime?                   // Thời điểm trả lại
-  returnedBy          Int?                        // Người trả lại
-  returnReason        String?                     // Lý do trả lại
-  forwardedAt         DateTime?                   // Thời điểm chuyển văn thư
-  forwardedBy         Int?                        // Người chuyển văn thư
-  issuedAt            DateTime?                   // Thời điểm phát hành
-  issuedBy            Int?                        // Người phát hành
-  recalledAt          DateTime?                   // Thời điểm thu hồi
-  recalledBy          Int?                        // Người thu hồi
-  recallReason        String?                     // Lý do thu hồi
-  trashedAt           DateTime?                   // Thời điểm đưa vào thùng rác
-  trashedBy           Int?                        // Người đưa vào thùng rác
+  submittedAt  DateTime? // Thời điểm trình duyệt
+  submittedBy  Int? // Người trình duyệt
+  approvedAt   DateTime? // Thời điểm duyệt
+  approvedBy   Int? // Người duyệt
+  returnedAt   DateTime? // Thời điểm trả lại
+  returnedBy   Int? // Người trả lại
+  returnReason String? // Lý do trả lại
+  forwardedAt  DateTime? // Thời điểm chuyển văn thư
+  forwardedBy  Int? // Người chuyển văn thư
+  issuedAt     DateTime? // Thời điểm phát hành
+  issuedBy     Int? // Người phát hành
+  recalledAt   DateTime? // Thời điểm thu hồi
+  recalledBy   Int? // Người thu hồi
+  recallReason String? // Lý do thu hồi
+  trashedAt    DateTime? // Thời điểm đưa vào thùng rác
+  trashedBy    Int? // Người đưa vào thùng rác
 
-  notes               String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  document            Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  submittedByUser     User?     @relation("OutgoingSubmittedBy",  fields: [submittedBy],  references: [id])
-  approvedByUser      User?     @relation("OutgoingApprovedBy",   fields: [approvedBy],   references: [id])
-  returnedByUser      User?     @relation("OutgoingReturnedBy",   fields: [returnedBy],   references: [id])
-  forwardedByUser     User?     @relation("OutgoingForwardedBy",  fields: [forwardedBy],  references: [id])
-  issuedByUser        User?     @relation("OutgoingIssuedBy",     fields: [issuedBy],     references: [id])
-  recalledByUser      User?     @relation("OutgoingRecalledBy",   fields: [recalledBy],   references: [id])
-  trashedByUser       User?     @relation("OutgoingTrashedBy",    fields: [trashedBy],    references: [id])
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  submittedByUser User?    @relation("OutgoingSubmittedBy", fields: [submittedBy], references: [id])
+  approvedByUser  User?    @relation("OutgoingApprovedBy", fields: [approvedBy], references: [id])
+  returnedByUser  User?    @relation("OutgoingReturnedBy", fields: [returnedBy], references: [id])
+  forwardedByUser User?    @relation("OutgoingForwardedBy", fields: [forwardedBy], references: [id])
+  issuedByUser    User?    @relation("OutgoingIssuedBy", fields: [issuedBy], references: [id])
+  recalledByUser  User?    @relation("OutgoingRecalledBy", fields: [recalledBy], references: [id])
+  trashedByUser   User?    @relation("OutgoingTrashedBy", fields: [trashedBy], references: [id])
 }
 
 model DocumentProcessor {
@@ -299,73 +306,73 @@ model DocumentProcessor {
   processorType ProcessorType
   createdAt     DateTime      @default(now())
 
-  document      Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  user          User          @relation(fields: [userId], references: [id])
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
 
   @@unique([documentId, userId, processorType])
 }
 
 model DocumentAttachment {
-  id          Int      @id @default(autoincrement())
-  documentId  Int
-  fileName    String
-  fileUrl     String
-  fileSize    Int?
-  mimeType    String?
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  documentId Int
+  fileName   String
+  fileUrl    String
+  fileSize   Int?
+  mimeType   String?
+  createdAt  DateTime @default(now())
 
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model WorkflowStep {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
   description String?
-  stepOrder   Int       @default(1)
-  roleName    String?   // Optional: restrict this step to a specific role
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  stepOrder   Int      @default(1)
+  roleName    String? // Optional: restrict this step to a specific role
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  workflows   DocumentWorkflow[]
+  workflows DocumentWorkflow[]
 }
 
 model DocumentWorkflow {
-  id              Int           @id @default(autoincrement())
-  documentId      Int
-  workflowStepId  Int
-  userId          Int?
-  status          WorkflowStatus @default(PENDING)
-  notes           String?
-  completedAt     DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             Int            @id @default(autoincrement())
+  documentId     Int
+  workflowStepId Int
+  userId         Int?
+  status         WorkflowStatus @default(PENDING)
+  notes          String?
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  document        Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  workflowStep    WorkflowStep  @relation(fields: [workflowStepId], references: [id])
-  user            User?         @relation(fields: [userId], references: [id])
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workflowStep WorkflowStep @relation(fields: [workflowStepId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
 }
 
 model Notification {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  title       String
-  message     String
-  isRead      Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SystemLog {
-  id          Int       @id @default(autoincrement())
-  userId      Int?
-  action      String
-  entityType  String?
-  entityId    Int?
-  details     String?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  action     String
+  entityType String?
+  entityId   Int?
+  details    String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
 
   @@index([userId])
   @@index([entityType, entityId])

@@ -17,5 +17,9 @@ export type {
   DocumentWorkflow,
   WorkflowStatus,
 } from './modules/documents';
-export type { Department } from './modules/departments';
+export type {
+  Department,
+  CreateDepartmentRequest,
+  UpdateDepartmentRequest,
+} from './modules/departments';
 export { default as api } from './axios';
