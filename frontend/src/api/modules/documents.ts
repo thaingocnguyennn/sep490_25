@@ -58,9 +58,7 @@ export interface IncomingDocumentDetail {
   urgency: Urgency | null;
   notes: string | null;
   processingInstructions: string | null;
-  departmentId: number | null;
   document: Document;
-  department: { id: number; name: string } | null;
 }
 
 export interface IncomingDocumentListItem {
@@ -79,9 +77,7 @@ export interface IncomingDocumentListItem {
   urgency: Urgency | null;
   notes: string | null;
   processingInstructions: string | null;
-  departmentId: number | null;
   document: Document;
-  department: { id: number; name: string } | null;
 }
 
 export interface OcrResult {
@@ -104,8 +100,18 @@ export interface CreateIncomingDocumentRequest {
   urgency?: Urgency;
   notes?: string;
   processingInstructions?: string;
-  departmentId?: number;
   processorIds: { userId: number; processorType: ProcessorType }[];
+  attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
+}
+
+export type HeadAction = 'FINISH' | 'FORWARD' | 'RETURN';
+
+export interface ProcessIncomingDocumentRequest {
+  action: HeadAction;
+  processorIds?: { userId: number; processorType: ProcessorType }[];
+  processingInstructions?: string;
+  deadline?: string;
+  reason?: string;
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
 }
 
@@ -207,6 +213,12 @@ export const incomingDocumentsApi = {
   }) =>
     api.get<ApiResponse<PaginatedResponse<IncomingDocumentListItem>>>('/incoming-documents', { params }),
 
+  getPendingForHead: (params?: { page?: number; limit?: number; search?: string }) =>
+    api.get<ApiResponse<PaginatedResponse<IncomingDocumentListItem>>>(
+      '/incoming-documents/pending-for-head',
+      { params }
+    ),
+
   getById: (id: number) =>
     api.get<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}`),
 
@@ -218,4 +230,7 @@ export const incomingDocumentsApi = {
 
   updateWorkflowStep: (id: number, workflowId: number, data: { stepStatus: string; notes?: string }) =>
     api.patch<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/workflow/${workflowId}`, data),
+
+  processByHead: (id: number, data: ProcessIncomingDocumentRequest) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/process`, data),
 };

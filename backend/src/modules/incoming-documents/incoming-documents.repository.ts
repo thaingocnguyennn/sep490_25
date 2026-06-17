@@ -1,6 +1,6 @@
 import { default as prisma } from '../../config/database';
 import { NotFoundError } from '../../shared/exceptions/app-error';
-import { Prisma } from '@prisma/client';
+import { Prisma, DocumentStatus, WorkflowStatus } from '@prisma/client';
 
 export interface IncomingDocumentWithRelations {
   id: number;
@@ -19,7 +19,6 @@ export interface IncomingDocumentWithRelations {
   urgency: string | null;
   notes: string | null;
   processingInstructions: string | null;
-  departmentId: number | null;
   document: {
     id: number;
     documentNumber: string;
@@ -56,7 +55,6 @@ export interface IncomingDocumentWithRelations {
       user: { id: number; fullName: string } | null;
     }[];
   };
-  department: { id: number; name: string } | null;
 }
 
 export class IncomingDocumentsRepository {
@@ -92,7 +90,6 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
-          department: { select: { id: true, name: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
@@ -121,7 +118,6 @@ export class IncomingDocumentsRepository {
     const incoming = await prisma.incomingDocument.findUnique({
       where: { id },
       include: {
-        department: { select: { id: true, name: true } },
         document: {
           include: {
             createdByUser: { select: { id: true, fullName: true } },
@@ -143,6 +139,63 @@ export class IncomingDocumentsRepository {
     });
     if (!incoming) throw new NotFoundError('Không tìm thấy văn bản đến');
     return incoming as unknown as IncomingDocumentWithRelations;
+  }
+
+  async findAllPendingForHead(params: { page: number; limit: number; search?: string }) {
+    const { page, limit, search } = params;
+    const skip = (page - 1) * limit;
+
+    const documentWhere: Prisma.DocumentWhereInput = {
+      status: DocumentStatus.PENDING,
+      workflows: {
+        some: {
+          status: WorkflowStatus.PENDING,
+          workflowStep: { stepOrder: 2, roleName: 'DEPARTMENT_HEAD' },
+        },
+      },
+    };
+
+    if (search) {
+      documentWhere.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
+
+    const where: Prisma.IncomingDocumentWhereInput = { document: documentWhere };
+
+    const [items, total] = await Promise.all([
+      prisma.incomingDocument.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { document: { createdAt: 'desc' } },
+        include: {
+          document: {
+            include: {
+              createdByUser: { select: { id: true, fullName: true } },
+              processors: {
+                include: { user: { select: { id: true, fullName: true, email: true } } },
+              },
+              workflows: {
+                include: {
+                  workflowStep: { select: { id: true, name: true, stepOrder: true, roleName: true } },
+                  user: { select: { id: true, fullName: true } },
+                },
+                orderBy: { workflowStep: { stepOrder: 'asc' } },
+              },
+              attachments: true,
+            },
+          },
+        },
+      }),
+      prisma.incomingDocument.count({ where }),
+    ]);
+
+    return { items, total };
   }
 }
 

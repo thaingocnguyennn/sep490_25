@@ -5,35 +5,67 @@ import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 
+type StatusTab = '' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+
+const TABS: { value: StatusTab; label: string }[] = [
+  { value: '', label: 'Tất cả' },
+  { value: 'PENDING', label: 'Chờ xử lý' },
+  { value: 'IN_PROGRESS', label: 'Đang xử lý' },
+  { value: 'COMPLETED', label: 'Đã xử lý' },
+];
+
 export default function IncomingDocumentsPage() {
   const navigate = useNavigate();
-  const { isDocumentClerk, isAdmin } = useAuth();
+  const { isDocumentClerk, isAdmin, isDepartmentHead } = useAuth();
   const { documents, total, page, limit, loading, fetch, setPage } = useIncomingDocuments({ pageSize: 10 });
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusTab>('');
+  const [activeTab, setActiveTab] = useState<StatusTab>('');
 
   useEffect(() => {
     fetch();
   }, []);
+
+  useEffect(() => {
+    setStatusFilter(activeTab);
+  }, [activeTab]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetch({ search, status: statusFilter });
   };
 
+  const handleTabChange = (tab: StatusTab) => {
+    setActiveTab(tab);
+    setPage(1);
+    fetch({ search, status: tab });
+  };
+
   const totalPages = Math.ceil(total / limit);
 
   const canCreate = isDocumentClerk || isAdmin;
+  const canViewPending = isDepartmentHead || isAdmin;
 
   return (
     <>
       <div className="top-bar">
         <h1>Văn bản đến</h1>
-        {canCreate && (
-          <button className="btn btn-primary" onClick={() => navigate('/incoming-documents/new')}>
-            + Thêm Văn bản đến mới
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canViewPending && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => navigate('/incoming-documents/pending')}
+              title="Danh sách văn bản chờ Trưởng phòng xử lý"
+            >
+              Văn bản chờ xử lý
+            </button>
+          )}
+          {canCreate && (
+            <button className="btn btn-primary" onClick={() => navigate('/incoming-documents/new')}>
+              + Thêm Văn bản đến mới
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="page-content">
@@ -48,21 +80,32 @@ export default function IncomingDocumentsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, width: 280 }}
               />
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="DRAFT">Nháp</option>
-                <option value="PENDING">Chờ xử lý</option>
-                <option value="IN_PROGRESS">Đang xử lý</option>
-                <option value="COMPLETED">Hoàn thành</option>
-                <option value="REJECTED">Từ chối</option>
-                <option value="CANCELLED">Hủy</option>
-              </select>
               <button type="submit" className="btn btn-secondary">Tìm kiếm</button>
             </form>
+          </div>
+
+          <div style={{ display: 'flex', gap: 4, padding: '12px 16px 0', borderBottom: '1px solid #dfe6e9' }}>
+            {TABS.map((tab) => (
+              <button
+                key={tab.value || 'all'}
+                type="button"
+                onClick={() => handleTabChange(tab.value)}
+                className={`tab-btn ${activeTab === tab.value ? 'active' : ''}`}
+                style={{
+                  padding: '8px 16px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === tab.value ? '2px solid #667eea' : '2px solid transparent',
+                  color: activeTab === tab.value ? '#667eea' : '#636e72',
+                  fontWeight: activeTab === tab.value ? 600 : 500,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  marginBottom: -1,
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           <div className="card-body" style={{ padding: 0 }}>
