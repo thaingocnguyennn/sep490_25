@@ -1,4 +1,4 @@
-import { departmentsRepository, DepartmentListItem, DepartmentDetail } from './departments.repository';
+import { departmentsRepository, DepartmentListItem, DepartmentDetail, DepartmentMember } from './departments.repository';
 import { BadRequestError, ConflictError, NotFoundError } from '../../shared/exceptions/app-error';
 import { default as prisma } from '../../config/database';
 
@@ -17,6 +17,10 @@ export interface UpdateDepartmentInput {
 export interface ListDepartmentsQuery {
   search?: string;
   includeUserCount?: boolean;
+}
+
+export interface AddMembersInput {
+  userIds: number[];
 }
 
 export class DepartmentsService {
@@ -53,7 +57,6 @@ export class DepartmentsService {
   }
 
   async update(id: number, input: UpdateDepartmentInput) {
-    // Ensure the target department exists (also gives us its current parent).
     const current = await prisma.department.findUnique({
       where: { id },
       select: { id: true, parentId: true, name: true },
@@ -62,7 +65,6 @@ export class DepartmentsService {
       throw new NotFoundError('Department not found');
     }
 
-    // Cycle / self-parent check
     if (input.parentId !== undefined) {
       const newParentId = input.parentId;
       if (newParentId === id) {
@@ -73,7 +75,6 @@ export class DepartmentsService {
         if (!parentExists) {
           throw new NotFoundError(`Parent department with id ${newParentId} not found`);
         }
-        // Reject if newParentId is a descendant of `id`
         const descendants = await departmentsRepository.findDescendantIds(id);
         if (descendants.has(newParentId)) {
           throw new BadRequestError(
@@ -83,7 +84,6 @@ export class DepartmentsService {
       }
     }
 
-    // Uniqueness check when name or parentId changes
     const effectiveParentId =
       input.parentId !== undefined ? input.parentId : current.parentId;
     const effectiveName = input.name !== undefined ? input.name : current.name;
@@ -112,7 +112,7 @@ export class DepartmentsService {
       throw new NotFoundError('Department not found');
     }
 
-    // Check for direct children first
+    // Block delete if there are child departments.
     const directChildren = await departmentsRepository.countDirectChildren(id);
     if (directChildren > 0) {
       throw new ConflictError(
@@ -120,15 +120,61 @@ export class DepartmentsService {
       );
     }
 
-    // Check for direct users
-    const directUsers = await departmentsRepository.countDirectUsers(id);
-    if (directUsers > 0) {
+    // Block delete if there are members.
+    const directMembers = await departmentsRepository.countDirectMembers(id);
+    if (directMembers > 0) {
       throw new ConflictError(
-        `Cannot delete this department because it has ${directUsers} user(s) assigned. Reassign the users to another department first.`
+        `Cannot delete this department because it has ${directMembers} member(s). Remove members from this department first.`
       );
     }
 
     return departmentsRepository.delete(id);
+  }
+
+  // ---- Members (M2M) ----
+
+  async getMembers(departmentId: number): Promise<DepartmentMember[]> {
+    const exists = await departmentsRepository.existsById(departmentId);
+    if (!exists) {
+      throw new NotFoundError('Department not found');
+    }
+    return departmentsRepository.findMembers(departmentId);
+  }
+
+  async addMembers(departmentId: number, input: AddMembersInput) {
+    const exists = await departmentsRepository.existsById(departmentId);
+    if (!exists) {
+      throw new NotFoundError('Department not found');
+    }
+
+    // Deduplicate input.
+    const uniqueUserIds = Array.from(new Set(input.userIds));
+    if (uniqueUserIds.length === 0) {
+      throw new BadRequestError('No user IDs provided');
+    }
+
+    // Verify that all referenced users exist.
+    const found = await prisma.user.findMany({
+      where: { id: { in: uniqueUserIds } },
+      select: { id: true },
+    });
+    const foundIds = new Set(found.map((u) => u.id));
+    const missing = uniqueUserIds.filter((id) => !foundIds.has(id));
+    if (missing.length > 0) {
+      throw new NotFoundError(
+        `User(s) not found: ${missing.join(', ')}`
+      );
+    }
+
+    return departmentsRepository.addMembers(departmentId, uniqueUserIds);
+  }
+
+  async removeMember(departmentId: number, userId: number) {
+    const exists = await departmentsRepository.existsById(departmentId);
+    if (!exists) {
+      throw new NotFoundError('Department not found');
+    }
+    return departmentsRepository.removeMember(departmentId, userId);
   }
 }
 

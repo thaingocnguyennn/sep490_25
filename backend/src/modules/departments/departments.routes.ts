@@ -10,6 +10,9 @@ import {
   createDepartmentValidation,
   updateDepartmentValidation,
   deleteDepartmentValidation,
+  getMembersValidation,
+  addMembersValidation,
+  removeMemberValidation,
 } from './departments.validation';
 
 const router = Router();
@@ -52,6 +55,31 @@ router.delete(
   deleteDepartmentValidation,
   validateRequest,
   departmentsController.delete.bind(departmentsController)
+);
+
+// ---- Members (many-to-many User <-> Department) ----
+
+router.get(
+  '/:id/members',
+  getMembersValidation,
+  validateRequest,
+  departmentsController.getMembers.bind(departmentsController)
+);
+
+router.post(
+  '/:id/members',
+  requireRole(ROLES.ADMIN),
+  addMembersValidation,
+  validateRequest,
+  departmentsController.addMembers.bind(departmentsController)
+);
+
+router.delete(
+  '/:id/members/:userId',
+  requireRole(ROLES.ADMIN),
+  removeMemberValidation,
+  validateRequest,
+  departmentsController.removeMember.bind(departmentsController)
 );
 
 export default router;

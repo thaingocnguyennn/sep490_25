@@ -30,6 +30,29 @@ export interface ListDepartmentsParams {
   search?: string;
 }
 
+export interface DepartmentMember {
+  userId: number;
+  departmentId: number;
+  assignedAt: string;
+  user: {
+    id: number;
+    username: string;
+    fullName: string;
+    email: string;
+    status: string;
+    roles: string[];
+  };
+}
+
+export interface AddMembersRequest {
+  userIds: number[];
+}
+
+export interface AddMembersResult {
+  created: number;
+  alreadyMembers: number[];
+}
+
 export const departmentsApi = {
   getAll: (params?: ListDepartmentsParams) => {
     const search = params?.search?.trim();
@@ -49,4 +72,20 @@ export const departmentsApi = {
 
   delete: (id: number) =>
     api.delete<ApiResponse<null>>(`/departments/${id}`),
+
+  // ---- Members (many-to-many) ----
+
+  getMembers: (departmentId: number) =>
+    api.get<ApiResponse<DepartmentMember[]>>(`/departments/${departmentId}/members`),
+
+  addMembers: (departmentId: number, data: AddMembersRequest) =>
+    api.post<ApiResponse<AddMembersResult>>(
+      `/departments/${departmentId}/members`,
+      data
+    ),
+
+  removeMember: (departmentId: number, userId: number) =>
+    api.delete<ApiResponse<null>>(
+      `/departments/${departmentId}/members/${userId}`
+    ),
 };

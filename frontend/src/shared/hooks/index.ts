@@ -9,6 +9,6 @@ export { useProcessors } from './useProcessors';
 export type { ProcessorOption } from './useProcessors';
 export { useOutgoingDocuments } from './useOutgoingDocuments';
 export { useOutgoingDocumentActions } from './useOutgoingDocumentActions';
-export { useDepartments } from './useDepartments';
+export { useDepartments, useDepartmentMembers } from './useDepartments';
 export { useDepartmentActions } from './useDepartmentActions';
 

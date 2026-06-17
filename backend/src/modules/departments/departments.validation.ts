@@ -68,3 +68,31 @@ export const deleteDepartmentValidation = [
     .isInt({ min: 1 })
     .withMessage('Valid department ID is required'),
 ];
+
+export const getMembersValidation = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Valid department ID is required'),
+];
+
+export const addMembersValidation = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Valid department ID is required'),
+  body('userIds')
+    .isArray({ min: 1 })
+    .withMessage('userIds must be a non-empty array'),
+  body('userIds.*')
+    .isInt({ min: 1 })
+    .withMessage('Each userId must be a positive integer'),
+];
+
+export const removeMemberValidation = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Valid department ID is required'),
+  param('userId')
+    .isInt({ min: 1 })
+    .withMessage('Valid user ID is required'),
+];
+
