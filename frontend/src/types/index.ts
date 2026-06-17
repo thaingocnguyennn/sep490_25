@@ -36,6 +36,11 @@ export interface User {
     id: number;
     name: string;
   } | null;
+  departmentMemberships?: {
+    departmentId: number;
+    name: string;
+    assignedAt: string;
+  }[];
   createdBy?: {
     id: number;
     fullName: string;

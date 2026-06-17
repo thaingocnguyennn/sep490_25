@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { departmentsApi } from '../../api';
-import type { Department } from '../../api';
+import type { Department, DepartmentMember } from '../../api';
 
 interface UseDepartmentsOptions {
   autoFetch?: boolean;
@@ -43,4 +43,40 @@ export function useDepartments(options: UseDepartmentsOptions = {}): UseDepartme
   }, []);
 
   return { departments, loading, error, refetch: fetch, fetchById };
+}
+
+interface UseDepartmentMembersResult {
+  members: DepartmentMember[];
+  loading: boolean;
+  error: string;
+  refetch: () => void;
+}
+
+export function useDepartmentMembers(
+  departmentId: number | null,
+  autoFetch = true
+): UseDepartmentMembersResult {
+  const [members, setMembers] = useState<DepartmentMember[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const refetch = useCallback(() => {
+    if (departmentId === null) {
+      setMembers([]);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    departmentsApi
+      .getMembers(departmentId)
+      .then(({ data }) => setMembers(data.data ?? []))
+      .catch(() => setError('Failed to load department members'))
+      .finally(() => setLoading(false));
+  }, [departmentId]);
+
+  useEffect(() => {
+    if (autoFetch) refetch();
+  }, [autoFetch, refetch]);
+
+  return { members, loading, error, refetch };
 }

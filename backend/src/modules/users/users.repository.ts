@@ -37,6 +37,11 @@ export interface UserDetail extends UserSummary {
     id: number;
     name: string;
   } | null;
+  departmentMemberships?: {
+    departmentId: number;
+    name: string;
+    assignedAt: string;
+  }[];
   createdBy?: {
     id: number;
     fullName: string;
@@ -108,6 +113,10 @@ export class UsersRepository {
           include: { role: true },
         },
         department: true,
+        departmentMemberships: {
+          include: { department: { select: { id: true, name: true } } },
+          orderBy: { assignedAt: 'desc' },
+        },
         createdByUser: {
           select: { id: true, fullName: true },
         },
@@ -161,6 +170,10 @@ export class UsersRepository {
           include: { role: true },
         },
         department: true,
+        departmentMemberships: {
+          include: { department: { select: { id: true, name: true } } },
+          orderBy: { assignedAt: 'desc' },
+        },
         createdByUser: {
           select: { id: true, fullName: true },
         },
@@ -201,6 +214,10 @@ export class UsersRepository {
           include: { role: true },
         },
         department: true,
+        departmentMemberships: {
+          include: { department: { select: { id: true, name: true } } },
+          orderBy: { assignedAt: 'desc' },
+        },
         createdByUser: {
           select: { id: true, fullName: true },
         },
@@ -267,6 +284,11 @@ export class UsersRepository {
     updatedAt: Date;
     userRoles: { role: { name: string } }[];
     department: { id: number; name: string } | null;
+    departmentMemberships: {
+      departmentId: number;
+      assignedAt: Date;
+      department: { id: number; name: string };
+    }[];
     createdByUser: { id: number; fullName: string } | null;
     updatedByUser: { id: number; fullName: string } | null;
   }): UserDetail {
@@ -284,6 +306,11 @@ export class UsersRepository {
       updatedAt: user.updatedAt.toISOString(),
       roles: user.userRoles.map((ur) => ur.role.name),
       department: user.department,
+      departmentMemberships: user.departmentMemberships.map((m) => ({
+        departmentId: m.departmentId,
+        name: m.department.name,
+        assignedAt: m.assignedAt.toISOString(),
+      })),
       createdBy: user.createdByUser,
       updatedBy: user.updatedByUser,
     };

@@ -18,6 +18,20 @@ export interface DepartmentDetail extends DepartmentListItem {
   children: { id: number; name: string }[];
 }
 
+export interface DepartmentMember {
+  userId: number;
+  departmentId: number;
+  assignedAt: Date;
+  user: {
+    id: number;
+    username: string;
+    fullName: string;
+    email: string;
+    status: string;
+    roles: string[];
+  };
+}
+
 export interface FindAllOptions {
   search?: string;
   includeCounts?: boolean;
@@ -37,7 +51,7 @@ export class DepartmentsRepository {
         ...(includeCounts
           ? {
               _count: {
-                select: { users: true, children: true },
+                select: { members: true, children: true },
               },
             }
           : {}),
@@ -53,7 +67,7 @@ export class DepartmentsRepository {
       include: {
         parent: { select: { id: true, name: true } },
         children: { select: { id: true, name: true }, orderBy: { name: 'asc' } },
-        _count: { select: { users: true, children: true } },
+        _count: { select: { members: true, children: true } },
       },
     });
     if (!department) throw new NotFoundError('Department not found');
@@ -116,13 +130,8 @@ export class DepartmentsRepository {
     return result;
   }
 
-  async countDirectUsers(id: number): Promise<number> {
-    return prisma.user.count({ where: { departmentId: id } });
-  }
-
-  async countUsersInSubtree(rootId: number, descendantIds: Set<number>): Promise<number> {
-    if (descendantIds.size === 0) return 0;
-    return prisma.user.count({ where: { departmentId: { in: Array.from(descendantIds) } } });
+  async countDirectMembers(id: number): Promise<number> {
+    return prisma.departmentMember.count({ where: { departmentId: id } });
   }
 
   async countDirectChildren(id: number): Promise<number> {
@@ -207,6 +216,106 @@ export class DepartmentsRepository {
     }
   }
 
+  // ---- Members (M2M) ----
+
+  async findMembers(departmentId: number): Promise<DepartmentMember[]> {
+    const memberships = await prisma.departmentMember.findMany({
+      where: { departmentId },
+      orderBy: { assignedAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            fullName: true,
+            email: true,
+            status: true,
+            userRoles: { select: { role: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+
+    return memberships.map((m) => ({
+      userId: m.userId,
+      departmentId: m.departmentId,
+      assignedAt: m.assignedAt,
+      user: {
+        id: m.user.id,
+        username: m.user.username,
+        fullName: m.user.fullName,
+        email: m.user.email,
+        status: m.user.status,
+        roles: m.user.userRoles.map((ur) => ur.role.name),
+      },
+    }));
+  }
+
+  /**
+   * Add users to a department. Skips users that are already members (the
+   * compound primary key (userId, departmentId) acts as a uniqueness guard).
+   * Returns the list of newly-created memberships.
+   */
+  async addMembers(
+    departmentId: number,
+    userIds: number[]
+  ): Promise<{ created: number; alreadyMembers: number[] }> {
+    // Detect users that are already members so we can return a friendly result
+    const existing = await prisma.departmentMember.findMany({
+      where: { departmentId, userId: { in: userIds } },
+      select: { userId: true },
+    });
+    const alreadyMembers = existing.map((e) => e.userId);
+    const toCreate = userIds.filter((u) => !alreadyMembers.includes(u));
+
+    if (toCreate.length === 0) {
+      return { created: 0, alreadyMembers };
+    }
+
+    await prisma.departmentMember.createMany({
+      data: toCreate.map((userId) => ({ userId, departmentId })),
+    });
+
+    return { created: toCreate.length, alreadyMembers };
+  }
+
+  async removeMember(departmentId: number, userId: number): Promise<void> {
+    try {
+      await prisma.departmentMember.delete({
+        where: { userId_departmentId: { userId, departmentId } },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new NotFoundError('User is not a member of this department');
+      }
+      throw err;
+    }
+  }
+
+  async isMember(departmentId: number, userId: number): Promise<boolean> {
+    const count = await prisma.departmentMember.count({
+      where: { departmentId, userId },
+    });
+    return count > 0;
+  }
+
+  async findUserDepartmentIds(userId: number): Promise<number[]> {
+    const rows = await prisma.departmentMember.findMany({
+      where: { userId },
+      select: { departmentId: true },
+    });
+    return rows.map((r) => r.departmentId);
+  }
+
+  async findUserDepartments(userId: number): Promise<{ id: number; name: string }[]> {
+    const memberships = await prisma.departmentMember.findMany({
+      where: { userId },
+      orderBy: { assignedAt: 'desc' },
+      include: { department: { select: { id: true, name: true } } },
+    });
+    return memberships.map((m) => m.department);
+  }
+
   private toListItem(d: any): DepartmentListItem {
     return {
       id: d.id,
@@ -216,7 +325,7 @@ export class DepartmentsRepository {
       parent: d.parent ?? null,
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
-      userCount: d._count?.users ?? 0,
+      userCount: d._count?.members ?? 0,
       childCount: d._count?.children ?? 0,
     };
   }

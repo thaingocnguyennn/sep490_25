@@ -52,6 +52,47 @@ export class DepartmentsController {
       next(error);
     }
   }
+
+  // ---- Members ----
+
+  async getMembers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const members = await departmentsService.getMembers(id);
+      res.status(200).json(successResponse(members, 'Department members retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async addMembers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const result = await departmentsService.addMembers(id, req.body);
+      const message =
+        result.created > 0
+          ? `Added ${result.created} member(s) to the department${
+              result.alreadyMembers.length > 0
+                ? ` (${result.alreadyMembers.length} were already members)`
+                : ''
+            }`
+          : 'All selected users are already members of this department';
+      res.status(201).json(successResponse(result, message));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async removeMember(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const userId = parseInt(req.params.userId as string, 10);
+      await departmentsService.removeMember(id, userId);
+      res.status(200).json(successResponse(null, 'Member removed from department'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const departmentsController = new DepartmentsController();

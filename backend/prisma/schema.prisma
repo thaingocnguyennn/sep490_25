@@ -102,12 +102,27 @@ model Department {
   parent   Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children Department[] @relation("DepartmentHierarchy")
 
-  users             User[]
+  // Many-to-many: a user can belong to multiple departments, and a department can have multiple users
+  members           DepartmentMember[]
   documents         Document[]         @relation("DocumentDepartment")
   incomingDocuments IncomingDocument[]
+  User              User[]
 
   @@unique([name, parentId])
   @@index([parentId])
+}
+
+model DepartmentMember {
+  userId       Int
+  departmentId Int
+  assignedAt   DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, departmentId])
+  @@index([departmentId])
+  @@index([userId])
 }
 
 model User {
@@ -129,6 +144,8 @@ model User {
 
   departmentId Int?
   department   Department? @relation(fields: [departmentId], references: [id])
+
+  departmentMemberships DepartmentMember[]
 
   userRoles     UserRole[]
   createdByUser User?      @relation("CreatedBy", fields: [createdBy], references: [id])

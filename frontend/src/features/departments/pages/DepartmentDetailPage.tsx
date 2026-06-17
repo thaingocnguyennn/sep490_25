@@ -1,37 +1,48 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useDepartments, useDepartmentActions } from '../../../shared/hooks';
+import { useDepartments, useDepartmentMembers, useDepartmentActions } from '../../../shared/hooks';
 import { useAuth } from '../../../contexts/AuthContext';
-import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
-import type { Department } from '../../../api';
+import { LoadingSpinner, ConfirmModal, AddMembersModal, StatusBadge, RoleBadge } from '../../../shared/components';
+import type { Department, DepartmentMember } from '../../../api';
 
 export default function DepartmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { fetchById } = useDepartments({ autoFetch: false });
-  const { deleteDepartment, actionLoading, actionError, clearActionError } =
+  const departmentId = id ? Number(id) : null;
+  const {
+    members,
+    loading: membersLoading,
+    refetch: refetchMembers,
+  } = useDepartmentMembers(departmentId);
+
+  const { deleteDepartment, addMembers, removeMember, actionLoading, actionError, clearActionError } =
     useDepartmentActions();
 
   const [department, setDepartment] = useState<Department | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<DepartmentMember | null>(null);
+
+  const loadDepartment = useCallback(async () => {
+    if (departmentId === null) return;
+    try {
+      const d = await fetchById(departmentId);
+      setDepartment(d);
+    } catch {
+      navigate('/admin/departments');
+    } finally {
+      setLoading(false);
+    }
+  }, [departmentId, fetchById, navigate]);
 
   useEffect(() => {
     if (!isAdmin) return;
-
-    const load = async () => {
-      try {
-        const d = await fetchById(Number(id));
-        setDepartment(d);
-      } catch {
-        navigate('/admin/departments');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [id, isAdmin, navigate, fetchById]);
+    setLoading(true);
+    loadDepartment();
+  }, [isAdmin, loadDepartment]);
 
   const handleDelete = async () => {
     if (!department) return;
@@ -46,6 +57,42 @@ export default function DepartmentDetailPage() {
   const closeDeleteModal = () => {
     if (actionLoading) return;
     setDeleteModal(false);
+    clearActionError();
+  };
+
+  const closeAddMembers = () => {
+    if (actionLoading) return;
+    setAddMembersOpen(false);
+    clearActionError();
+  };
+
+  const handleAddMembers = async (userIds: number[]) => {
+    if (departmentId === null) return;
+    try {
+      await addMembers(departmentId, userIds);
+      await refetchMembers();
+      await loadDepartment();
+      setAddMembersOpen(false);
+    } catch {
+      // modal stays open so the error is visible
+    }
+  };
+
+  const handleRemoveConfirm = async () => {
+    if (!removeTarget || departmentId === null) return;
+    try {
+      await removeMember(departmentId, removeTarget.userId);
+      await refetchMembers();
+      await loadDepartment();
+      setRemoveTarget(null);
+    } catch {
+      // keep modal open so the user sees the error message
+    }
+  };
+
+  const closeRemoveModal = () => {
+    if (actionLoading) return;
+    setRemoveTarget(null);
     clearActionError();
   };
 
@@ -78,6 +125,8 @@ export default function DepartmentDetailPage() {
   }
 
   if (!department) return null;
+
+  const existingMemberIds = members.map((m) => m.userId);
 
   return (
     <>
@@ -130,8 +179,8 @@ export default function DepartmentDetailPage() {
                 <span>{department.description || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Users</label>
-                <span>{department.userCount ?? 0}</span>
+                <label>Members</label>
+                <span>{members.length}</span>
               </div>
               <div className="detail-item">
                 <label>Sub-departments</label>
@@ -146,6 +195,87 @@ export default function DepartmentDetailPage() {
                 <span>{formatDate(department.updatedAt)}</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="card" style={{ marginTop: 20 }}>
+          <div className="card-header">
+            <h2>Members ({members.length})</h2>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                clearActionError();
+                setAddMembersOpen(true);
+              }}
+            >
+              + Add User
+            </button>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            {membersLoading ? (
+              <LoadingSpinner />
+            ) : members.length === 0 ? (
+              <div className="empty-state">
+                <h3>No members yet</h3>
+                <p>Click "Add User" to add members to this department.</p>
+              </div>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Roles</th>
+                    <th>Status</th>
+                    <th>Added</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((m) => (
+                    <tr key={m.userId}>
+                      <td>
+                        <a
+                          onClick={() => navigate(`/admin/users/${m.userId}`)}
+                          style={{ cursor: 'pointer', color: '#667eea', fontWeight: 500 }}
+                        >
+                          {m.user.username}
+                        </a>
+                      </td>
+                      <td>{m.user.fullName}</td>
+                      <td style={{ color: '#636e72' }}>{m.user.email}</td>
+                      <td>
+                        <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {m.user.roles.map((r) => (
+                            <RoleBadge key={r} name={r} />
+                          ))}
+                        </span>
+                      </td>
+                      <td>
+                        <StatusBadge status={m.user.status as 'ACTIVE' | 'INACTIVE' | 'LOCKED'} />
+                      </td>
+                      <td style={{ color: '#636e72', fontSize: 13 }}>
+                        {formatDate(m.assignedAt)}
+                      </td>
+                      <td>
+                        <button
+                          className="action-btn delete"
+                          title="Remove from department"
+                          disabled={actionLoading}
+                          onClick={() => {
+                            clearActionError();
+                            setRemoveTarget(m);
+                          }}
+                        >
+                          &#128465;
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
@@ -190,12 +320,12 @@ export default function DepartmentDetailPage() {
         message={
           <>
             Are you sure you want to delete department <strong>{department.name}</strong>?
-            {(department.userCount ?? 0) > 0 ? (
+            {members.length > 0 ? (
               <>
                 <br />
                 <br />
                 <span style={{ color: '#e74c3c' }}>
-                  Warning: This department has {department.userCount} user(s) assigned.
+                  Warning: This department has {members.length} member(s).
                 </span>
               </>
             ) : null}
@@ -223,6 +353,40 @@ export default function DepartmentDetailPage() {
         loading={actionLoading}
         onConfirm={handleDelete}
         onCancel={closeDeleteModal}
+      />
+
+      <ConfirmModal
+        open={!!removeTarget}
+        title="Remove Member"
+        message={
+          <>
+            Are you sure you want to remove{' '}
+            <strong>{removeTarget?.user.fullName}</strong> from{' '}
+            <strong>{department.name}</strong>?
+            {actionError ? (
+              <>
+                <br />
+                <br />
+                <span style={{ color: '#e74c3c' }}>{actionError}</span>
+              </>
+            ) : null}
+          </>
+        }
+        confirmLabel="Remove"
+        variant="warning"
+        loading={actionLoading}
+        onConfirm={handleRemoveConfirm}
+        onCancel={closeRemoveModal}
+      />
+
+      <AddMembersModal
+        open={addMembersOpen}
+        departmentName={department.name}
+        existingMemberIds={existingMemberIds}
+        loading={actionLoading}
+        error={actionError}
+        onCancel={closeAddMembers}
+        onConfirm={handleAddMembers}
       />
     </>
   );
