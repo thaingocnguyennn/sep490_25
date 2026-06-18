@@ -294,6 +294,7 @@ export default function OutgoingDocumentDetailPage() {
                       ['Người ký', doc.signerName ? `${doc.signerName}${doc.signerTitle ? ` (${doc.signerTitle})` : ''}` : '—'],
                       ['Người/Cơ quan nhận', doc.recipientName || '—'],
                       ['Địa chỉ người nhận', doc.recipientAddress || '—'],
+                      ['Email người nhận', doc.recipientEmail || '—'],
                       ['Ngày gửi', formatDate(doc.sentDate)],
                       ['Số trang', doc.pageCount ? `${doc.pageCount} trang` : '—'],
                       ['Độ khẩn', null], // render manually

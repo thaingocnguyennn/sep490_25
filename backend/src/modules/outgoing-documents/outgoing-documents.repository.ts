@@ -16,6 +16,7 @@ export interface OutgoingDocumentWithRelations {
   urgency: string | null;
   recipientName: string | null;
   recipientAddress: string | null;
+  recipientEmail: string | null;
   sentDate: Date | null;
   pageCount: number | null;
   submittedAt: Date | null;
@@ -117,9 +118,14 @@ export class OutgoingDocumentsRepository {
     search?: string;
     status?: string;
     urgency?: string;
+    documentType?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    confidentialityLevel?: string;
+    departmentId?: number;
     includeTrashed?: boolean;
   }) {
-    const { page, limit, search, status, urgency, includeTrashed } = params;
+    const { page, limit, search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed } = params;
     const skip = (page - 1) * limit;
 
     // Mặc định chỉ hiện văn bản ACTIVE (không ở thùng rác)
@@ -131,13 +137,13 @@ export class OutgoingDocumentsRepository {
     };
 
     if (search) {
-      where.document = {
-        ...(where.document as object),
-        OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { documentNumber: { contains: search, mode: 'insensitive' } },
-        ],
-      };
+      where.OR = [
+        { document: { title: { contains: search, mode: 'insensitive' } } },
+        { document: { documentNumber: { contains: search, mode: 'insensitive' } } },
+        { document: { ocrText: { contains: search, mode: 'insensitive' } } },
+        { signerName: { contains: search, mode: 'insensitive' } },
+        { recipientName: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     if (status) {
@@ -149,6 +155,30 @@ export class OutgoingDocumentsRepository {
 
     if (urgency) {
       where.urgency = urgency as any;
+    }
+
+    if (documentType) {
+      where.documentType = documentType;
+    }
+
+    if (dateFrom || dateTo) {
+      where.issuanceDate = {};
+      if (dateFrom) where.issuanceDate.gte = new Date(dateFrom);
+      if (dateTo) where.issuanceDate.lte = new Date(dateTo);
+    }
+
+    if (confidentialityLevel) {
+      where.document = {
+        ...(where.document as object),
+        confidentialityLevel: confidentialityLevel as any,
+      };
+    }
+
+    if (departmentId) {
+      where.document = {
+        ...(where.document as object),
+        departmentId: departmentId,
+      };
     }
 
     const [items, total] = await Promise.all([

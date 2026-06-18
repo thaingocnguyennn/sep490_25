@@ -14,8 +14,16 @@ export class OutgoingDocumentsController {
       const search = req.query.search as string | undefined;
       const status = req.query.status as string | undefined;
       const urgency = req.query.urgency as string | undefined;
+      const documentType = req.query.documentType as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
+      const confidentialityLevel = req.query.confidentialityLevel as string | undefined;
+      const departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined;
 
-      const result = await outgoingDocumentsService.list({ page, limit, search, status, urgency });
+      const result = await outgoingDocumentsService.list({ 
+        page, limit, search, status, urgency, 
+        documentType, dateFrom, dateTo, confidentialityLevel, departmentId 
+      });
 
       res.status(200).json(
         successResponse(
