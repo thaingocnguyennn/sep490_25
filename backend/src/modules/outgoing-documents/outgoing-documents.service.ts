@@ -8,6 +8,22 @@ import fs from 'fs';
 import path from 'path';
 import { config } from '../../config';
 
+// ─── Helper: Map Urgency enum → Priority enum ─────────────────────────────────
+
+/**
+ * Chuyển đổi giá trị Urgency (THUONG, KHAN, THUONG_KHAU, HOA_TOC)
+ * thành Priority (NORMAL, HIGH, URGENT) để lưu vào bảng Document.
+ */
+function mapUrgencyToPriority(urgency?: string): string | undefined {
+  if (!urgency) return undefined;
+  switch (urgency) {
+    case 'KHAN':        return 'HIGH';
+    case 'THUONG_KHAU': return 'URGENT';
+    case 'HOA_TOC':     return 'URGENT';
+    default:            return 'NORMAL'; // THUONG → NORMAL
+  }
+}
+
 // ─── Kiểu chuyển đổi trạng thái hợp lệ ─────────────────────────────────────
 
 /**
@@ -87,7 +103,8 @@ export class OutgoingDocumentsService {
           description: data.description,
           type: 'OUTGOING',
           status: DocumentStatus.DRAFT,
-          urgencyLevel: (data.urgency as any) || 'NORMAL',
+          // Map Urgency ('THUONG', 'KHAN'...) to Priority ('NORMAL', 'HIGH', 'URGENT')
+          urgencyLevel: mapUrgencyToPriority(data.urgency) as any || 'NORMAL',
           confidentialityLevel: (data.confidentialityLevel as any) || 'NORMAL',
           departmentId: data.departmentId,
           createdBy: data.createdBy,
@@ -101,6 +118,7 @@ export class OutgoingDocumentsService {
           documentType: data.documentType,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
+          urgency: data.urgency as any,
           notes: data.notes,
         },
       });
@@ -246,7 +264,8 @@ export class OutgoingDocumentsService {
         data: {
           title: data.title,
           description: data.description,
-          urgencyLevel: data.urgency as any,
+          // Map Urgency → Priority trước khi lưu vào bảng Document
+          ...(data.urgency !== undefined && { urgencyLevel: mapUrgencyToPriority(data.urgency) as any }),
           confidentialityLevel: data.confidentialityLevel as any,
           departmentId: data.departmentId,
           updatedBy,
