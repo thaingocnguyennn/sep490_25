@@ -221,6 +221,7 @@ export interface OutgoingDocument {
   urgency: UrgencyLevel | null;
   recipientName: string | null;
   recipientAddress: string | null;
+  recipientEmail: string | null;
   sentDate: string | null;
   pageCount: number | null;
   // Workflow tracking
@@ -292,6 +293,7 @@ export interface CreateOutgoingDocumentRequest {
   documentType?: string;
   recipientName?: string;
   recipientAddress?: string;
+  recipientEmail?: string;
   notes?: string;
 }
 
@@ -307,6 +309,7 @@ export interface UpdateOutgoingMetadataRequest {
   signerTitle?: string;
   recipientName?: string;
   recipientAddress?: string;
+  recipientEmail?: string;
   pageCount?: number;
   notes?: string;
 }
@@ -320,6 +323,7 @@ export interface UpdateOutgoingStatusRequest {
   sentDate?: string;
   recipientName?: string;
   recipientAddress?: string;
+  recipientEmail?: string;
 }
 
 export interface OutgoingDocumentFilterParams {
@@ -328,6 +332,11 @@ export interface OutgoingDocumentFilterParams {
   search?: string;
   status?: OutgoingDocumentStatus;
   urgency?: UrgencyLevel;
+  documentType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  confidentialityLevel?: ConfidentialityLevel;
+  departmentId?: number;
 }
 
 export interface OcrResult {

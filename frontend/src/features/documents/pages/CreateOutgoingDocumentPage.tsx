@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useOutgoingDocumentActions } from '../../../shared/hooks';
+import { useOutgoingDocumentActions, useDepartments } from '../../../shared/hooks';
 import type {
   CreateOutgoingDocumentRequest,
   UrgencyLevel,
@@ -36,10 +36,14 @@ export default function CreateOutgoingDocumentPage() {
     urgency: 'THUONG',
     confidentialityLevel: 'NORMAL',
     documentType: '',
+    departmentId: undefined,
     recipientName: '',
     recipientAddress: '',
+    recipientEmail: '',
     notes: '',
   });
+
+  const { departments } = useDepartments();
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
@@ -72,8 +76,10 @@ export default function CreateOutgoingDocumentPage() {
       title: form.title.trim(),
       description: form.description?.trim() || undefined,
       documentType: form.documentType || undefined,
+      departmentId: form.departmentId ? Number(form.departmentId) : undefined,
       recipientName: form.recipientName?.trim() || undefined,
       recipientAddress: form.recipientAddress?.trim() || undefined,
+      recipientEmail: form.recipientEmail?.trim() || undefined,
       notes: form.notes?.trim() || undefined,
     });
 
@@ -166,6 +172,24 @@ export default function CreateOutgoingDocumentPage() {
                 </div>
 
                 <div className="form-group">
+                  <label htmlFor="departmentId" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                    Phòng ban soạn thảo
+                  </label>
+                  <select
+                    id="departmentId"
+                    name="departmentId"
+                    value={form.departmentId || ''}
+                    onChange={handleChange}
+                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
+                  >
+                    <option value="">-- Chọn phòng ban --</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label htmlFor="urgency" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
                     Độ khẩn
                   </label>
@@ -216,6 +240,24 @@ export default function CreateOutgoingDocumentPage() {
                     placeholder="Tên người hoặc cơ quan nhận..."
                     style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="recipientEmail" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                    Email người nhận
+                  </label>
+                  <input
+                    id="recipientEmail"
+                    name="recipientEmail"
+                    type="email"
+                    value={form.recipientEmail}
+                    onChange={handleChange}
+                    placeholder="example@domain.com..."
+                    style={{ width: '100%', padding: '10px 14px', border: `1px solid ${validationErrors.recipientEmail ? '#e74c3c' : '#dfe6e9'}`, borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                  {validationErrors.recipientEmail && (
+                    <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.recipientEmail}</p>
+                  )}
                 </div>
 
                 <div className="form-group">

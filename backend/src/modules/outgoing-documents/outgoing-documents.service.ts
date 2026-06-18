@@ -57,6 +57,11 @@ export class OutgoingDocumentsService {
     status?: string;
     urgency?: string;
     includeTrashed?: boolean;
+    documentType?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    confidentialityLevel?: string;
+    departmentId?: number;
   }) {
     return outgoingDocumentsRepository.findAll(params);
   }
@@ -88,6 +93,7 @@ export class OutgoingDocumentsService {
     documentType?: string;
     recipientName?: string;
     recipientAddress?: string;
+    recipientEmail?: string;
     notes?: string;
     createdBy: number;
   }) {
@@ -118,6 +124,7 @@ export class OutgoingDocumentsService {
           documentType: data.documentType,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
+          recipientEmail: data.recipientEmail,
           urgency: data.urgency as any,
           notes: data.notes,
         },
@@ -243,6 +250,7 @@ export class OutgoingDocumentsService {
       signerTitle?: string;
       recipientName?: string;
       recipientAddress?: string;
+      recipientEmail?: string;
       pageCount?: number;
       notes?: string;
     },
@@ -282,6 +290,7 @@ export class OutgoingDocumentsService {
           signerTitle: data.signerTitle,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
+          recipientEmail: data.recipientEmail,
           pageCount: data.pageCount,
           notes: data.notes,
         },

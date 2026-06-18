@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getOutgoingDocumentById } from '../../../api/modules/outgoing-documents';
-import { useOutgoingDocumentActions } from '../../../shared/hooks';
+import { useOutgoingDocumentActions, useDepartments } from '../../../shared/hooks';
 import { LoadingSpinner } from '../../../shared/components';
 import type {
   OutgoingDocument,
@@ -34,13 +34,13 @@ export default function OutgoingDocumentEditPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { loading: actionLoading, error: actionError, updateMetadata, clearError } = useOutgoingDocumentActions();
+  const { departments } = useDepartments();
 
   const [doc, setDoc] = useState<OutgoingDocument | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  // Nếu navigate từ OCR, prefill trường từ kết quả OCR
   const ocrFields = (location.state as { ocrFields?: Record<string, string> })?.ocrFields;
 
   const [form, setForm] = useState<UpdateOutgoingMetadataRequest>({
@@ -54,11 +54,12 @@ export default function OutgoingDocumentEditPage() {
     signerTitle: '',
     recipientName: '',
     recipientAddress: '',
+    recipientEmail: '',
     pageCount: undefined,
     notes: '',
+    departmentId: undefined,
   });
 
-  // Load dữ liệu ban đầu
   useEffect(() => {
     if (!id) return;
     setPageLoading(true);
@@ -76,9 +77,10 @@ export default function OutgoingDocumentEditPage() {
           signerTitle: data.signerTitle || '',
           recipientName: data.recipientName || '',
           recipientAddress: data.recipientAddress || '',
+          recipientEmail: data.recipientEmail || '',
           pageCount: data.pageCount || undefined,
           notes: data.notes || '',
-          // Nếu có dữ liệu OCR từ navigate state → ghi đè
+          departmentId: data.document.department?.id || undefined,
           ...(ocrFields ? {
             documentType: ocrFields.documentType || data.documentType || '',
             documentNumber: ocrFields.documentNumber || data.documentNumber || '',
@@ -106,7 +108,7 @@ export default function OutgoingDocumentEditPage() {
     const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: name === 'pageCount' ? (value ? parseInt(value) : undefined) : value,
+      [name]: name === 'pageCount' || name === 'departmentId' ? (value ? parseInt(value) : undefined) : value,
     }));
     if (validationErrors[name]) {
       setValidationErrors((prev) => ({ ...prev, [name]: '' }));
@@ -126,8 +128,11 @@ export default function OutgoingDocumentEditPage() {
       documentNumber: form.documentNumber?.trim() || undefined,
       signerName: form.signerName?.trim() || undefined,
       signerTitle: form.signerTitle?.trim() || undefined,
+      departmentId: form.departmentId ? Number(form.departmentId) : undefined,
       recipientName: form.recipientName?.trim() || undefined,
       recipientAddress: form.recipientAddress?.trim() || undefined,
+      recipientEmail: form.recipientEmail?.trim() || undefined,
+      pageCount: form.pageCount ? Number(form.pageCount) : undefined,
       notes: form.notes?.trim() || undefined,
     });
 
@@ -186,7 +191,6 @@ export default function OutgoingDocumentEditPage() {
             )}
 
             <form id="form-edit-outgoing" onSubmit={handleSubmit}>
-              {/* Tiêu đề */}
               <div className="form-group" style={{ marginBottom: 20 }}>
                 <label htmlFor="title" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
                   Tiêu đề văn bản <span style={{ color: '#e74c3c' }}>*</span>
@@ -206,7 +210,6 @@ export default function OutgoingDocumentEditPage() {
                 {validationErrors.title && <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.title}</p>}
               </div>
 
-              {/* Loại VB + Số ký hiệu */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div className="form-group">
                   <label htmlFor="documentType" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Loại văn bản</label>
@@ -235,7 +238,6 @@ export default function OutgoingDocumentEditPage() {
                 </div>
               </div>
 
-              {/* Người ký */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div className="form-group">
                   <label htmlFor="signerName" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Người ký</label>
@@ -263,8 +265,22 @@ export default function OutgoingDocumentEditPage() {
                 </div>
               </div>
 
-              {/* Độ khẩn + Mật + Số trang */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div className="form-group">
+                  <label htmlFor="departmentId" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Phòng ban soạn thảo</label>
+                  <select
+                    id="departmentId"
+                    name="departmentId"
+                    value={form.departmentId || ''}
+                    onChange={handleChange}
+                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
+                  >
+                    <option value="">-- Chọn phòng ban --</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label htmlFor="urgency" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Độ khẩn</label>
                   <select
@@ -277,6 +293,9 @@ export default function OutgoingDocumentEditPage() {
                     {URGENCY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
                 </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div className="form-group">
                   <label htmlFor="confidentialityLevel" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Mức độ mật</label>
                   <select
@@ -329,6 +348,19 @@ export default function OutgoingDocumentEditPage() {
                     placeholder="Địa chỉ..."
                     style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
                   />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="recipientEmail" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Email người nhận</label>
+                  <input
+                    id="recipientEmail"
+                    name="recipientEmail"
+                    type="email"
+                    value={form.recipientEmail}
+                    onChange={handleChange}
+                    placeholder="example@domain.com..."
+                    style={{ width: '100%', padding: '10px 14px', border: `1px solid ${validationErrors.recipientEmail ? '#e74c3c' : '#dfe6e9'}`, borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                  {validationErrors.recipientEmail && <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.recipientEmail}</p>}
                 </div>
               </div>
 

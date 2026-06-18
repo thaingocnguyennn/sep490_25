@@ -281,6 +281,7 @@ model OutgoingDocument {
   // Thông tin phát hành
   recipientName    String? // Tên người/cơ quan nhận
   recipientAddress String? // Địa chỉ người nhận
+  recipientEmail   String? // Email người nhận
   sentDate         DateTime? // Ngày gửi/phát hành
   pageCount        Int? // Số trang
 

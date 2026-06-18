@@ -227,7 +227,7 @@ export default function IncomingDocumentDetailPage() {
                 </div>
                 <div className="detail-item">
                   <label>Phòng ban tiếp nhận</label>
-                  <span>{doc.department?.name || '—'}</span>
+                  <span>{doc.document.department?.name || '—'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Người tạo</label>

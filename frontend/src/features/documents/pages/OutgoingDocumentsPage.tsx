@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useOutgoingDocuments } from '../../../shared/hooks';
+import { useOutgoingDocuments, useDepartments } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { OutgoingDocumentStatus, UrgencyLevel } from '../../../types';
+import type { OutgoingDocumentStatus, UrgencyLevel, ConfidentialityLevel } from '../../../types';
 
 const OUTGOING_STATUSES: { value: OutgoingDocumentStatus | ''; label: string }[] = [
   { value: '',                 label: 'Tất cả trạng thái' },
@@ -26,6 +26,19 @@ const URGENCY_OPTIONS: { value: UrgencyLevel | ''; label: string }[] = [
   { value: 'HOA_TOC',    label: 'Hỏa tốc' },
 ];
 
+const CONFIDENTIALITY_OPTIONS: { value: ConfidentialityLevel | ''; label: string }[] = [
+  { value: '',               label: 'Tất cả độ mật' },
+  { value: 'NORMAL',         label: 'Không mật' },
+  { value: 'CONFIDENTIAL',   label: 'Mật' },
+  { value: 'TOP_SECRET',     label: 'Tuyệt mật' },
+];
+
+const DOC_TYPES = [
+  'QUYẾT ĐỊNH', 'CÔNG VĂN', 'THÔNG BÁO', 'TỜ TRÌNH', 'BÁO CÁO',
+  'KẾ HOẠCH', 'CHỈ THỊ', 'HƯỚNG DẪN', 'QUY ĐỊNH', 'QUY TRÌNH',
+  'BIÊN BẢN', 'HỢP ĐỒNG', 'GIẤY ỦY QUYỀN',
+];
+
 export default function OutgoingDocumentsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -34,8 +47,15 @@ export default function OutgoingDocumentsPage() {
   const [search, setSearch]           = useState('');
   const [statusFilter, setStatusFilter] = useState<OutgoingDocumentStatus | ''>('');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyLevel | ''>('');
+  const [documentTypeFilter, setDocumentTypeFilter] = useState('');
+  const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityLevel | ''>('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const LIMIT = 10;
+
+  const { departments } = useDepartments();
 
   // Xác định quyền tạo văn bản đi
   const canCreate = user?.roles.some((r) => ['SPECIALIST', 'DOCUMENT_CLERK'].includes(r));
@@ -48,14 +68,19 @@ export default function OutgoingDocumentsPage() {
         search: search || undefined,
         status: statusFilter || undefined,
         urgency: urgencyFilter || undefined,
+        documentType: documentTypeFilter || undefined,
+        confidentialityLevel: confidentialityFilter || undefined,
+        departmentId: departmentFilter ? Number(departmentFilter) : undefined,
+        dateFrom: dateFromFilter || undefined,
+        dateTo: dateToFilter || undefined,
       });
     },
-    [fetchDocuments, search, statusFilter, urgencyFilter],
+    [fetchDocuments, search, statusFilter, urgencyFilter, documentTypeFilter, confidentialityFilter, departmentFilter, dateFromFilter, dateToFilter],
   );
 
   useEffect(() => {
     loadData(currentPage);
-  }, [currentPage, statusFilter, urgencyFilter]);
+  }, [currentPage, statusFilter, urgencyFilter, documentTypeFilter, confidentialityFilter, departmentFilter, dateFromFilter, dateToFilter]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +150,43 @@ export default function OutgoingDocumentsPage() {
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+              <select
+                value={documentTypeFilter}
+                onChange={(e) => { setDocumentTypeFilter(e.target.value); setCurrentPage(1); }}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
+              >
+                <option value="">Tất cả loại VB</option>
+                {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select
+                value={confidentialityFilter}
+                onChange={(e) => { setConfidentialityFilter(e.target.value as ConfidentialityLevel | ''); setCurrentPage(1); }}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
+              >
+                {CONFIDENTIALITY_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+              <select
+                value={departmentFilter}
+                onChange={(e) => { setDepartmentFilter(e.target.value); setCurrentPage(1); }}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
+              >
+                <option value="">Tất cả phòng ban</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <input
+                type="date"
+                value={dateFromFilter}
+                onChange={(e) => { setDateFromFilter(e.target.value); setCurrentPage(1); }}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
+                title="Từ ngày"
+              />
+              <input
+                type="date"
+                value={dateToFilter}
+                onChange={(e) => { setDateToFilter(e.target.value); setCurrentPage(1); }}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
+                title="Đến ngày"
+              />
               <button type="submit" className="btn btn-secondary">🔍 Tìm kiếm</button>
             </form>
           </div>

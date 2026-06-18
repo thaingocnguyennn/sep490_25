@@ -37,6 +37,10 @@ export const createOutgoingDocumentValidation = [
     .optional()
     .isString().withMessage('Địa chỉ người nhận phải là chuỗi ký tự'),
 
+  body('recipientEmail')
+    .optional()
+    .isEmail().withMessage('Email người nhận không hợp lệ'),
+
   body('notes')
     .optional()
     .isString().withMessage('Ghi chú phải là chuỗi ký tự'),
@@ -94,6 +98,10 @@ export const updateOutgoingMetadataValidation = [
   body('recipientAddress')
     .optional()
     .isString(),
+
+  body('recipientEmail')
+    .optional()
+    .isEmail().withMessage('Email người nhận không hợp lệ'),
 
   body('pageCount')
     .optional()
