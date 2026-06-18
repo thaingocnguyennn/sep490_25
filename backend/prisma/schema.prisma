@@ -63,10 +63,15 @@ enum DocumentLifecycleStatus {
 }
 
 // Confidentiality classification for documents
+//   TUYET_MAT  = Top Secret   (highest)
+//   TOI_MAT    = Secret
+//   MAT        = Confidential
+//   THUONG     = Normal       (lowest)
 enum ConfidentialityLevel {
-  NORMAL
-  CONFIDENTIAL
-  TOP_SECRET
+  THUONG
+  MAT
+  TOI_MAT
+  TUYET_MAT
 }
 
 enum Urgency {
@@ -208,7 +213,7 @@ model Document {
   issuanceDate         DateTime? // Ngày ban hành
   sendingAgency        String? // Cơ quan gửi
   urgencyLevel         Priority                @default(NORMAL) // Mức độ khẩn
-  confidentialityLevel ConfidentialityLevel    @default(NORMAL) // Mức độ mật
+  confidentialityLevel ConfidentialityLevel    @default(THUONG) // Mức độ mật
   documentStatus       DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
   category             String? // Phân loại phụ (tuỳ chọn)
   originalFileName     String? // Tên file gốc khi upload
@@ -239,6 +244,25 @@ model Document {
   @@index([type])
   @@index([departmentId])
   @@index([processorId])
+}
+
+// Lookup table for the 4 confidentiality classifications.
+// Each row links a security level (enum) to its Vietnamese label and
+// the single-letter document code printed on the document itself
+// (A = TUYET_MAT, B = TOI_MAT, C = MAT, NULL = THUONG).
+model ConfidentialityClassification {
+  id              Int                 @id @default(autoincrement())
+  level           ConfidentialityLevel @unique
+  vietnameseName  String               @unique // TUYET_MAT, TOI_MAT, MAT, THUONG
+  englishName     String               // Top Secret, Secret, Confidential, Normal
+  documentCode    String?              @unique // A, B, C; NULL for NORMAL
+  description     String?              @db.Text
+  displayOrder    Int                  // 1 (lowest) -> 4 (highest)
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([displayOrder])
 }
 
 model IncomingDocument {

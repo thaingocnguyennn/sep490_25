@@ -35,8 +35,8 @@ export const uploadDocumentValidation = [
     .withMessage('Urgency level must be LOW, NORMAL, HIGH, or URGENT'),
   body('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
-    .withMessage('Confidentiality must be NORMAL, CONFIDENTIAL, or TOP_SECRET'),
+    .isIn(['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'])
+    .withMessage('Confidentiality must be THUONG, MAT, TOI_MAT, or TUYET_MAT'),
   body('category')
     .optional()
     .trim()
@@ -90,8 +90,8 @@ export const updateDocumentValidation = [
     .withMessage('Urgency level must be LOW, NORMAL, HIGH, or URGENT'),
   body('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
-    .withMessage('Confidentiality must be NORMAL, CONFIDENTIAL, or TOP_SECRET'),
+    .isIn(['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'])
+    .withMessage('Confidentiality must be THUONG, MAT, TOI_MAT, or TUYET_MAT'),
   body('category')
     .optional()
     .trim()
@@ -137,7 +137,7 @@ export const getDocumentsValidation = [
     .withMessage('Invalid urgency filter'),
   query('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
+    .isIn(['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'])
     .withMessage('Invalid confidentiality filter'),
   query('departmentId')
     .optional()

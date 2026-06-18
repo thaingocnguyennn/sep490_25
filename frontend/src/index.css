@@ -1532,6 +1532,29 @@ textarea:focus {
   color: #c62828;
 }
 
+/* ─── Confidentiality level badges (4 levels) ─────────────────────────── */
+
+.doc-badge.thuong {
+  background: #edf2f7;
+  color: #4a5568;
+}
+
+.doc-badge.mat {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.doc-badge.toi_mat {
+  background: #ffe0b2;
+  color: #e65100;
+}
+
+.doc-badge.tuyet_mat {
+  background: #fce4ec;
+  color: #c62828;
+  font-weight: 600;
+}
+
 /* ─── Filter Toolbar ─────────────────────────────────────────────────────── */
 
 .doc-filter-bar {

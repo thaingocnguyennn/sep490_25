@@ -18,7 +18,7 @@ export const createOutgoingDocumentValidation = [
 
   body('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
+    .isIn(['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'])
     .withMessage('Mức độ mật không hợp lệ'),
 
   body('departmentId')
@@ -64,7 +64,7 @@ export const updateOutgoingMetadataValidation = [
 
   body('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
+    .isIn(['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'])
     .withMessage('Mức độ mật không hợp lệ'),
 
   body('departmentId')

@@ -98,7 +98,7 @@ export class DocumentsService {
       issuanceDate: data.issuanceDate ? new Date(data.issuanceDate) : undefined,
       sendingAgency: data.sendingAgency,
       urgencyLevel: (data.urgencyLevel as any) || 'NORMAL',
-      confidentialityLevel: (data.confidentialityLevel as any) || 'NORMAL',
+      confidentialityLevel: (data.confidentialityLevel as any) || 'THUONG',
       category: data.category,
       originalFileName: file?.originalname,
       fileSize: file?.size,

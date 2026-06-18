@@ -20,7 +20,7 @@ export default function DocumentUploadPage() {
   const [issuanceDate, setIssuanceDate] = useState('');
   const [sendingAgency, setSendingAgency] = useState('');
   const [urgencyLevel, setUrgencyLevel] = useState('NORMAL');
-  const [confidentialityLevel, setConfidentialityLevel] = useState('NORMAL');
+  const [confidentialityLevel, setConfidentialityLevel] = useState('THUONG');
   const [category, setCategory] = useState('');
   
   // ─── Incoming specific fields ─────────────────────────────────────────
@@ -267,9 +267,10 @@ export default function DocumentUploadPage() {
                 <div className="form-group">
                   <label>Độ bảo mật</label>
                   <select value={confidentialityLevel} onChange={(e) => setConfidentialityLevel(e.target.value)}>
-                    <option value="NORMAL">Bình thường</option>
-                    <option value="CONFIDENTIAL">Bảo mật</option>
-                    <option value="TOP_SECRET">Tuyệt mật</option>
+                    <option value="THUONG">Thường</option>
+                    <option value="MAT">Mật (C)</option>
+                    <option value="TOI_MAT">Tối mật (B)</option>
+                    <option value="TUYET_MAT">Tuyệt mật (A)</option>
                   </select>
                 </div>
                 <div className="form-group">

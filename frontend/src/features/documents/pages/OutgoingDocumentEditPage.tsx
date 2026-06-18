@@ -17,10 +17,11 @@ const URGENCY_OPTIONS: { value: UrgencyLevel; label: string }[] = [
   { value: 'HOA_TOC',     label: 'Hỏa tốc' },
 ];
 
-const CONFIDENTIALITY_OPTIONS: { value: ConfidentialityLevel; label: string }[] = [
-  { value: 'NORMAL',       label: 'Không mật' },
-  { value: 'CONFIDENTIAL', label: 'Mật' },
-  { value: 'TOP_SECRET',   label: 'Tuyệt mật' },
+const CONFIDENTIALITY_OPTIONS: { value: ConfidentialityLevel; label: string; code: string | null }[] = [
+  { value: 'THUONG',    label: 'Thường',         code: null },
+  { value: 'MAT',       label: 'Mật',            code: 'C' },
+  { value: 'TOI_MAT',   label: 'Tối mật',        code: 'B' },
+  { value: 'TUYET_MAT', label: 'Tuyệt mật',      code: 'A' },
 ];
 
 const DOC_TYPES = [
@@ -47,7 +48,7 @@ export default function OutgoingDocumentEditPage() {
     title: '',
     description: '',
     urgency: 'THUONG',
-    confidentialityLevel: 'NORMAL',
+    confidentialityLevel: 'THUONG',
     documentType: '',
     documentNumber: '',
     signerName: '',
@@ -69,7 +70,7 @@ export default function OutgoingDocumentEditPage() {
           title: data.document.title,
           description: data.document.description || '',
           urgency: (data.urgency || 'THUONG') as UrgencyLevel,
-          confidentialityLevel: (data.document.confidentialityLevel || 'NORMAL') as ConfidentialityLevel,
+          confidentialityLevel: (data.document.confidentialityLevel || 'THUONG') as ConfidentialityLevel,
           documentType: data.documentType || '',
           documentNumber: data.documentNumber || '',
           signerName: data.signerName || '',

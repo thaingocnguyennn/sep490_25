@@ -138,6 +138,61 @@ async function main() {
   }
   console.log('Workflow steps seeded');
 
+  // Seed the 4 confidentiality classifications
+  //   A  = TUYET_MAT (Top Secret)
+  //   B  = TOI_MAT   (Secret)
+  //   C  = MAT       (Confidential)
+  //   -  = THUONG    (Normal, no code)
+  const confidentialityClassifications = [
+    {
+      level: 'TUYET_MAT' as const,
+      vietnameseName: 'TUYET_MAT',
+      englishName: 'Top Secret',
+      documentCode: 'A',
+      description: 'Tuyệt mật - mức bảo mật cao nhất. Văn bản chỉ được phát hành và tiếp cận bởi những người có thẩm quyền đặc biệt. Ký hiệu trên văn bản: A.',
+      displayOrder: 4,
+    },
+    {
+      level: 'TOI_MAT' as const,
+      vietnameseName: 'TOI_MAT',
+      englishName: 'Secret',
+      documentCode: 'B',
+      description: 'Tối mật - mức bảo mật cao. Văn bản chỉ được phổ biến trong phạm vi hẹp theo danh sách phê duyệt. Ký hiệu trên văn bản: B.',
+      displayOrder: 3,
+    },
+    {
+      level: 'MAT' as const,
+      vietnameseName: 'MAT',
+      englishName: 'Confidential',
+      documentCode: 'C',
+      description: 'Mật - mức bảo mật trung bình. Văn bản được phổ biến trong nội bộ cơ quan theo quy định. Ký hiệu trên văn bản: C.',
+      displayOrder: 2,
+    },
+    {
+      level: 'THUONG' as const,
+      vietnameseName: 'THUONG',
+      englishName: 'Normal',
+      documentCode: null,
+      description: 'Thường - mức bảo mật thông thường. Văn bản không có ký hiệu mật trên trang bìa.',
+      displayOrder: 1,
+    },
+  ];
+
+  for (const row of confidentialityClassifications) {
+    await prisma.confidentialityClassification.upsert({
+      where: { level: row.level },
+      update: {
+        vietnameseName: row.vietnameseName,
+        englishName: row.englishName,
+        documentCode: row.documentCode,
+        description: row.description,
+        displayOrder: row.displayOrder,
+      },
+      create: row,
+    });
+  }
+  console.log('Confidentiality classifications seeded');
+
   console.log('Database seeding completed!');
 }
 

@@ -114,7 +114,12 @@ export default function DocumentDetailPage() {
               <div className="detail-item">
                 <label>Độ bảo mật</label>
                 <span className={`doc-badge ${doc.confidentialityLevel.toLowerCase()}`}>
-                  {doc.confidentialityLevel}
+                  {{
+                    THUONG: 'Thường',
+                    MAT: 'Mật (C)',
+                    TOI_MAT: 'Tối mật (B)',
+                    TUYET_MAT: 'Tuyệt mật (A)',
+                  }[doc.confidentialityLevel] ?? doc.confidentialityLevel}
                 </span>
               </div>
               <div className="detail-item">

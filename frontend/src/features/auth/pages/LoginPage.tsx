@@ -43,19 +43,19 @@ export default function LoginPage() {
 
   return (
     <div className="login-container">
-      <h1 className="login-title">DMS Login</h1>
-      <p className="subtitle">Sign in to Document Management System</p>
+      <h1 className="login-title">Đăng nhập</h1>
+      <p className="subtitle">Hệ thống quản lý tài liệu</p>
 
       {error && <div className="alert alert-error">{error}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="username">Username</label>
+          <label htmlFor="username">Tài khoản</label>
           <input
             id="username"
             name="username"
             type="text"
-            placeholder="Enter your username"
+            placeholder="Nhập tài khoản"
             value={form.username}
             onChange={handleChange}
             autoComplete="username"
@@ -63,13 +63,13 @@ export default function LoginPage() {
         </div>
 
         <div className="form-group password-field">
-          <label htmlFor="password">Password</label>
+          <label htmlFor="password">Mật khẩu</label>
           <div className="password-input-wrapper">
             <input
               id="password"
               name="password"
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
+              placeholder="Nhập mật khẩu"
               value={form.password}
               onChange={handleChange}
               autoComplete="current-password"
@@ -86,7 +86,7 @@ export default function LoginPage() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? 'Signing in...' : 'Sign In'}
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </div>

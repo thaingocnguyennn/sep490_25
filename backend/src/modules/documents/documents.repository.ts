@@ -193,7 +193,7 @@ export class DocumentsRepository {
         issuanceDate: data.issuanceDate,
         sendingAgency: data.sendingAgency,
         urgencyLevel: data.urgencyLevel || 'NORMAL',
-        confidentialityLevel: data.confidentialityLevel || 'NORMAL',
+        confidentialityLevel: data.confidentialityLevel || 'THUONG',
         category: data.category,
         originalFileName: data.originalFileName,
         fileSize: data.fileSize,

@@ -113,7 +113,7 @@ export interface ApiResponse<T = unknown> {
 export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'ACTIVE' | 'DELETED';
 export type PriorityLevel = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
-export type ConfidentialityLevel = 'NORMAL' | 'CONFIDENTIAL' | 'TOP_SECRET';
+export type ConfidentialityLevel = 'THUONG' | 'MAT' | 'TOI_MAT' | 'TUYET_MAT';
 
 export interface Document {
   id: number;

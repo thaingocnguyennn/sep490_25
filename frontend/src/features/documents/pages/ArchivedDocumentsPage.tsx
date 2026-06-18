@@ -218,9 +218,10 @@ export default function ArchivedDocumentsPage() {
                 className="filter-select"
               >
                 <option value="">Tất cả độ bảo mật</option>
-                <option value="NORMAL">Bình thường</option>
-                <option value="CONFIDENTIAL">Bảo mật</option>
-                <option value="TOP_SECRET">Tuyệt mật</option>
+                <option value="THUONG">Thường</option>
+                <option value="MAT">Mật (C)</option>
+                <option value="TOI_MAT">Tối mật (B)</option>
+                <option value="TUYET_MAT">Tuyệt mật (A)</option>
               </select>
               <input
                 type="date"

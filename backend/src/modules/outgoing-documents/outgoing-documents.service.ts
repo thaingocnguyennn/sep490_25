@@ -88,7 +88,7 @@ export class OutgoingDocumentsService {
           type: 'OUTGOING',
           status: DocumentStatus.DRAFT,
           urgencyLevel: (data.urgency as any) || 'NORMAL',
-          confidentialityLevel: (data.confidentialityLevel as any) || 'NORMAL',
+          confidentialityLevel: (data.confidentialityLevel as any) || 'THUONG',
           departmentId: data.departmentId,
           createdBy: data.createdBy,
         },
