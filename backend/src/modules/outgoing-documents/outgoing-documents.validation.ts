@@ -13,13 +13,40 @@ export const createOutgoingDocumentValidation = [
 
   body('urgency')
     .optional()
-    .isIn(['THUONG', 'KHAN', 'THUONG_KHAU', 'HOA_TOC'])
-    .withMessage('Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAU, HOA_TOC'),
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAN, HOA_TOC');
+      }
+      return true;
+    }),
 
   body('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
-    .withMessage('Mức độ mật không hợp lệ'),
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = [
+        'NORMAL', 'CONFIDENTIAL', 'TOP_SECRET',
+        'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT',
+        'A', 'B', 'C',
+      ];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Mức độ mật không hợp lệ');
+      }
+      return true;
+    }),
+
+  body('confidentialityId')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['A', 'B', 'C', 'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Mức độ mật không hợp lệ');
+      }
+      return true;
+    }),
 
   body('departmentId')
     .optional()
@@ -62,14 +89,44 @@ export const updateOutgoingMetadataValidation = [
     .isString(),
 
   body('urgency')
-    .optional()
-    .isIn(['THUONG', 'KHAN', 'THUONG_KHAU', 'HOA_TOC'])
-    .withMessage('Độ khẩn không hợp lệ'),
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null) return true;
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ khẩn không hợp lệ');
+      }
+      return true;
+    }),
 
   body('confidentialityLevel')
-    .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
-    .withMessage('Mức độ mật không hợp lệ'),
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null) return true;
+      const v = String(value).trim().toUpperCase();
+      const allowed = [
+        'NORMAL', 'CONFIDENTIAL', 'TOP_SECRET',
+        'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT',
+        'A', 'B', 'C',
+      ];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Mức độ mật không hợp lệ');
+      }
+      return true;
+    }),
+
+  body('confidentialityId')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null) return true;
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['A', 'B', 'C', 'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Mức độ mật không hợp lệ');
+      }
+      return true;
+    }),
 
   body('departmentId')
     .optional({ nullable: true })
@@ -173,6 +230,48 @@ export const listOutgoingDocumentsValidation = [
 
   query('urgency')
     .optional()
-    .isIn(['THUONG', 'KHAN', 'THUONG_KHAU', 'HOA_TOC'])
-    .withMessage('Độ khẩn không hợp lệ'),
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ khẩn không hợp lệ');
+      }
+      return true;
+    }),
+  query('urgencyId')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ khẩn không hợp lệ');
+      }
+      return true;
+    }),
+
+  query('confidentialityLevel')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = [
+        'NORMAL', 'CONFIDENTIAL', 'TOP_SECRET',
+        'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT',
+        'A', 'B', 'C',
+      ];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Mức độ mật không hợp lệ');
+      }
+      return true;
+    }),
+
+  query('confidentialityId')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['A', 'B', 'C', 'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Mức độ mật không hợp lệ');
+      }
+      return true;
+    }),
 ];

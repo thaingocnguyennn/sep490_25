@@ -28,7 +28,8 @@ export class DocumentsService {
       type: params.type,
       status: params.status,
       urgencyLevel: params.urgencyLevel,
-      confidentialityLevel: params.confidentialityLevel,
+      urgencyId: params.urgencyId,
+      confidentialityId: params.confidentialityId,
       departmentId: params.departmentId,
       processorId: params.processorId,
       dateFrom: params.dateFrom,
@@ -61,8 +62,13 @@ export class DocumentsService {
       type: string;
       issuanceDate?: string;
       sendingAgency?: string;
+      /** Legacy priority (LOW / NORMAL / HIGH / URGENT) — still honored for back-compat */
       urgencyLevel?: string;
+      /** New canonical urgency: seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
+      urgency?: string;
+      /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
       confidentialityLevel?: string;
+      confidentialityId?: string;
       category?: string;
       departmentId?: string;
       processorId?: string;
@@ -98,7 +104,8 @@ export class DocumentsService {
       issuanceDate: data.issuanceDate ? new Date(data.issuanceDate) : undefined,
       sendingAgency: data.sendingAgency,
       urgencyLevel: (data.urgencyLevel as any) || 'NORMAL',
-      confidentialityLevel: (data.confidentialityLevel as any) || 'NORMAL',
+      urgencyId: data.urgency ?? undefined,
+      confidentialityId: data.confidentialityId ?? data.confidentialityLevel,
       category: data.category,
       originalFileName: file?.originalname,
       fileSize: file?.size,
@@ -121,6 +128,7 @@ export class DocumentsService {
           signerTitle: data.signerTitle,
           pageCount: data.pageCount ? Number(data.pageCount) : undefined,
           arrivalNumber: data.arrivalNumber ? Number(data.arrivalNumber) : undefined,
+          urgencyId: doc.urgencyId,
           notes: data.notes,
         },
       });
@@ -130,6 +138,7 @@ export class DocumentsService {
           documentId: doc.id,
           recipientName: 'Chưa cập nhật',
           sentDate: new Date(),
+          urgencyId: doc.urgencyId,
         },
       });
     }
@@ -150,8 +159,13 @@ export class DocumentsService {
       type?: string;
       issuanceDate?: string | null;
       sendingAgency?: string;
+      /** Legacy priority (LOW / NORMAL / HIGH / URGENT) — still honored for back-compat */
       urgencyLevel?: string;
+      /** New canonical urgency: seeded name, legacy alias, numeric id, or null to clear */
+      urgency?: string | null;
+      /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
       confidentialityLevel?: string;
+      confidentialityId?: string | null;
       category?: string;
       departmentId?: number | null;
       processorId?: number | null;
@@ -189,12 +203,34 @@ export class DocumentsService {
       issuanceDate: data.issuanceDate === null ? null : data.issuanceDate ? new Date(data.issuanceDate) : undefined,
       sendingAgency: data.sendingAgency,
       urgencyLevel: data.urgencyLevel as any,
-      confidentialityLevel: data.confidentialityLevel as any,
+      urgencyId: data.urgency !== undefined ? data.urgency : undefined,
+      confidentialityId:
+        data.confidentialityId !== undefined
+          ? data.confidentialityId
+          : data.confidentialityLevel !== undefined
+            ? data.confidentialityLevel
+            : undefined,
       category: data.category,
       departmentId: data.departmentId,
       processorId: data.processorId,
       updatedBy,
     });
+
+    // Propagate urgencyId to IncomingDocument/OutgoingDocument when
+    // explicitly updated, so the relation is kept in sync.
+    if (data.urgency !== undefined) {
+      if (existing.type === 'INCOMING' || data.type === 'INCOMING') {
+        await prisma.incomingDocument.updateMany({
+          where: { documentId: id },
+          data: { urgencyId: data.urgency === null ? null : updatedDoc.urgencyId },
+        });
+      } else if (existing.type === 'OUTGOING' || data.type === 'OUTGOING') {
+        await prisma.outgoingDocument.updateMany({
+          where: { documentId: id },
+          data: { urgencyId: data.urgency === null ? null : updatedDoc.urgencyId },
+        });
+      }
+    }
 
     // Handle type change sync
     if (data.type && data.type !== existing.type) {
@@ -413,8 +449,8 @@ export class DocumentsService {
       { header: 'Document Number', key: 'documentNumber', width: 20 },
       { header: 'Title', key: 'title', width: 40 },
       { header: 'Type', key: 'type', width: 14 },
-      { header: 'Urgency', key: 'urgencyLevel', width: 12 },
-      { header: 'Confidentiality', key: 'confidentialityLevel', width: 16 },
+      { header: 'Urgency', key: 'urgencyName', width: 14 },
+      { header: 'Confidentiality', key: 'confidentialityName', width: 16 },
       { header: 'Sending Agency', key: 'sendingAgency', width: 25 },
       { header: 'Issuance Date', key: 'issuanceDate', width: 16 },
       { header: 'Department', key: 'department', width: 20 },
@@ -434,8 +470,10 @@ export class DocumentsService {
         documentNumber: doc.documentNumber,
         title: doc.title,
         type: doc.type,
-        urgencyLevel: doc.urgencyLevel,
-        confidentialityLevel: doc.confidentialityLevel,
+        urgencyName: doc.urgency ? doc.urgency.name : '—',
+        confidentialityName: doc.confidentiality
+          ? `${doc.confidentiality.code ? `(${doc.confidentiality.code}) ` : ''}${doc.confidentiality.name}`
+          : '—',
         sendingAgency: doc.sendingAgency || '—',
         issuanceDate: doc.issuanceDate ? new Date(doc.issuanceDate).toLocaleDateString() : '—',
         department: doc.department?.name || '—',
@@ -502,7 +540,7 @@ export class DocumentsService {
           item.documentNumber,
           item.title.length > 40 ? item.title.substring(0, 40) + '...' : item.title,
           item.type,
-          item.urgencyLevel,
+          item.urgency ? item.urgency.name : '—',
           item.documentStatus,
           item.issuanceDate ? new Date(item.issuanceDate).toLocaleDateString() : '—',
         ];

@@ -113,7 +113,43 @@ export interface ApiResponse<T = unknown> {
 export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'ACTIVE' | 'DELETED';
 export type PriorityLevel = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+/**
+ * Confidentiality classifications seeded into the Confidentiality lookup
+ * table. The previous ConfidentialityLevel enum has been replaced by this
+ * table; the API still accepts the legacy values for backward compatibility.
+ */
+export type ConfidentialityName = 'THUONG' | 'MAT' | 'TOI_MAT' | 'TUYET_MAT';
+
+/** Legacy enum values, kept for backward-compatible API payloads. */
 export type ConfidentialityLevel = 'NORMAL' | 'CONFIDENTIAL' | 'TOP_SECRET';
+
+/** Either a code ('A' | 'B' | 'C'), a seeded name, or a legacy enum value. */
+export type ConfidentialityCodeOrName = ConfidentialityName | ConfidentialityLevel | 'A' | 'B' | 'C';
+
+export interface Confidentiality {
+  id: number;
+  code: string | null;
+  name: ConfidentialityName;
+  description: string | null;
+}
+
+// ─── Urgency types (replaces the previous Urgency enum) ──────────────────────
+
+/** Urgency levels seeded into the Urgency lookup table. */
+export type UrgencyName = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'HOA_TOC';
+
+/** Legacy alias kept so the API can still accept older payloads. */
+export type UrgencyAlias = 'THUONG_KHAU';
+
+export interface Urgency {
+  id: number;
+  name: UrgencyName;
+  description: string | null;
+}
+
+/** Either a seeded name or a legacy alias. Numeric ids are also accepted by the API. */
+export type UrgencyCodeOrName = UrgencyName | UrgencyAlias | number;
 
 export interface Document {
   id: number;
@@ -125,7 +161,10 @@ export interface Document {
   documentStatus: DocumentStatus;
   isArchived: boolean;
   urgencyLevel: PriorityLevel;
-  confidentialityLevel: ConfidentialityLevel;
+  urgencyId: number | null;
+  urgency: Urgency | null;
+  confidentialityId: number | null;
+  confidentiality: Confidentiality | null;
   sendingAgency: string | null;
   issuanceDate: string | null;
   category: string | null;
@@ -171,7 +210,11 @@ export interface DocumentFilterParams {
   status?: DocumentStatus;
   isArchived?: boolean;
   urgencyLevel?: PriorityLevel;
-  confidentialityLevel?: ConfidentialityLevel;
+  /** Seeded urgency name, legacy alias, or numeric id */
+  urgency?: UrgencyCodeOrName;
+  urgencyId?: UrgencyCodeOrName;
+  confidentialityLevel?: ConfidentialityCodeOrName;
+  confidentialityId?: ConfidentialityCodeOrName;
   departmentId?: number;
   processorId?: number;
   dateFrom?: string;
@@ -186,7 +229,11 @@ export interface UpdateDocumentRequest {
   issuanceDate?: string | null;
   sendingAgency?: string;
   urgencyLevel?: PriorityLevel;
-  confidentialityLevel?: ConfidentialityLevel;
+  /** Seeded urgency name, legacy alias, or numeric id; null to clear */
+  urgency?: UrgencyCodeOrName | null;
+  urgencyId?: UrgencyCodeOrName | null;
+  confidentialityLevel?: ConfidentialityCodeOrName;
+  confidentialityId?: ConfidentialityCodeOrName | null;
   category?: string;
   departmentId?: number | null;
   processorId?: number | null;
@@ -207,7 +254,7 @@ export type OutgoingDocumentStatus =
   | 'REJECTED'
   | 'CANCELLED';
 
-export type UrgencyLevel = 'THUONG' | 'KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
+export type UrgencyLevel = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'HOA_TOC' | 'THUONG_KHAU';
 
 export interface OutgoingDocument {
   id: number;
@@ -218,7 +265,8 @@ export interface OutgoingDocument {
   issuanceDate: string | null;
   signerName: string | null;
   signerTitle: string | null;
-  urgency: UrgencyLevel | null;
+  urgencyId: number | null;
+  urgency: Urgency | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -256,7 +304,10 @@ export interface OutgoingDocument {
     ocrStatus: string;
     status: OutgoingDocumentStatus;
     urgencyLevel: PriorityLevel;
-    confidentialityLevel: ConfidentialityLevel;
+    urgencyId: number | null;
+    urgency: Urgency | null;
+    confidentialityId: number | null;
+    confidentiality: Confidentiality | null;
     documentStatus: DocumentStatus;
     isArchived: boolean;
     originalFileName: string | null;
@@ -287,8 +338,9 @@ export interface OutgoingDocument {
 export interface CreateOutgoingDocumentRequest {
   title: string;
   description?: string;
-  urgency?: UrgencyLevel;
-  confidentialityLevel?: ConfidentialityLevel;
+  urgency?: UrgencyCodeOrName;
+  confidentialityLevel?: ConfidentialityCodeOrName;
+  confidentialityId?: ConfidentialityCodeOrName;
   departmentId?: number;
   documentType?: string;
   recipientName?: string;
@@ -300,8 +352,9 @@ export interface CreateOutgoingDocumentRequest {
 export interface UpdateOutgoingMetadataRequest {
   title?: string;
   description?: string;
-  urgency?: UrgencyLevel;
-  confidentialityLevel?: ConfidentialityLevel;
+  urgency?: UrgencyCodeOrName | null;
+  confidentialityLevel?: ConfidentialityCodeOrName | null;
+  confidentialityId?: ConfidentialityCodeOrName | null;
   departmentId?: number | null;
   documentType?: string;
   documentNumber?: string;
@@ -331,11 +384,13 @@ export interface OutgoingDocumentFilterParams {
   limit?: number;
   search?: string;
   status?: OutgoingDocumentStatus;
-  urgency?: UrgencyLevel;
+  urgency?: UrgencyCodeOrName;
+  urgencyId?: UrgencyCodeOrName;
   documentType?: string;
   dateFrom?: string;
   dateTo?: string;
-  confidentialityLevel?: ConfidentialityLevel;
+  confidentialityLevel?: ConfidentialityCodeOrName;
+  confidentialityId?: ConfidentialityCodeOrName;
   departmentId?: number;
 }
 

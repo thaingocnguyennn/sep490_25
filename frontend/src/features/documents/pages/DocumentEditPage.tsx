@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { documentsApi } from '../../../api';
 import { LoadingSpinner } from '../../../shared/components';
-import type { Document, UpdateDocumentRequest } from '../../../types';
+import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
+import type { Document, UpdateDocumentRequest, ConfidentialityName } from '../../../types';
 
 /**
  * DocumentEditPage – Edit document metadata (file is not changed).
@@ -25,7 +26,7 @@ export default function DocumentEditPage() {
   const [issuanceDate, setIssuanceDate] = useState('');
   const [sendingAgency, setSendingAgency] = useState('');
   const [urgencyLevel, setUrgencyLevel] = useState('NORMAL');
-  const [confidentialityLevel, setConfidentialityLevel] = useState('NORMAL');
+  const [confidentialityLevel, setConfidentialityLevel] = useState<ConfidentialityName>('THUONG');
   const [category, setCategory] = useState('');
 
   // ─── Load existing document data ──────────────────────────────────────
@@ -44,7 +45,15 @@ export default function DocumentEditPage() {
         setIssuanceDate(d.issuanceDate ? d.issuanceDate.split('T')[0] : '');
         setSendingAgency(d.sendingAgency || '');
         setUrgencyLevel(d.urgencyLevel);
-        setConfidentialityLevel(d.confidentialityLevel);
+        // The old server returned a ConfidentialityLevel enum; map the legacy
+        // labels back onto the new seeded names so the dropdown stays accurate.
+        setConfidentialityLevel(
+          (d.confidentiality?.name as ConfidentialityName) ??
+            (d.confidentiality?.code === 'A' ? 'TUYET_MAT'
+              : d.confidentiality?.code === 'B' ? 'TOI_MAT'
+              : d.confidentiality?.code === 'C' ? 'MAT'
+              : 'THUONG')
+        );
         setCategory(d.category || '');
       })
       .catch(() => setError('Lỗi khi tải tài liệu'))
@@ -68,7 +77,7 @@ export default function DocumentEditPage() {
       issuanceDate: issuanceDate ? new Date(issuanceDate).toISOString() : null,
       sendingAgency: sendingAgency.trim() || undefined,
       urgencyLevel: urgencyLevel as any,
-      confidentialityLevel: confidentialityLevel as any,
+      confidentialityLevel: confidentialityLevel as ConfidentialityName,
       category: category.trim() || undefined,
     };
 
@@ -170,10 +179,10 @@ export default function DocumentEditPage() {
                 </div>
                 <div className="form-group">
                   <label>Độ bảo mật</label>
-                  <select value={confidentialityLevel} onChange={(e) => setConfidentialityLevel(e.target.value)}>
-                    <option value="NORMAL">Bình thường</option>
-                    <option value="CONFIDENTIAL">Bảo mật</option>
-                    <option value="TOP_SECRET">Tuyệt mật</option>
+                  <select value={confidentialityLevel} onChange={(e) => setConfidentialityLevel(e.target.value as ConfidentialityName)}>
+                    {CONFIDENTIALITY_OPTIONS.map((opt) => (
+                      <option key={opt.name} value={opt.name}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="form-group">

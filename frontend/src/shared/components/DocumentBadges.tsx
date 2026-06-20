@@ -37,16 +37,27 @@ export function PriorityBadge({ priority }: { priority: string }) {
 }
 
 // Badge độ khẩn cho văn bản đi
+// Accepts either a string (legacy) or a { name } object (new relational model).
 const URGENCY_CONFIG: Record<string, { label: string; className: string }> = {
   THUONG:      { label: 'Thường',      className: 'urgency-thuong' },
   KHAN:        { label: 'Khẩn',        className: 'urgency-khan' },
   THUONG_KHAU: { label: 'Thượng khẩn', className: 'urgency-thuong-khau' },
+  THUONG_KHAN: { label: 'Thượng khẩn', className: 'urgency-thuong-khau' },
   HOA_TOC:     { label: 'Hỏa tốc',    className: 'urgency-hoa-toc' },
 };
 
-export function UrgencyBadge({ urgency }: { urgency: string | null | undefined }) {
-  if (!urgency) return null;
-  const config = URGENCY_CONFIG[urgency] ?? { label: urgency, className: 'urgency-thuong' };
+export function UrgencyBadge({
+  urgency,
+}: {
+  urgency: string | { name: string } | null | undefined;
+}) {
+  const name = !urgency
+    ? null
+    : typeof urgency === 'string'
+      ? urgency
+      : urgency.name;
+  if (!name) return null;
+  const config = URGENCY_CONFIG[name] ?? { label: name, className: 'urgency-thuong' };
   return <span className={`urgency-badge ${config.className}`}>{config.label}</span>;
 }
 

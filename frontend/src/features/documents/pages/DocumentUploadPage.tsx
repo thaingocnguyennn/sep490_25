@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentActions } from '../../../shared/hooks';
+import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
+import type { ConfidentialityName } from '../../../types';
 
 /**
  * DocumentUploadPage – Upload a new document with file + metadata.
@@ -20,7 +22,7 @@ export default function DocumentUploadPage() {
   const [issuanceDate, setIssuanceDate] = useState('');
   const [sendingAgency, setSendingAgency] = useState('');
   const [urgencyLevel, setUrgencyLevel] = useState('NORMAL');
-  const [confidentialityLevel, setConfidentialityLevel] = useState('NORMAL');
+  const [confidentialityLevel, setConfidentialityLevel] = useState<ConfidentialityName>('THUONG');
   const [category, setCategory] = useState('');
   
   // ─── Incoming specific fields ─────────────────────────────────────────
@@ -266,10 +268,10 @@ export default function DocumentUploadPage() {
                 </div>
                 <div className="form-group">
                   <label>Độ bảo mật</label>
-                  <select value={confidentialityLevel} onChange={(e) => setConfidentialityLevel(e.target.value)}>
-                    <option value="NORMAL">Bình thường</option>
-                    <option value="CONFIDENTIAL">Bảo mật</option>
-                    <option value="TOP_SECRET">Tuyệt mật</option>
+                  <select value={confidentialityLevel} onChange={(e) => setConfidentialityLevel(e.target.value as ConfidentialityName)}>
+                    {CONFIDENTIALITY_OPTIONS.map((opt) => (
+                      <option key={opt.name} value={opt.name}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="form-group">

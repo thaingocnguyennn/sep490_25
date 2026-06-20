@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { documentsApi } from '../../../api';
 import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
 import { useDocumentActions } from '../../../shared/hooks';
+import { formatConfidentiality } from '../../../shared/constants/confidentiality';
+import { formatUrgency } from '../../../shared/constants/urgency';
 import type { Document } from '../../../types';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -107,14 +109,14 @@ export default function DocumentDetailPage() {
               </div>
               <div className="detail-item">
                 <label>Độ khẩn</label>
-                <span className={`doc-badge ${doc.urgencyLevel.toLowerCase()}`}>
-                  {doc.urgencyLevel}
+                <span className={`doc-badge ${(doc.urgency?.name ?? doc.urgencyLevel).toString().toLowerCase()}`}>
+                  {doc.urgency ? formatUrgency(doc.urgency) : doc.urgencyLevel}
                 </span>
               </div>
               <div className="detail-item">
                 <label>Độ bảo mật</label>
-                <span className={`doc-badge ${doc.confidentialityLevel.toLowerCase()}`}>
-                  {doc.confidentialityLevel}
+                <span className={`doc-badge ${(doc.confidentiality?.name ?? 'thuong').toLowerCase()}`}>
+                  {formatConfidentiality(doc.confidentiality)}
                 </span>
               </div>
               <div className="detail-item">

@@ -9,6 +9,7 @@ import {
 } from '../../../api';
 import { useProcessors } from '../../../shared/hooks';
 import { useAuth } from '../../../contexts/AuthContext';
+import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
 
 interface ProcessorAssignment {
   userId: number;
@@ -25,6 +26,7 @@ const URGENCY_LABELS: Record<Urgency, string> = {
   THUONG: 'Thường',
   KHAN: 'Khẩn',
   THUONG_KHAU: 'Thượng khẩn',
+  THUONG_KHAN: 'Thượng khẩn',
   HOA_TOC: 'Hỏa tốc',
 };
 
@@ -518,11 +520,14 @@ export default function AddIncomingDocumentPage() {
 
                 <div className="form-group">
                   <label htmlFor="urgency">Độ khẩn</label>
-                  <select id="urgency" value={urgency} onChange={(e) => setUrgency(e.target.value as Urgency)}>
-                    <option value="THUONG">Thường</option>
-                    <option value="KHAN">Khẩn</option>
-                    <option value="THUONG_KHAU">Thượng khẩn</option>
-                    <option value="HOA_TOC">Hỏa tốc</option>
+                  <select
+                    id="urgency"
+                    value={urgency}
+                    onChange={(e) => setUrgency(e.target.value as Urgency)}
+                  >
+                    {URGENCY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
 

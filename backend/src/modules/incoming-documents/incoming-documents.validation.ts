@@ -14,7 +14,26 @@ export const createIncomingDocumentValidation = [
   body('dateReceived').notEmpty().withMessage('Ngày đến là bắt buộc'),
   body('summary').optional().trim(),
   body('pageCount').optional().isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
-  body('urgency').optional().isIn(['THUONG', 'KHAN', 'THUONG_KHAU', 'HOA_TOC']).withMessage('Độ khẩn không hợp lệ'),
+  body('urgency')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAN, HOA_TOC');
+      }
+      return true;
+    }),
+  body('urgencyId')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ khẩn không hợp lệ');
+      }
+      return true;
+    }),
   body('notes').optional().trim(),
   body('processingInstructions').optional().trim(),
   body('processorIds').isArray({ min: 1 }).withMessage('Phải chọn ít nhất một người xử lý'),

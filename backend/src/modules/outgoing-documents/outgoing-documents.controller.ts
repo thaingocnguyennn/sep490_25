@@ -13,7 +13,7 @@ export class OutgoingDocumentsController {
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string | undefined;
       const status = req.query.status as string | undefined;
-      const urgency = req.query.urgency as string | undefined;
+      const urgency = (req.query.urgencyId ?? req.query.urgency) as string | undefined;
       const documentType = req.query.documentType as string | undefined;
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;

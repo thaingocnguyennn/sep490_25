@@ -5,7 +5,14 @@ export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
 export type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 export type ProcessorType = 'XLC' | 'PHXL' | 'XDB';
-export type Urgency = 'THUONG' | 'KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
+export type Urgency = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
+
+/** New urgency lookup record returned by the API. */
+export interface UrgencyRecord {
+  id: number;
+  name: Urgency;
+  description: string | null;
+}
 
 export interface DocumentProcessor {
   id: number;
@@ -55,7 +62,7 @@ export interface IncomingDocumentDetail {
   dateReceived: string;
   summary: string | null;
   pageCount: number | null;
-  urgency: Urgency | null;
+  urgency: UrgencyRecord | null;
   notes: string | null;
   processingInstructions: string | null;
   document: Document;
@@ -74,7 +81,7 @@ export interface IncomingDocumentListItem {
   dateReceived: string;
   summary: string | null;
   pageCount: number | null;
-  urgency: Urgency | null;
+  urgency: UrgencyRecord | null;
   notes: string | null;
   processingInstructions: string | null;
   document: Document;

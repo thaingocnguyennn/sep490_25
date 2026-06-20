@@ -25,7 +25,8 @@ export const getOutgoingDocuments = async (
   if (params.limit)  queryParams.set('limit',  String(params.limit));
   if (params.search) queryParams.set('search', params.search);
   if (params.status) queryParams.set('status', params.status);
-  if (params.urgency) queryParams.set('urgency', params.urgency);
+  if (params.urgency !== undefined && params.urgency !== null)
+    queryParams.set('urgency', String(params.urgency));
 
   const query = queryParams.toString();
   const res = await api.get<ApiResponse<PaginatedResponse<OutgoingDocument>>>(

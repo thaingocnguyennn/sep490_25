@@ -62,20 +62,6 @@ enum DocumentLifecycleStatus {
   DELETED
 }
 
-// Confidentiality classification for documents
-enum ConfidentialityLevel {
-  NORMAL
-  CONFIDENTIAL
-  TOP_SECRET
-}
-
-enum Urgency {
-  THUONG // Thường / Bình thường
-  KHAN // Khẩn
-  THUONG_KHAU // Thượng khẩn
-  HOA_TOC // Hỏa tốc
-}
-
 enum WorkflowStatus {
   PENDING
   IN_PROGRESS
@@ -180,6 +166,33 @@ model Role {
   userRoles UserRole[]
 }
 
+// Lookup table for document confidentiality classifications
+// (replaces the previous ConfidentialityLevel enum)
+model Confidentiality {
+  id          Int      @id @default(autoincrement())
+  code        String?  @unique // Optional document code (A, B, C) — null for THUONG
+  name        String   @unique // Vietnamese label: TUYET_MAT, TOI_MAT, MAT, THUONG
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents Document[]
+}
+
+// Lookup table for document urgency levels
+// (replaces the previous Urgency enum used by IncomingDocument/OutgoingDocument)
+model Urgency {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // THUONG, KHAN, THUONG_KHAN, HOA_TOC
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents         Document[]
+  incomingDocuments IncomingDocument[]
+  outgoingDocuments OutgoingDocument[]
+}
+
 model UserRole {
   userId     Int
   roleId     Int
@@ -205,22 +218,27 @@ model Document {
   deadline       DateTime?
 
   // --- Level 2 fields: basic document management ---
-  issuanceDate         DateTime? // Ngày ban hành
-  sendingAgency        String? // Cơ quan gửi
-  urgencyLevel         Priority                @default(NORMAL) // Mức độ khẩn
-  confidentialityLevel ConfidentialityLevel    @default(NORMAL) // Mức độ mật
-  documentStatus       DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
-  category             String? // Phân loại phụ (tuỳ chọn)
-  originalFileName     String? // Tên file gốc khi upload
-  fileSize             Int? // Dung lượng file (bytes)
-  mimeType             String? // Loại MIME (application/pdf, ...)
-  isArchived           Boolean                 @default(false) // Đã lưu trữ
+  issuanceDate      DateTime? // Ngày ban hành
+  sendingAgency     String? // Cơ quan gửi
+  urgencyLevel      Priority                @default(NORMAL) // Mức độ khẩn (derived from urgency)
+  urgencyId         Int? // FK -> Urgency (canonical urgency)
+  confidentialityId Int? // FK -> Confidentiality (mức độ mật)
+  documentStatus    DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
+  category          String? // Phân loại phụ (tuỳ chọn)
+  originalFileName  String? // Tên file gốc khi upload
+  fileSize          Int? // Dung lượng file (bytes)
+  mimeType          String? // Loại MIME (application/pdf, ...)
+  isArchived        Boolean                 @default(false) // Đã lưu trữ
 
   // Department & processor relations
   departmentId Int?
   department   Department? @relation("DocumentDepartment", fields: [departmentId], references: [id])
   processorId  Int?
   processor    User?       @relation("DocumentProcessor", fields: [processorId], references: [id])
+
+  // Confidentiality & urgency relations
+  confidentiality Confidentiality? @relation(fields: [confidentialityId], references: [id])
+  urgency         Urgency?         @relation(fields: [urgencyId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -239,6 +257,8 @@ model Document {
   @@index([type])
   @@index([departmentId])
   @@index([processorId])
+  @@index([confidentialityId])
+  @@index([urgencyId])
 }
 
 model IncomingDocument {
@@ -254,7 +274,7 @@ model IncomingDocument {
   dateReceived           DateTime // Ngày đến
   summary                String?   @db.Text // Trích yếu nội dung
   pageCount              Int? // Số trang văn bản
-  urgency                Urgency? // Độ khẩn (Thường / Khẩn / Thượng khẩn / Hỏa tốc)
+  urgencyId              Int? // FK -> Urgency (Độ khẩn: Thường / Khẩn / Thượng khẩn / Hỏa tốc)
   notes                  String?
   processingInstructions String?
   createdAt              DateTime  @default(now())
@@ -263,6 +283,9 @@ model IncomingDocument {
   document     Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
   department   Department? @relation(fields: [departmentId], references: [id])
   departmentId Int?
+  urgency      Urgency?    @relation(fields: [urgencyId], references: [id])
+
+  @@index([urgencyId])
 }
 
 model OutgoingDocument {
@@ -276,7 +299,7 @@ model OutgoingDocument {
   issuanceDate   DateTime? // Ngày ban hành chính thức
   signerName     String? // Họ tên người ký
   signerTitle    String? // Chức vụ người ký
-  urgency        Urgency? // Độ khẩn
+  urgencyId      Int? // FK -> Urgency (Độ khẩn)
 
   // Thông tin phát hành
   recipientName    String? // Tên người/cơ quan nhận
@@ -315,6 +338,9 @@ model OutgoingDocument {
   issuedByUser    User?    @relation("OutgoingIssuedBy", fields: [issuedBy], references: [id])
   recalledByUser  User?    @relation("OutgoingRecalledBy", fields: [recalledBy], references: [id])
   trashedByUser   User?    @relation("OutgoingTrashedBy", fields: [trashedBy], references: [id])
+  urgency         Urgency? @relation(fields: [urgencyId], references: [id])
+
+  @@index([urgencyId])
 }
 
 model DocumentProcessor {

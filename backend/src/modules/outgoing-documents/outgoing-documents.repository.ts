@@ -1,6 +1,8 @@
 import { default as prisma } from '../../config/database';
 import { NotFoundError } from '../../shared/exceptions/app-error';
 import { Prisma } from '@prisma/client';
+import { resolveConfidentialityId } from '../../shared/utils/confidentiality';
+import { resolveUrgencyId } from '../../shared/utils/urgency';
 
 // ─── Kiểu dữ liệu trả về ─────────────────────────────────────────────────────
 
@@ -13,7 +15,12 @@ export interface OutgoingDocumentWithRelations {
   issuanceDate: Date | null;
   signerName: string | null;
   signerTitle: string | null;
-  urgency: string | null;
+  urgencyId: number | null;
+  urgency: {
+    id: number;
+    name: string;
+    description: string | null;
+  } | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -50,7 +57,13 @@ export interface OutgoingDocumentWithRelations {
     status: string;
     priority: string;
     urgencyLevel: string;
-    confidentialityLevel: string;
+    confidentialityId: number | null;
+    confidentiality: {
+      id: number;
+      code: string | null;
+      name: string;
+      description: string | null;
+    } | null;
     documentStatus: string;
     isArchived: boolean;
     originalFileName: string | null;
@@ -86,6 +99,8 @@ const OUTGOING_INCLUDE = {
       createdByUser: { select: { id: true, fullName: true } },
       updatedByUser: { select: { id: true, fullName: true } },
       department: { select: { id: true, name: true } },
+      confidentiality: { select: { id: true, code: true, name: true, description: true } },
+      urgency: { select: { id: true, name: true, description: true } },
       attachments: {
         select: {
           id: true,
@@ -97,6 +112,7 @@ const OUTGOING_INCLUDE = {
       },
     },
   },
+  urgency: { select: { id: true, name: true, description: true } },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },
@@ -121,7 +137,8 @@ export class OutgoingDocumentsRepository {
     documentType?: string;
     dateFrom?: string;
     dateTo?: string;
-    confidentialityLevel?: string;
+    /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy enum value */
+    confidentialityLevel?: string | number;
     departmentId?: number;
     includeTrashed?: boolean;
   }) {
@@ -154,7 +171,12 @@ export class OutgoingDocumentsRepository {
     }
 
     if (urgency) {
-      where.urgency = urgency as any;
+      const urgencyId = await resolveUrgencyId(urgency);
+      if (urgencyId === null) {
+        (where.document as Record<string, unknown>).id = -1;
+      } else {
+        where.urgencyId = urgencyId;
+      }
     }
 
     if (documentType) {
@@ -167,11 +189,16 @@ export class OutgoingDocumentsRepository {
       if (dateTo) where.issuanceDate.lte = new Date(dateTo);
     }
 
-    if (confidentialityLevel) {
-      where.document = {
-        ...(where.document as object),
-        confidentialityLevel: confidentialityLevel as any,
-      };
+    if (confidentialityLevel !== undefined && confidentialityLevel !== null && confidentialityLevel !== '') {
+      const confidentialityId = await resolveConfidentialityId(confidentialityLevel);
+      if (confidentialityId === null) {
+        (where.document as Record<string, unknown>).id = -1;
+      } else {
+        where.document = {
+          ...(where.document as object),
+          confidentialityId,
+        };
+      }
     }
 
     if (departmentId) {

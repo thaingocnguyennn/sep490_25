@@ -1,6 +1,10 @@
 import { body, query, param } from 'express-validator';
 import { DocumentType, Priority, DocumentLifecycleStatus } from '@prisma/client';
 
+// Allowed urgency lookup values (seeded names, legacy aliases, numeric ids)
+const URGENCY_ALLOWED = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+const isValidUrgency = (v: string) => URGENCY_ALLOWED.includes(v) || /^\d+$/.test(v);
+
 // ─── Validation for uploading a new document ─────────────────────────────────
 
 export const uploadDocumentValidation = [
@@ -33,10 +37,60 @@ export const uploadDocumentValidation = [
     .optional()
     .isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])
     .withMessage('Urgency level must be LOW, NORMAL, HIGH, or URGENT'),
+  body('urgency')
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Urgency must be a string or number');
+      }
+      if (!isValidUrgency(String(value).trim().toUpperCase())) {
+        throw new Error('Invalid urgency value');
+      }
+      return true;
+    }),
+  body('urgencyId')
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Urgency id must be a string or number');
+      }
+      if (!isValidUrgency(String(value).trim().toUpperCase())) {
+        throw new Error('Invalid urgency id');
+      }
+      return true;
+    }),
   body('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
-    .withMessage('Confidentiality must be NORMAL, CONFIDENTIAL, or TOP_SECRET'),
+    // Accept legacy enum values (NORMAL/CONFIDENTIAL/TOP_SECRET), seeded names
+    // (THUONG/MAT/TOI_MAT/TUYET_MAT), codes (A/B/C), or a numeric id.
+    .custom((value) => {
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Confidentiality must be a string or number');
+      }
+      const v = String(value).trim().toUpperCase();
+      const allowed = [
+        'NORMAL', 'CONFIDENTIAL', 'TOP_SECRET',
+        'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT',
+        'A', 'B', 'C',
+      ];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Invalid confidentiality value');
+      }
+      return true;
+    }),
+  body('confidentialityId')
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Confidentiality id must be a string or number');
+      }
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['A', 'B', 'C', 'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Invalid confidentiality id');
+      }
+      return true;
+    }),
   body('category')
     .optional()
     .trim()
@@ -88,10 +142,61 @@ export const updateDocumentValidation = [
     .optional()
     .isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])
     .withMessage('Urgency level must be LOW, NORMAL, HIGH, or URGENT'),
+  body('urgency')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null) return true;
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Urgency must be a string or number');
+      }
+      if (!isValidUrgency(String(value).trim().toUpperCase())) {
+        throw new Error('Invalid urgency value');
+      }
+      return true;
+    }),
+  body('urgencyId')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null) return true;
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Urgency id must be a string or number');
+      }
+      if (!isValidUrgency(String(value).trim().toUpperCase())) {
+        throw new Error('Invalid urgency id');
+      }
+      return true;
+    }),
   body('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
-    .withMessage('Confidentiality must be NORMAL, CONFIDENTIAL, or TOP_SECRET'),
+    .custom((value) => {
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Confidentiality must be a string or number');
+      }
+      const v = String(value).trim().toUpperCase();
+      const allowed = [
+        'NORMAL', 'CONFIDENTIAL', 'TOP_SECRET',
+        'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT',
+        'A', 'B', 'C',
+      ];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Invalid confidentiality value');
+      }
+      return true;
+    }),
+  body('confidentialityId')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null) return true;
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error('Confidentiality id must be a string or number');
+      }
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['A', 'B', 'C', 'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Invalid confidentiality id');
+      }
+      return true;
+    }),
   body('category')
     .optional()
     .trim()
@@ -135,10 +240,46 @@ export const getDocumentsValidation = [
     .optional()
     .isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])
     .withMessage('Invalid urgency filter'),
+  query('urgency')
+    .optional()
+    .custom((value) => {
+      if (!isValidUrgency(String(value).trim().toUpperCase())) {
+        throw new Error('Invalid urgency filter');
+      }
+      return true;
+    }),
+  query('urgencyId')
+    .optional()
+    .custom((value) => {
+      if (!isValidUrgency(String(value).trim().toUpperCase())) {
+        throw new Error('Invalid urgency id filter');
+      }
+      return true;
+    }),
   query('confidentialityLevel')
     .optional()
-    .isIn(['NORMAL', 'CONFIDENTIAL', 'TOP_SECRET'])
-    .withMessage('Invalid confidentiality filter'),
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = [
+        'NORMAL', 'CONFIDENTIAL', 'TOP_SECRET',
+        'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT',
+        'A', 'B', 'C',
+      ];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Invalid confidentiality filter');
+      }
+      return true;
+    }),
+  query('confidentialityId')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['A', 'B', 'C', 'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Invalid confidentiality id filter');
+      }
+      return true;
+    }),
   query('departmentId')
     .optional()
     .isInt({ min: 1 })
