@@ -1,24 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOutgoingDocumentActions, useDepartments } from '../../../shared/hooks';
+import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
+import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgency';
 import type {
   CreateOutgoingDocumentRequest,
-  UrgencyLevel,
-  ConfidentialityLevel,
+  UrgencyName,
+  ConfidentialityName,
 } from '../../../types';
 
-const URGENCY_OPTIONS: { value: UrgencyLevel; label: string }[] = [
-  { value: 'THUONG',      label: 'Thường' },
-  { value: 'KHAN',        label: 'Khẩn' },
-  { value: 'THUONG_KHAU', label: 'Thượng khẩn' },
-  { value: 'HOA_TOC',     label: 'Hỏa tốc' },
-];
-
-const CONFIDENTIALITY_OPTIONS: { value: ConfidentialityLevel; label: string }[] = [
-  { value: 'NORMAL',       label: 'Không mật' },
-  { value: 'CONFIDENTIAL', label: 'Mật' },
-  { value: 'TOP_SECRET',   label: 'Tuyệt mật' },
-];
+const URGENCY_OPTIONS: { value: UrgencyName; label: string }[] = URGENCY_LIST.map((o) => ({
+  value: o.value,
+  label: o.label,
+}));
 
 const DOC_TYPES = [
   'QUYẾT ĐỊNH', 'CÔNG VĂN', 'THÔNG BÁO', 'TỜ TRÌNH', 'BÁO CÁO',
@@ -34,7 +28,7 @@ export default function CreateOutgoingDocumentPage() {
     title: '',
     description: '',
     urgency: 'THUONG',
-    confidentialityLevel: 'NORMAL',
+    confidentialityLevel: 'THUONG',
     documentType: '',
     departmentId: undefined,
     recipientName: '',
@@ -215,12 +209,12 @@ export default function CreateOutgoingDocumentPage() {
                 <select
                   id="confidentialityLevel"
                   name="confidentialityLevel"
-                  value={form.confidentialityLevel}
+                  value={form.confidentialityLevel as ConfidentialityName | undefined}
                   onChange={handleChange}
                   style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
                 >
                   {CONFIDENTIALITY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.name} value={opt.name}>{opt.label}</option>
                   ))}
                 </select>
               </div>

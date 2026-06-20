@@ -4,6 +4,7 @@ import { useIncomingDocuments } from '../../../shared/hooks';
 import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
+import { formatUrgency } from '../../../shared/constants/urgency';
 
 type StatusTab = '' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 
@@ -167,9 +168,9 @@ export default function IncomingDocumentsPage() {
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>
                       <td>
-                        {item.urgency && item.urgency !== 'THUONG' ? (
-                          <span className={`urgency-badge urgency-${item.urgency.toLowerCase()}`}>
-                            {item.urgency === 'KHAN' ? 'Khẩn' : item.urgency === 'THUONG_KHAU' ? 'Thượng khẩn' : 'Hỏa tốc'}
+                        {item.urgency && item.urgency.name !== 'THUONG' ? (
+                          <span className={`urgency-badge urgency-${item.urgency.name.toLowerCase()}`}>
+                            {formatUrgency(item.urgency)}
                           </span>
                         ) : '—'}
                       </td>

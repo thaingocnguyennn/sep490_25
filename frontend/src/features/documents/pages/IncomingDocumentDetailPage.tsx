@@ -4,6 +4,7 @@ import { incomingDocumentsApi, type IncomingDocumentDetail, type WorkflowStatus 
 import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
+import { formatUrgency } from '../../../shared/constants/urgency';
 import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
 
 const WORKFLOW_ACTION_LABELS: Record<string, string> = {
@@ -19,13 +20,6 @@ const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   COMPLETED: 'Hoàn thành',
   REJECTED: 'Từ chối',
   CANCELLED: 'Hủy',
-};
-
-const URGENCY_LABELS: Record<string, string> = {
-  THUONG: 'Thường',
-  KHAN: 'Khẩn',
-  THUONG_KHAU: 'Thượng khẩn',
-  HOA_TOC: 'Hỏa tốc',
 };
 
 export default function IncomingDocumentDetailPage() {
@@ -223,7 +217,7 @@ export default function IncomingDocumentDetailPage() {
                 </div>
                 <div className="detail-item">
                   <label>Độ khẩn</label>
-                  <span>{doc.urgency ? URGENCY_LABELS[doc.urgency] || doc.urgency : '—'}</span>
+                  <span>{doc.urgency ? formatUrgency(doc.urgency) : '—'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Phòng ban tiếp nhận</label>

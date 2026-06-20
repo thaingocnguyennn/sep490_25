@@ -10,8 +10,9 @@ export class IncomingDocumentsController {
       const search = req.query.search as string;
       const status = req.query.status as string;
       const priority = req.query.priority as string;
+      const urgency = (req.query.urgencyId ?? req.query.urgency) as string | undefined;
 
-      const result = await incomingDocumentsService.list({ page, limit, search, status, priority });
+      const result = await incomingDocumentsService.list({ page, limit, search, status, priority, urgency });
       res.status(200).json(
         successResponse(
           {

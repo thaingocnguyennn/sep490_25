@@ -3,6 +3,7 @@ import { incomingDocumentsRepository } from './incoming-documents.repository';
 import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError } from '../../shared/exceptions/app-error';
 import { DocumentStatus, WorkflowStatus } from '@prisma/client';
+import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 
 function parseDateOrNull(input: string): Date | null {
   const trimmed = input.trim();
@@ -39,7 +40,7 @@ interface AttachmentInput {
 }
 
 export class IncomingDocumentsService {
-  async list(params: { page: number; limit: number; search?: string; status?: string; priority?: string }) {
+  async list(params: { page: number; limit: number; search?: string; status?: string; priority?: string; urgency?: string }) {
     return incomingDocumentsRepository.findAll(params);
   }
 
@@ -218,6 +219,7 @@ export class IncomingDocumentsService {
     dateReceived: string;
     summary?: string;
     pageCount?: number;
+    /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
     notes?: string;
     processingInstructions?: string;
@@ -244,6 +246,11 @@ export class IncomingDocumentsService {
       orderBy: { stepOrder: 'asc' },
     });
 
+    // Resolve urgencyId (canonical) from the request, or fall back to THUONG.
+    const urgencyId = data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
+      ? await resolveUrgencyIdWithDefault(data.urgency)
+      : await resolveUrgencyIdWithDefault(null);
+
     const result = await prisma.$transaction(async (tx) => {
       const document = await tx.document.create({
         data: {
@@ -253,6 +260,7 @@ export class IncomingDocumentsService {
             : data.issuer || `Văn bản đến số ${documentNumber}`,
           type: 'INCOMING',
           status: DocumentStatus.PENDING,
+          urgencyId,
           createdBy: data.createdBy,
         },
       });
@@ -270,7 +278,7 @@ export class IncomingDocumentsService {
           dateReceived: new Date(data.dateReceived),
           summary: data.summary,
           pageCount: data.pageCount,
-          urgency: data.urgency as any,
+          urgencyId,
           notes: data.notes,
           processingInstructions: data.processingInstructions,
         },

@@ -6,7 +6,6 @@ import type {
   DocumentType,
   DocumentStatus,
   PriorityLevel,
-  ConfidentialityLevel,
 } from '../../types';
 
 interface UseDocumentsOptions {

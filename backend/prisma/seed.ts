@@ -35,6 +35,43 @@ async function main() {
   }
   console.log('Roles seeded');
 
+  // Seed confidentiality classifications (lookup table replacing the previous enum)
+  const confidentialityLevels = [
+    { code: 'A',     name: 'TUYET_MAT', description: 'Tuyệt mật — mức độ mật cao nhất' },
+    { code: 'B',     name: 'TOI_MAT',   description: 'Tối mật — mức độ mật cao' },
+    { code: 'C',     name: 'MAT',       description: 'Mật — mức độ mật' },
+    { code: null,    name: 'THUONG',    description: 'Thường — không có mã mức độ mật trên văn bản' },
+  ];
+
+  for (const level of confidentialityLevels) {
+    await prisma.confidentiality.upsert({
+      where: { name: level.name },
+      update: {
+        code: level.code,
+        description: level.description,
+      },
+      create: level,
+    });
+  }
+  console.log('Confidentiality levels seeded');
+
+  // Seed urgency levels (lookup table replacing the previous Urgency enum)
+  const urgencyLevels = [
+    { name: 'THUONG',      description: 'Thường — độ khẩn bình thường' },
+    { name: 'KHAN',        description: 'Khẩn' },
+    { name: 'THUONG_KHAN', description: 'Thượng khẩn' },
+    { name: 'HOA_TOC',     description: 'Hỏa tốc — mức khẩn cao nhất' },
+  ];
+
+  for (const level of urgencyLevels) {
+    await prisma.urgency.upsert({
+      where: { name: level.name },
+      update: { description: level.description },
+      create: level,
+    });
+  }
+  console.log('Urgency levels seeded');
+
   const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
   const deptHeadRole = await prisma.role.findUnique({ where: { name: 'DEPARTMENT_HEAD' } });
   const specialistRole = await prisma.role.findUnique({ where: { name: 'SPECIALIST' } });

@@ -7,13 +7,7 @@ import {
 import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
-
-const URGENCY_LABELS: Record<string, string> = {
-  THUONG: 'Thường',
-  KHAN: 'Khẩn',
-  THUONG_KHAU: 'Thượng khẩn',
-  HOA_TOC: 'Hỏa tốc',
-};
+import { formatUrgency } from '../../../shared/constants/urgency';
 
 export default function PendingIncomingDocumentsPage() {
   const navigate = useNavigate();
@@ -170,8 +164,8 @@ export default function PendingIncomingDocumentsPage() {
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>
                       <td>
-                        {item.urgency && item.urgency !== 'THUONG'
-                          ? URGENCY_LABELS[item.urgency] || item.urgency
+                        {item.urgency && item.urgency.name !== 'THUONG'
+                          ? formatUrgency(item.urgency)
                           : '—'}
                       </td>
                       <td><DocumentStatusBadge status={item.document.status} /></td>

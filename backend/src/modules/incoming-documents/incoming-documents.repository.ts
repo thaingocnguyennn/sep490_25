@@ -1,6 +1,7 @@
 import { default as prisma } from '../../config/database';
 import { NotFoundError } from '../../shared/exceptions/app-error';
 import { Prisma, DocumentStatus, WorkflowStatus } from '@prisma/client';
+import { resolveUrgencyId } from '../../shared/utils/urgency';
 
 export interface IncomingDocumentWithRelations {
   id: number;
@@ -16,7 +17,12 @@ export interface IncomingDocumentWithRelations {
   receivedDate: Date;
   summary: string | null;
   pageCount: number | null;
-  urgency: string | null;
+  urgencyId: number | null;
+  urgency: {
+    id: number;
+    name: string;
+    description: string | null;
+  } | null;
   notes: string | null;
   processingInstructions: string | null;
   document: {
@@ -28,6 +34,19 @@ export interface IncomingDocumentWithRelations {
     fileUrl: string | null;
     status: string;
     priority: string;
+    urgencyId: number | null;
+    urgency: {
+      id: number;
+      name: string;
+      description: string | null;
+    } | null;
+    confidentialityId: number | null;
+    confidentiality: {
+      id: number;
+      code: string | null;
+      name: string;
+      description: string | null;
+    } | null;
     deadline: Date | null;
     ocrText: string | null;
     createdAt: Date;
@@ -64,8 +83,10 @@ export class IncomingDocumentsRepository {
     search?: string;
     status?: string;
     priority?: string;
+    /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
+    urgency?: string;
   }) {
-    const { page, limit, search, status, priority } = params;
+    const { page, limit, search, status, priority, urgency } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.IncomingDocumentWhereInput = {};
@@ -82,6 +103,14 @@ export class IncomingDocumentsRepository {
     }
     if (status) where.document = { ...((where.document as object) || {}), status: status as any };
     if (priority) where.document = { ...((where.document as object) || {}), priority: priority as any };
+    if (urgency) {
+      const urgencyId = await resolveUrgencyId(urgency);
+      if (urgencyId === null) {
+        where.document = { ...((where.document as object) || {}), id: -1 };
+      } else {
+        where.urgencyId = urgencyId;
+      }
+    }
 
     const [items, total] = await Promise.all([
       prisma.incomingDocument.findMany({
@@ -90,9 +119,11 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
+          urgency: { select: { id: true, name: true, description: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
+              urgency: { select: { id: true, name: true, description: true } },
               processors: {
                 include: { user: { select: { id: true, fullName: true, email: true } } },
               },
@@ -118,10 +149,12 @@ export class IncomingDocumentsRepository {
     const incoming = await prisma.incomingDocument.findUnique({
       where: { id },
       include: {
+        urgency: { select: { id: true, name: true, description: true } },
         document: {
           include: {
             createdByUser: { select: { id: true, fullName: true } },
             updatedByUser: { select: { id: true, fullName: true } },
+            urgency: { select: { id: true, name: true, description: true } },
             processors: {
               include: { user: { select: { id: true, fullName: true, email: true } } },
             },
@@ -174,9 +207,11 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
+          urgency: { select: { id: true, name: true, description: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
+              urgency: { select: { id: true, name: true, description: true } },
               processors: {
                 include: { user: { select: { id: true, fullName: true, email: true } } },
               },

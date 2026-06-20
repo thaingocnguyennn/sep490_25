@@ -4,7 +4,8 @@ import { useOutgoingDocuments, useDepartments } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { OutgoingDocumentStatus, UrgencyLevel, ConfidentialityLevel } from '../../../types';
+import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgency';
+import type { OutgoingDocumentStatus, UrgencyName, ConfidentialityName } from '../../../types';
 
 const OUTGOING_STATUSES: { value: OutgoingDocumentStatus | ''; label: string }[] = [
   { value: '',                 label: 'Tất cả trạng thái' },
@@ -18,19 +19,17 @@ const OUTGOING_STATUSES: { value: OutgoingDocumentStatus | ''; label: string }[]
   { value: 'RECALLED',         label: 'Thu hồi' },
 ];
 
-const URGENCY_OPTIONS: { value: UrgencyLevel | ''; label: string }[] = [
+const URGENCY_OPTIONS: { value: UrgencyName | ''; label: string }[] = [
   { value: '',           label: 'Tất cả độ khẩn' },
-  { value: 'THUONG',     label: 'Thường' },
-  { value: 'KHAN',       label: 'Khẩn' },
-  { value: 'THUONG_KHAU',label: 'Thượng khẩn' },
-  { value: 'HOA_TOC',    label: 'Hỏa tốc' },
+  ...URGENCY_LIST.map((o) => ({ value: o.value, label: o.label })),
 ];
 
-const CONFIDENTIALITY_OPTIONS: { value: ConfidentialityLevel | ''; label: string }[] = [
-  { value: '',               label: 'Tất cả độ mật' },
-  { value: 'NORMAL',         label: 'Không mật' },
-  { value: 'CONFIDENTIAL',   label: 'Mật' },
-  { value: 'TOP_SECRET',     label: 'Tuyệt mật' },
+const CONFIDENTIALITY_OPTIONS_LOCAL: { value: ConfidentialityName | ''; label: string }[] = [
+  { value: '',         label: 'Tất cả độ mật' },
+  { value: 'THUONG',   label: 'Thường' },
+  { value: 'MAT',      label: 'Mật (C)' },
+  { value: 'TOI_MAT',  label: 'Tối mật (B)' },
+  { value: 'TUYET_MAT',label: 'Tuyệt mật (A)' },
 ];
 
 const DOC_TYPES = [
@@ -46,9 +45,9 @@ export default function OutgoingDocumentsPage() {
 
   const [search, setSearch]           = useState('');
   const [statusFilter, setStatusFilter] = useState<OutgoingDocumentStatus | ''>('');
-  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyLevel | ''>('');
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyName | ''>('');
   const [documentTypeFilter, setDocumentTypeFilter] = useState('');
-  const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityLevel | ''>('');
+  const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityName | ''>('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
@@ -143,7 +142,7 @@ export default function OutgoingDocumentsPage() {
               <select
                 id="outgoing-urgency-filter"
                 value={urgencyFilter}
-                onChange={(e) => { setUrgencyFilter(e.target.value as UrgencyLevel | ''); setCurrentPage(1); }}
+                onChange={(e) => { setUrgencyFilter(e.target.value as UrgencyName | ''); setCurrentPage(1); }}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
                 {URGENCY_OPTIONS.map((opt) => (
@@ -160,10 +159,10 @@ export default function OutgoingDocumentsPage() {
               </select>
               <select
                 value={confidentialityFilter}
-                onChange={(e) => { setConfidentialityFilter(e.target.value as ConfidentialityLevel | ''); setCurrentPage(1); }}
+                onChange={(e) => { setConfidentialityFilter(e.target.value as ConfidentialityName | ''); setCurrentPage(1); }}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
-                {CONFIDENTIALITY_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                {CONFIDENTIALITY_OPTIONS_LOCAL.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
               <select
                 value={departmentFilter}

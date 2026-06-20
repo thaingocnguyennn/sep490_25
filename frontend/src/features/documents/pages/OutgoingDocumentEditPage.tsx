@@ -3,25 +3,19 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getOutgoingDocumentById } from '../../../api/modules/outgoing-documents';
 import { useOutgoingDocumentActions, useDepartments } from '../../../shared/hooks';
 import { LoadingSpinner } from '../../../shared/components';
+import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
+import { URGENCY_OPTIONS as URGENCY_LIST, normalizeUrgencyName } from '../../../shared/constants/urgency';
 import type {
   OutgoingDocument,
   UpdateOutgoingMetadataRequest,
-  UrgencyLevel,
-  ConfidentialityLevel,
+  UrgencyName,
+  ConfidentialityName,
 } from '../../../types';
 
-const URGENCY_OPTIONS: { value: UrgencyLevel; label: string }[] = [
-  { value: 'THUONG',      label: 'Thường' },
-  { value: 'KHAN',        label: 'Khẩn' },
-  { value: 'THUONG_KHAU', label: 'Thượng khẩn' },
-  { value: 'HOA_TOC',     label: 'Hỏa tốc' },
-];
-
-const CONFIDENTIALITY_OPTIONS: { value: ConfidentialityLevel; label: string }[] = [
-  { value: 'NORMAL',       label: 'Không mật' },
-  { value: 'CONFIDENTIAL', label: 'Mật' },
-  { value: 'TOP_SECRET',   label: 'Tuyệt mật' },
-];
+const URGENCY_OPTIONS: { value: UrgencyName; label: string }[] = URGENCY_LIST.map((o) => ({
+  value: o.value,
+  label: o.label,
+}));
 
 const DOC_TYPES = [
   'QUYẾT ĐỊNH', 'CÔNG VĂN', 'THÔNG BÁO', 'TỜ TRÌNH', 'BÁO CÁO',
@@ -46,8 +40,8 @@ export default function OutgoingDocumentEditPage() {
   const [form, setForm] = useState<UpdateOutgoingMetadataRequest>({
     title: '',
     description: '',
-    urgency: 'THUONG',
-    confidentialityLevel: 'NORMAL',
+    urgency: 'THUONG' as UrgencyName,
+    confidentialityLevel: 'THUONG',
     documentType: '',
     documentNumber: '',
     signerName: '',
@@ -69,8 +63,13 @@ export default function OutgoingDocumentEditPage() {
         setForm({
           title: data.document.title,
           description: data.document.description || '',
-          urgency: (data.urgency || 'THUONG') as UrgencyLevel,
-          confidentialityLevel: (data.document.confidentialityLevel || 'NORMAL') as ConfidentialityLevel,
+          urgency: (normalizeUrgencyName(data.urgency?.name) || 'THUONG') as UrgencyName,
+          confidentialityLevel:
+            (data.document.confidentiality?.name as ConfidentialityName) ??
+            (data.document.confidentiality?.code === 'A' ? 'TUYET_MAT'
+              : data.document.confidentiality?.code === 'B' ? 'TOI_MAT'
+              : data.document.confidentiality?.code === 'C' ? 'MAT'
+              : 'THUONG'),
           documentType: data.documentType || '',
           documentNumber: data.documentNumber || '',
           signerName: data.signerName || '',
@@ -286,7 +285,7 @@ export default function OutgoingDocumentEditPage() {
                   <select
                     id="urgency"
                     name="urgency"
-                    value={form.urgency}
+                    value={form.urgency == null ? '' : String(form.urgency)}
                     onChange={handleChange}
                     style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
                   >
@@ -301,11 +300,11 @@ export default function OutgoingDocumentEditPage() {
                   <select
                     id="confidentialityLevel"
                     name="confidentialityLevel"
-                    value={form.confidentialityLevel}
+                    value={form.confidentialityLevel as ConfidentialityName | undefined}
                     onChange={handleChange}
                     style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
                   >
-                    {CONFIDENTIALITY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    {CONFIDENTIALITY_OPTIONS.map((opt) => <option key={opt.name} value={opt.name}>{opt.label}</option>)}
                   </select>
                 </div>
                 <div className="form-group">

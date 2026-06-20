@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDocuments, useDocumentActions } from '../../../shared/hooks';
 import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
-import type { DocumentType, DocumentStatus, PriorityLevel, ConfidentialityLevel } from '../../../types';
+import type { DocumentType, DocumentStatus, PriorityLevel, ConfidentialityCodeOrName } from '../../../types';
+import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import { useAuth } from '../../../contexts/AuthContext';
 
 /**
@@ -20,7 +21,7 @@ export default function DocumentsPage() {
   const [typeFilter, setTypeFilter] = useState<DocumentType | ''>('');
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | ''>('');
   const [urgencyFilter, setUrgencyFilter] = useState<PriorityLevel | ''>('');
-  const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityLevel | ''>('');
+  const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityCodeOrName | ''>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -241,13 +242,13 @@ export default function DocumentsPage() {
               </select>
               <select
                 value={confidentialityFilter}
-                onChange={(e) => setConfidentialityFilter(e.target.value as ConfidentialityLevel | '')}
+                onChange={(e) => setConfidentialityFilter(e.target.value as ConfidentialityCodeOrName | '')}
                 className="filter-select"
               >
                 <option value="">Tất cả độ bảo mật</option>
-                <option value="NORMAL">Bình thường</option>
-                <option value="CONFIDENTIAL">Bảo mật</option>
-                <option value="TOP_SECRET">Tuyệt mật</option>
+                {CONFIDENTIALITY_OPTIONS.map((opt) => (
+                  <option key={opt.name} value={opt.name}>{opt.label}</option>
+                ))}
               </select>
               <input
                 type="date"

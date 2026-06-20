@@ -27,7 +27,8 @@ export class DocumentsController {
     try {
       const {
         page, limit, search, type, status,
-        urgencyLevel, confidentialityLevel,
+        urgencyLevel, urgency, urgencyId,
+        confidentialityLevel, confidentialityId,
         departmentId, processorId,
         dateFrom, dateTo,
       } = req.query;
@@ -39,7 +40,8 @@ export class DocumentsController {
         type: type as any,
         status: status as any,
         urgencyLevel: urgencyLevel as any,
-        confidentialityLevel: confidentialityLevel as any,
+        urgencyId: (urgencyId ?? urgency) as any,
+        confidentialityId: (confidentialityId ?? confidentialityLevel) as any,
         departmentId: departmentId ? Number(departmentId) : undefined,
         processorId: processorId ? Number(processorId) : undefined,
         dateFrom: dateFrom as string,
@@ -270,7 +272,8 @@ export class DocumentsController {
         type: req.query.type as any,
         status: req.query.status as any,
         urgencyLevel: req.query.urgencyLevel as any,
-        confidentialityLevel: req.query.confidentialityLevel as any,
+        urgencyId: (req.query.urgencyId ?? req.query.urgency) as any,
+        confidentialityId: (req.query.confidentialityId ?? req.query.confidentialityLevel) as any,
         departmentId: req.query.departmentId ? Number(req.query.departmentId) : undefined,
         processorId: req.query.processorId ? Number(req.query.processorId) : undefined,
         dateFrom: req.query.dateFrom as string,

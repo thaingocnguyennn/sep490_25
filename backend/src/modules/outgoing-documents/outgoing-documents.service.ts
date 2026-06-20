@@ -4,21 +4,26 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
 import { DocumentStatus } from '@prisma/client';
+import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
+import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../../config';
 
-// ─── Helper: Map Urgency enum → Priority enum ─────────────────────────────────
+// ─── Helper: Map Urgency → Priority (legacy derivation) ──────────────────────
 
 /**
- * Chuyển đổi giá trị Urgency (THUONG, KHAN, THUONG_KHAU, HOA_TOC)
+ * Chuyển đổi giá trị Urgency (THUONG, KHAN, THUONG_KHAN, HOA_TOC)
  * thành Priority (NORMAL, HIGH, URGENT) để lưu vào bảng Document.
+ * The Priority enum is retained as a denormalized hint for filtering and
+ * the urgencyId is the new canonical source of truth.
  */
-function mapUrgencyToPriority(urgency?: string): string | undefined {
+function mapUrgencyToPriority(urgency?: string | null): string | undefined {
   if (!urgency) return undefined;
   switch (urgency) {
     case 'KHAN':        return 'HIGH';
-    case 'THUONG_KHAU': return 'URGENT';
+    case 'THUONG_KHAN': return 'URGENT';
+    case 'THUONG_KHAU': return 'URGENT'; // legacy alias
     case 'HOA_TOC':     return 'URGENT';
     default:            return 'NORMAL'; // THUONG → NORMAL
   }
@@ -87,8 +92,10 @@ export class OutgoingDocumentsService {
   async create(data: {
     title: string;
     description?: string;
+    /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
-    confidentialityLevel?: string;
+    /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
+    confidentialityLevel?: string | number;
     departmentId?: number;
     documentType?: string;
     recipientName?: string;
@@ -100,6 +107,11 @@ export class OutgoingDocumentsService {
     // Tự động sinh số văn bản nội bộ
     const documentNumber = await documentsRepository.generateDocumentNumber('OUTGOING');
 
+    // Resolve urgencyId (canonical) from the request, or fall back to THUONG.
+    const urgencyId = data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
+      ? await resolveUrgencyIdWithDefault(data.urgency)
+      : await resolveUrgencyIdWithDefault(null);
+
     const result = await prisma.$transaction(async (tx) => {
       // Tạo bản ghi Document chính
       const document = await tx.document.create({
@@ -109,9 +121,11 @@ export class OutgoingDocumentsService {
           description: data.description,
           type: 'OUTGOING',
           status: DocumentStatus.DRAFT,
-          // Map Urgency ('THUONG', 'KHAN'...) to Priority ('NORMAL', 'HIGH', 'URGENT')
+          // urgencyId is the new canonical source. urgencyLevel is kept as a
+          // denormalized hint derived from the urgency for legacy filter code.
+          urgencyId,
           urgencyLevel: mapUrgencyToPriority(data.urgency) as any || 'NORMAL',
-          confidentialityLevel: (data.confidentialityLevel as any) || 'NORMAL',
+          confidentialityId: await resolveConfidentialityIdWithDefault(data.confidentialityLevel),
           departmentId: data.departmentId,
           createdBy: data.createdBy,
         },
@@ -125,7 +139,7 @@ export class OutgoingDocumentsService {
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
-          urgency: data.urgency as any,
+          urgencyId,
           notes: data.notes,
         },
       });
@@ -242,7 +256,8 @@ export class OutgoingDocumentsService {
       title?: string;
       description?: string;
       urgency?: string;
-      confidentialityLevel?: string;
+      /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, legacy ConfidentialityLevel, or null to clear */
+      confidentialityLevel?: string | number | null;
       departmentId?: number | null;
       documentType?: string;
       documentNumber?: string;
@@ -265,19 +280,36 @@ export class OutgoingDocumentsService {
       );
     }
 
+    const documentUpdate: Record<string, unknown> = {
+      title: data.title,
+      description: data.description,
+      // Map Urgency → Priority trước khi lưu vào bảng Document
+      ...(data.urgency !== undefined && { urgencyLevel: mapUrgencyToPriority(data.urgency) as any }),
+      departmentId: data.departmentId,
+      updatedBy,
+    };
+    if (data.confidentialityLevel !== undefined) {
+      documentUpdate.confidentialityId =
+        data.confidentialityLevel === null
+          ? null
+          : await resolveConfidentialityIdWithDefault(data.confidentialityLevel);
+    }
+
+    // Resolve urgencyId once if it was provided so we can set it on both
+    // the parent Document and the child OutgoingDocument consistently.
+    let outgoingUrgencyId: number | null | undefined = undefined;
+    if (data.urgency !== undefined) {
+      documentUpdate.urgencyId = data.urgency === null
+        ? null
+        : await resolveUrgencyIdWithDefault(data.urgency);
+      outgoingUrgencyId = documentUpdate.urgencyId as number | null;
+    }
+
     await prisma.$transaction(async (tx) => {
       // Cập nhật Document chính
       await tx.document.update({
         where: { id: outgoing.documentId },
-        data: {
-          title: data.title,
-          description: data.description,
-          // Map Urgency → Priority trước khi lưu vào bảng Document
-          ...(data.urgency !== undefined && { urgencyLevel: mapUrgencyToPriority(data.urgency) as any }),
-          confidentialityLevel: data.confidentialityLevel as any,
-          departmentId: data.departmentId,
-          updatedBy,
-        },
+        data: documentUpdate,
       });
 
       // Cập nhật OutgoingDocument chi tiết
@@ -293,6 +325,7 @@ export class OutgoingDocumentsService {
           recipientEmail: data.recipientEmail,
           pageCount: data.pageCount,
           notes: data.notes,
+          ...(outgoingUrgencyId !== undefined && { urgencyId: outgoingUrgencyId }),
         },
       });
     });
