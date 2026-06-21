@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-function Sidebar() {
+interface LayoutContextValue {
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (v: boolean) => void;
+}
+
+function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -21,106 +26,185 @@ function Sidebar() {
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`}>
       <div className="sidebar-header">
-        <h2>Hệ thống DMS</h2>
-        <p style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>Quản lý tài liệu</p>
+        {!collapsed && (
+          <>
+            <h2>Hệ thống DMS</h2>
+            <p style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>Quản lý tài liệu</p>
+          </>
+        )}
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          onClick={onToggle}
+          title={collapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {collapsed ? (
+              <polyline points="9 18 15 12 9 6" />
+            ) : (
+              <polyline points="15 18 9 12 15 6" />
+            )}
+          </svg>
+        </button>
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section-title">Chính</div>
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>🏠</span> Bảng điều khiển
-        </NavLink>
-        <NavLink
-          to="/profile"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>👤</span> Hồ sơ cá nhân
-        </NavLink>
+        {collapsed ? (
+          <div className="sidebar-nav-icons">
+            <NavLink to="/" end className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Bảng điều khiển">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </NavLink>
+            <NavLink to="/profile" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Hồ sơ cá nhân">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </NavLink>
+            <NavLink to="/documents" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Tất cả tài liệu">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </NavLink>
+            {user?.roles?.includes('DOCUMENT_CLERK') && (
+              <NavLink to="/documents/upload" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Tải lên tài liệu">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 16 12 12 8 16" />
+                  <line x1="12" y1="12" x2="12" y2="21" />
+                  <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                </svg>
+              </NavLink>
+            )}
+            <NavLink to="/incoming-documents" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Văn bản đến">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </NavLink>
+            <NavLink to="/outgoing-documents" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Văn bản đi">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </NavLink>
+          </div>
+        ) : (
+          <>
+            <div className="nav-section-title">Chính</div>
+            <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Bảng điều khiển
+            </NavLink>
+            <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              Hồ sơ cá nhân
+            </NavLink>
 
-        <div className="nav-section-title">Tài liệu</div>
-        <NavLink
-          to="/documents"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>📄</span> Tất cả tài liệu
-        </NavLink>
-        {user?.roles?.includes('DOCUMENT_CLERK') && (
-          <NavLink
-            to="/documents/upload"
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-          >
-            <span>📤</span> Tải lên tài liệu
-          </NavLink>
+            <div className="nav-section-title">Tài liệu</div>
+            <NavLink to="/documents" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              Tất cả tài liệu
+            </NavLink>
+            {user?.roles?.includes('DOCUMENT_CLERK') && (
+              <NavLink to="/documents/upload" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 16 12 12 8 16" />
+                  <line x1="12" y1="12" x2="12" y2="21" />
+                  <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                </svg>
+                Tải lên tài liệu
+              </NavLink>
+            )}
+            {(user?.roles?.includes('DOCUMENT_CLERK') || user?.roles?.includes('ADMIN')) && (
+              <NavLink to="/documents/archived" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="21 8 21 21 3 21 3 8" />
+                  <rect x="1" y="3" width="22" height="5" />
+                  <line x1="10" y1="12" x2="14" y2="12" />
+                </svg>
+                Hồ sơ lưu trữ
+              </NavLink>
+            )}
+            <NavLink to="/incoming-documents" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Văn bản đến
+            </NavLink>
+            <NavLink to="/outgoing-documents" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+              Văn bản đi
+            </NavLink>
+          </>
         )}
-        {(user?.roles?.includes('DOCUMENT_CLERK') || user?.roles?.includes('ADMIN')) && (
-          <NavLink
-            to="/documents/archived"
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-          >
-            <span>📦</span> Hồ sơ lưu trữ
-          </NavLink>
-        )}
-        <NavLink
-          to="/incoming-documents"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>&#128229;</span> Văn bản đến
-        </NavLink>
-        <NavLink
-          to="/outgoing-documents"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>&#128230;</span> Văn bản đi
-        </NavLink>
-
       </nav>
 
-      <div className="sidebar-footer">
-        <div className="user-info">
-          <div className="user-avatar">{getInitials(user?.fullName || '')}</div>
-          <div>
-            <div className="user-name">{user?.fullName}</div>
-            <div className="user-role">{user?.roles?.[0] || 'User'}</div>
+      {!collapsed && (
+        <div className="sidebar-footer">
+          <div className="user-info">
+            <div className="user-avatar">{getInitials(user?.fullName || '')}</div>
+            <div>
+              <div className="user-name">{user?.fullName}</div>
+              <div className="user-role">{user?.roles?.[0] || 'User'}</div>
+            </div>
           </div>
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
+            onClick={() => navigate('/change-password')}
+          >
+            Đổi mật khẩu
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%', fontSize: 13 }}
+            onClick={handleLogout}
+          >
+            Đăng xuất
+          </button>
         </div>
-        <button
-          className="btn btn-secondary"
-          style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
-          onClick={() => navigate('/change-password')}
-        >
-          Đổi mật khẩu
-        </button>
-        <button
-          className="btn btn-secondary"
-          style={{ width: '100%', fontSize: 13 }}
-          onClick={handleLogout}
-        >
-          Đăng xuất
-        </button>
-      </div>
+      )}
     </aside>
   );
 }
 
 export default function MainLayout() {
   const { isAuthenticated } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const layoutContext: LayoutContextValue = {
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  };
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="main-layout">
-      <Sidebar />
+    <div className={`main-layout ${sidebarCollapsed ? 'layout--sidebar-collapsed' : ''}`}>
+      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} />
       <div className="content-area">
-        <Outlet />
+        <Outlet context={layoutContext} />
       </div>
     </div>
   );
 }
+
+export type { LayoutContextValue };
