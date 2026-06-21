@@ -1677,7 +1677,546 @@ textarea:focus {
   color: #636e72;
 }
 
+/* ─── Collapsible Sidebar ──────────────────────────────────────────────────── */
+
+.sidebar {
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.sidebar--collapsed {
+  width: 64px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 72px;
+}
+
+.sidebar--collapsed .sidebar-header {
+  flex-direction: column;
+  padding: 16px 8px;
+  gap: 10px;
+}
+
+.sidebar--collapsed .sidebar-header h2 {
+  font-size: 14px;
+  text-align: center;
+}
+
+.sidebar-collapse-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #b2bec3;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.sidebar-collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.nav-section-title {
+  padding: 8px 20px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: #636e72;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+
+.sidebar--collapsed .nav-section-title {
+  display: none;
+}
+
+.sidebar-nav .nav-item {
+  white-space: nowrap;
+}
+
+.sidebar-nav-icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.nav-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  color: #b2bec3;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.nav-item-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.nav-item-icon.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-left: none;
+}
+
+.sidebar--collapsed .sidebar-footer {
+  display: none;
+}
+
+.layout--sidebar-collapsed .content-area {
+  /* Full width minus collapsed sidebar */
+}
+
+/* ─── OCR Workspace Layout ───────────────────────────────────────────────── *
+ *
+ *  Scroll strategy — ONE scrollable region:
+ *  - The form panel body scrolls independently (overflow-y: auto)
+ *  - The viewer column has a fixed max-height so it never grows the page
+ *  - The action bar is sticky (position: sticky) so it's always reachable
+ *
+ *  Layout model:
+ *  ┌─────────────────────────────────────────┬───────────────────┐
+ *  │  TOOLBAR (topbar)                       │                   │
+ *  ├──────────────────────────┬──────────────┤  FORM PANEL       │
+ *  │  DOCUMENT VIEWER         │  UPLOAD BAR  │  ┌─────────────┐  │
+ *  │  (max-height capped)     │  (fixed)     │  │ STICKY HDR  │  │
+ *  │                          │              │  ├─────────────┤  │
+ *  │                          │              │  │ SCROLL BODY │  │
+ *  │                          │              │  └─────────────┘  │
+ *  ├──────────────────────────┴──────────────┤                   │
+ *  │  ACTION BAR (sticky bottom)             │                   │
+ *  └─────────────────────────────────────────┴───────────────────┘
+ */
+
+/* ─── Page Shell — lets page grow and scroll freely ─────────────────────── */
+
+.ocr-page-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── OCR Workspace — two-column grid, page scrolls naturally ────────────────── */
+
+.ocr-workspace {
+  display: grid;
+  grid-template-columns: 65fr 35fr;
+  gap: 12px;
+  padding: 12px 16px;
+  align-content: start;
+}
+
+/* LEFT: viewer column grows naturally with content */
+.ocr-workspace-viewer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-content: start;
+}
+
+/* RIGHT: form panel sticks near top, scrolls its own body */
+.ocr-workspace-form-col {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+}
+
+/* ─── Document Viewer — grows naturally with its content ─────────────────────── */
+
+.document-viewer {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.document-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: #f0f2f7;
+  border-bottom: 1px solid #dfe6e9;
+  flex-shrink: 0;
+}
+
+.document-viewer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.document-viewer-type-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #667eea;
+  color: #fff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.document-viewer-type-badge.pdf {
+  background: #e74c3c;
+}
+
+.document-viewer-filename {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d3436;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.document-viewer-filesize {
+  font-size: 12px;
+  color: #636e72;
+  flex-shrink: 0;
+}
+
+.document-viewer-body {
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: #e9ecef;
+}
+
+.document-viewer-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.document-viewer-pdf,
+.document-viewer-pdf embed,
+.document-viewer-pdf object {
+  width: 100%;
+  height: 600px;
+  border: none;
+  display: block;
+}
+
+/* ─── Upload Toolbar ────────────────────────────────────────────────────── */
+
+.ocr-upload-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #dfe6e9;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.ocr-upload-toolbar .ocr-upload-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ocr-upload-toolbar .file-name-display {
+  flex: 1;
+  font-size: 12px;
+  color: #636e72;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ocr-upload-toolbar p {
+  font-size: 11px;
+  color: #b2bec3;
+  margin: 0;
+  width: 100%;
+}
+
+.ocr-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #667eea;
+  width: 100%;
+}
+
+.ocr-progress-bar .progress-track {
+  flex: 1;
+  height: 3px;
+  background: #e8ecf0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ocr-progress-bar .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 2px;
+}
+
+/* ─── Compact Top Bar for OCR Mode ───────────────────────────────────────── */
+
+.ocr-workspace-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #dfe6e9;
+  flex-shrink: 0;
+}
+
+.ocr-workspace-topbar h1 {
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.ocr-workspace-topbar .ocr-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: #f0f2ff;
+  border: 1px solid #d0d5f0;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #667eea;
+}
+
+.ocr-workspace-topbar .ocr-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #667eea;
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ─── Form Panel — sticky header + scrollable sections ──────────────────── */
+
+.ocr-form-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ocr-form-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.ocr-form-scroll::-webkit-scrollbar-track {
+  background: #f1f3f4;
+}
+.ocr-form-scroll::-webkit-scrollbar-thumb {
+  background: #c8d0d8;
+  border-radius: 3px;
+}
+.ocr-form-scroll::-webkit-scrollbar-thumb:hover {
+  background: #aab0bc;
+}
+
+/* ─── Form sections ─────────────────────────────────────────────────────── */
+
+.form-section {
+  border: 1px solid #e8ecef;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.form-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: #f7f8fa;
+  border-bottom: 1px solid #e8ecef;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.form-section-header:hover {
+  background: #eef1f5;
+}
+
+.form-section-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 700;
+  color: #495057;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-section-toggle {
+  font-size: 14px;
+  color: #868e96;
+  line-height: 1;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+
+.form-section-toggle.open {
+  transform: rotate(90deg);
+}
+
+.form-section-body {
+  padding: 12px;
+}
+
+/* Signer / 2-col rows */
+.signer-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Large summary textarea */
+.form-group.summary-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #495057;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.form-group.summary-field textarea {
+  min-height: 100px;
+  font-size: 14px;
+  line-height: 1.65;
+  resize: vertical;
+  padding: 10px 12px;
+}
+
+/* Attachments */
+.ocr-attachment-row input[type="file"] {
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+/* ─── Form Tabs ─────────────────────────────────────────────────────────── */
+
+.ocr-form-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  background: #f8f9fa;
+  border-bottom: 2px solid #e8ecf0;
+  flex-shrink: 0;
+}
+
+.ocr-form-tab {
+  flex: 1;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px 6px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #636e72;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+}
+
+.ocr-form-tab:hover {
+  color: #2d3436;
+  background: #eef1f5;
+}
+
+.ocr-form-tab.active {
+  color: #667eea;
+  font-weight: 700;
+  background: #fff;
+  border-bottom-color: #667eea;
+}
+
+@media (max-width: 1024px) {
+  .ocr-workspace {
+    grid-template-columns: 60fr 40fr;
+  }
+}
+
 @media (max-width: 768px) {
+  .ocr-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  /* On mobile the form panel un-sticks and flows below the viewer */
+  .ocr-workspace-form-col {
+    position: static;
+    max-height: none;
+  }
+
+  .ocr-actions-bar {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    z-index: 10;
+  }
+
+  .signer-row {
+    grid-template-columns: 1fr;
+  }
+
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1688,3 +2227,9 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Old layout (removed — replaced by scrollable grid design above) ──────── */
+
+/* .ocr-layout, .ocr-viewer-panel, .ocr-form-panel, .document-viewer (old versions),
+   and .ocr-upload-inline are intentionally removed. The current layout uses
+   .ocr-workspace grid, .ocr-workspace-viewer-col, .ocr-workspace-form-col. */

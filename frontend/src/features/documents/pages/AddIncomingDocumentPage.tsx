@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   documentsApi,
   incomingDocumentsApi,
@@ -10,6 +10,8 @@ import {
 import { useProcessors } from '../../../shared/hooks';
 import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
+import DocumentViewer from '../components/DocumentViewer';
+import type { LayoutContextValue } from '../../../layouts/MainLayout';
 
 interface ProcessorAssignment {
   userId: number;
@@ -25,7 +27,7 @@ const PROCESSOR_TYPE_LABELS: Record<ProcessorType, string> = {
 const URGENCY_LABELS: Record<Urgency, string> = {
   THUONG: 'Thường',
   KHAN: 'Khẩn',
-  THUONG_KHAU: 'Thượng khẩn',
+  THUONG_KHAU: 'Thượng khẩu',
   THUONG_KHAN: 'Thượng khẩn',
   HOA_TOC: 'Hỏa tốc',
 };
@@ -35,10 +37,8 @@ function normalizeDate(input: string | undefined): string | undefined {
   const trimmed = input.trim();
   if (!trimmed) return undefined;
 
-  // Already ISO YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
 
-  // dd/mm/yyyy or dd-mm-yyyy
   const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
   if (dmy) {
     const [, d, m, y] = dmy;
@@ -47,7 +47,6 @@ function normalizeDate(input: string | undefined): string | undefined {
     if (!Number.isNaN(new Date(iso).getTime())) return iso;
   }
 
-  // Fallback: rely on Date parser; return ISO if valid, else original string
   const parsed = new Date(trimmed);
   if (!Number.isNaN(parsed.getTime())) {
     return parsed.toISOString().split('T')[0];
@@ -70,9 +69,15 @@ export default function AddIncomingDocumentPage() {
   const [ocrSuccess, setOcrSuccess] = useState('');
   const [ocrRawText, setOcrRawText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // OCR-extracted fields
+  const [sectionOcr, setSectionOcr] = useState(true);
+  const [sectionDoc, setSectionDoc] = useState(true);
+  const [sectionAttach, setSectionAttach] = useState(true);
+  type FormTab = 'ocr' | 'doc' | 'attach';
+  const [activeTab, setActiveTab] = useState<FormTab>('ocr');
+
   const [form, setForm] = useState({
     issuer: '',
     documentNumber: '',
@@ -84,7 +89,6 @@ export default function AddIncomingDocumentPage() {
     signerTitle: '',
   });
 
-  // Clerk-entered fields
   const [arrivalNumber, setArrivalNumber] = useState('');
   const [dateReceived, setDateReceived] = useState(new Date().toISOString().split('T')[0]);
   const [urgency, setUrgency] = useState<Urgency>('THUONG');
@@ -94,23 +98,30 @@ export default function AddIncomingDocumentPage() {
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
   const [processorsList, setProcessorsList] = useState<ProcessorAssignment[]>([]);
 
-  if (!hasAccess) {
-    return (
-      <>
-        <div className="top-bar">
-          <h1>Thêm Văn bản đến mới</h1>
-          <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
-        </div>
-        <div className="page-content">
-          <div className="alert alert-error">Bạn không có quyền tạo văn bản đến.</div>
-        </div>
-      </>
-    );
-  }
+  const layout = useOutletContext<LayoutContextValue>();
 
   useEffect(() => {
     fetchProcessors();
   }, [fetchProcessors]);
+
+  // Auto-collapse sidebar when entering OCR workspace (step 1), restore on step 2
+  useEffect(() => {
+    if (layout) {
+      if (currentStep === 1) {
+        layout.setSidebarCollapsed(true);
+      } else {
+        layout.setSidebarCollapsed(false);
+      }
+    }
+  }, [currentStep, layout]);
+
+  useEffect(() => {
+    return () => {
+      if (documentPreviewUrl) {
+        URL.revokeObjectURL(documentPreviewUrl);
+      }
+    };
+  }, [documentPreviewUrl]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -121,7 +132,11 @@ export default function AddIncomingDocumentPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (documentPreviewUrl) {
+        URL.revokeObjectURL(documentPreviewUrl);
+      }
       setSelectedFile(file);
+      setDocumentPreviewUrl(URL.createObjectURL(file));
       setError('');
       setOcrSuccess('');
       setOcrRawText('');
@@ -165,7 +180,7 @@ export default function AddIncomingDocumentPage() {
         setOcrSuccess('');
         setError('Không trích xuất được trường nào từ tài liệu. Vui lòng điền thông tin thủ công.');
       } else {
-        setOcrSuccess(`Đã trích xuất thành công ${extractedKeys.length} trường: ${extractedKeys.join(', ')}. Vui lòng kiểm tra và chỉnh sửa nếu cần.`);
+        setOcrSuccess(`Đã trích xuất thành công ${extractedKeys.length} trường: ${extractedKeys.join(', ')}.`);
       }
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
@@ -277,6 +292,429 @@ export default function AddIncomingDocumentPage() {
     return processorsList.find((p) => p.userId === userId)?.processorType || null;
   };
 
+  if (!hasAccess) {
+    return (
+      <>
+        <div className="top-bar">
+          <h1>Thêm Văn bản đến mới</h1>
+          <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
+        </div>
+        <div className="page-content">
+          <div className="alert alert-error">Bạn không có quyền tạo văn bản đến.</div>
+        </div>
+      </>
+    );
+  }
+
+  // ─── Step 1: OCR Workspace ────────────────────────────────────────────────
+  if (currentStep === 1) {
+    return (
+      <div className="ocr-page-shell">
+        {/* Compact topbar */}
+        <div className="ocr-workspace-topbar">
+          <h1>Thêm Văn bản đến mới</h1>
+          <div className="ocr-status-pill">
+            <span className="ocr-status-dot" />
+            OCR
+          </div>
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate('/incoming-documents')}
+          >
+            Quay lại
+          </button>
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="alert alert-error" style={{ margin: '8px 16px', flexShrink: 0 }}>
+            {error}
+          </div>
+        )}
+
+        {/* Grid: viewer+upload | form panel */}
+        <div className="ocr-workspace">
+          {/* ── LEFT: Document viewer + upload toolbar ───────────────────── */}
+          <div className="ocr-workspace-viewer-col">
+            <DocumentViewer file={selectedFile} fileUrl={documentPreviewUrl} />
+
+            <div className="ocr-upload-toolbar">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/jpg,image/tiff"
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={ocrLoading}
+              >
+                {selectedFile ? 'Đổi tệp' : 'Tải tệp lên'}
+              </button>
+              {selectedFile && (
+                <span className="file-name-display">{selectedFile.name}</span>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleOcr}
+                disabled={ocrLoading || !selectedFile}
+              >
+                {ocrLoading ? 'Đang xử lý...' : 'OCR'}
+              </button>
+
+              {ocrLoading && (
+                <div className="ocr-progress-bar">
+                  <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                  <span>Đang trích xuất...</span>
+                  <div className="progress-track">
+                    <div className="progress-fill" />
+                  </div>
+                </div>
+              )}
+
+              {ocrSuccess && !error && (
+                <div
+                  className="alert alert-success"
+                  style={{ margin: 0, padding: '4px 10px', fontSize: 12 }}
+                >
+                  {ocrSuccess}
+                </div>
+              )}
+
+              <p>Hỗ trợ: PDF, PNG, JPEG, TIFF</p>
+            </div>
+          </div>
+
+          {/* ── RIGHT: Form panel ────────────────────────────────────────── */}
+          <div className="ocr-workspace-form-col">
+            {/* Tab bar */}
+            <div className="ocr-form-tabs">
+              {(['ocr', 'doc', 'attach'] as FormTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={`ocr-form-tab ${activeTab === tab ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {tab === 'ocr' && 'Trích xuất OCR'}
+                  {tab === 'doc' && 'Thông tin văn bản'}
+                  {tab === 'attach' && 'Tệp đính kèm'}
+                </button>
+              ))}
+            </div>
+
+            {/* Scrollable form body */}
+            <div className="ocr-form-scroll">
+              {/* Tab: OCR Fields */}
+              {activeTab === 'ocr' && (
+                <div className="form-section">
+                  <div
+                    className="form-section-header"
+                    onClick={() => setSectionOcr(!sectionOcr)}
+                  >
+                    <span className="form-section-title">Trích xuất OCR</span>
+                    <span className={`form-section-toggle ${sectionOcr ? 'open' : ''}`}>
+                      &#9654;
+                    </span>
+                  </div>
+                  {sectionOcr && (
+                    <div className="form-section-body">
+                      <div className="form-group">
+                        <label htmlFor="issuer">Cơ quan ban hành</label>
+                        <input
+                          id="issuer"
+                          name="issuer"
+                          type="text"
+                          value={form.issuer}
+                          onChange={handleChange}
+                          placeholder="VD: ỦY BAN NHÂN DÂN TỈNH NINH BÌNH"
+                        />
+                      </div>
+
+                      <div className="signer-row">
+                        <div className="form-group">
+                          <label htmlFor="documentNumber">Số ký hiệu</label>
+                          <input
+                            id="documentNumber"
+                            name="documentNumber"
+                            type="text"
+                            value={form.documentNumber}
+                            onChange={handleChange}
+                            placeholder="VD: 61/2026/QĐ-UBND"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="dateLetter">Ngày văn bản</label>
+                          <input
+                            id="dateLetter"
+                            name="dateLetter"
+                            type="text"
+                            value={form.dateLetter}
+                            onChange={handleChange}
+                            placeholder="26/05/2026"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="signer-row">
+                        <div className="form-group">
+                          <label htmlFor="documentType">Loại văn bản</label>
+                          <input
+                            id="documentType"
+                            name="documentType"
+                            type="text"
+                            value={form.documentType}
+                            onChange={handleChange}
+                            placeholder="QUYẾT ĐỊNH, CÔNG VĂN..."
+                            list="docTypeSuggestions"
+                          />
+                          <datalist id="docTypeSuggestions">
+                            <option value="QUYẾT ĐỊNH" />
+                            <option value="CÔNG VĂN" />
+                            <option value="THÔNG BÁO" />
+                            <option value="TỜ TRÌNH" />
+                            <option value="BÁO CÁO" />
+                            <option value="KẾ HOẠCH" />
+                            <option value="HƯỚNG DẪN" />
+                            <option value="CHỈ THỊ" />
+                          </datalist>
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="pageCount">Số trang</label>
+                          <input
+                            id="pageCount"
+                            name="pageCount"
+                            type="number"
+                            min="1"
+                            value={form.pageCount}
+                            onChange={handleChange}
+                            placeholder="VD: 3"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Prominent summary */}
+                      <div className="form-group summary-field">
+                        <label htmlFor="summary">Trích yếu nội dung</label>
+                        <textarea
+                          id="summary"
+                          name="summary"
+                          value={form.summary}
+                          onChange={handleChange}
+                          placeholder="VD: Ban hành Quy chế đào tạo, bồi dưỡng cán bộ, công chức, viên chức trên địa bàn tỉnh..."
+                          rows={5}
+                        />
+                      </div>
+
+                      <div className="signer-row">
+                        <div className="form-group">
+                          <label htmlFor="signerName">Họ tên người ký</label>
+                          <input
+                            id="signerName"
+                            name="signerName"
+                            type="text"
+                            value={form.signerName}
+                            onChange={handleChange}
+                            placeholder="VD: Nguyễn Anh Chức"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="signerTitle">Chức vụ người ký</label>
+                          <input
+                            id="signerTitle"
+                            name="signerTitle"
+                            type="text"
+                            value={form.signerTitle}
+                            onChange={handleChange}
+                            placeholder="VD: PHÓ CHỦ TỊCH"
+                            list="signerTitleSuggestions"
+                          />
+                          <datalist id="signerTitleSuggestions">
+                            <option value="CHỦ TỊCH" />
+                            <option value="PHÓ CHỦ TỊCH" />
+                            <option value="GIÁM ĐỐC" />
+                            <option value="TRƯỞNG PHÒNG" />
+                          </datalist>
+                        </div>
+                      </div>
+
+                      {ocrRawText && (
+                        <details style={{ marginTop: 8 }}>
+                          <summary
+                            style={{
+                              cursor: 'pointer',
+                              color: '#636e72',
+                              fontSize: 12,
+                            }}
+                          >
+                            Xem văn bản OCR thô ({ocrRawText.length} ký tự)
+                          </summary>
+                          <pre
+                            style={{
+                              background: '#f8f9fa',
+                              border: '1px solid #dee2e6',
+                              borderRadius: 6,
+                              padding: 10,
+                              fontSize: 11,
+                              maxHeight: 140,
+                              overflow: 'auto',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              marginTop: 6,
+                            }}
+                          >
+                            {ocrRawText}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Document Info */}
+              {activeTab === 'doc' && (
+                <div className="form-section">
+                  <div
+                    className="form-section-header"
+                    onClick={() => setSectionDoc(!sectionDoc)}
+                  >
+                    <span className="form-section-title">Thông tin văn bản</span>
+                    <span className={`form-section-toggle ${sectionDoc ? 'open' : ''}`}>
+                      &#9654;
+                    </span>
+                  </div>
+                  {sectionDoc && (
+                    <div className="form-section-body">
+                      <div className="signer-row">
+                        <div className="form-group">
+                          <label htmlFor="arrivalNumber">Số đến</label>
+                          <input
+                            id="arrivalNumber"
+                            type="number"
+                            min="1"
+                            value={arrivalNumber}
+                            onChange={(e) => setArrivalNumber(e.target.value)}
+                            placeholder="Tự động tăng"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="dateReceived">
+                            Ngày đến <span className="required">*</span>
+                          </label>
+                          <input
+                            id="dateReceived"
+                            type="date"
+                            value={dateReceived}
+                            onChange={(e) => setDateReceived(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="urgency">Độ khẩn</label>
+                        <select
+                          id="urgency"
+                          value={urgency}
+                          onChange={(e) =>
+                            setUrgency(e.target.value as Urgency)
+                          }
+                        >
+                          {URGENCY_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="notes">Ghi chú</label>
+                        <textarea
+                          id="notes"
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Ghi chú bổ sung..."
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Attachments */}
+              {activeTab === 'attach' && (
+                <div className="form-section">
+                  <div
+                    className="form-section-header"
+                    onClick={() => setSectionAttach(!sectionAttach)}
+                  >
+                    <span className="form-section-title">Tệp đính kèm</span>
+                    <span
+                      className={`form-section-toggle ${sectionAttach ? 'open' : ''}`}
+                    >
+                      &#9654;
+                    </span>
+                  </div>
+                  {sectionAttach && (
+                    <div className="form-section-body">
+                      <input
+                        type="file"
+                        multiple
+                        onChange={handleAddAttachment}
+                      />
+                      {attachments.length > 0 && (
+                        <div className="attachment-list" style={{ marginTop: 10 }}>
+                          {attachments.map((att, idx) => (
+                            <div key={idx} className="attachment-item">
+                              <span>{att.name}</span>
+                              <button
+                                type="button"
+                                className="att-remove-btn"
+                                onClick={() => handleRemoveAttachment(idx)}
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action bar spanning full width */}
+          <div className="ocr-actions-bar">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => navigate('/incoming-documents')}
+            >
+              Hủy
+            </button>
+            <div style={{ flex: 1 }} />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleContinue}
+            >
+              Tiếp tục &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 2: Processing Assignment ────────────────────────────────────────
   return (
     <>
       <div className="top-bar">
@@ -288,12 +726,12 @@ export default function AddIncomingDocumentPage() {
 
       <div className="page-content">
         <div className="step-indicator">
-          <div className={`step-item ${currentStep === 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
+          <div className="step-item completed">
             <div className="step-number">1</div>
             <div className="step-label">Thông tin văn bản</div>
           </div>
           <div className="step-line" />
-          <div className={`step-item ${currentStep === 2 ? 'active' : ''}`}>
+          <div className="step-item active">
             <div className="step-number">2</div>
             <div className="step-label">Phân công xử lý</div>
           </div>
@@ -301,439 +739,162 @@ export default function AddIncomingDocumentPage() {
 
         <div className="card">
           <div className="card-header">
-            <h2>{currentStep === 1 ? 'Bước 1: Thông tin văn bản' : 'Bước 2: Phân công xử lý & Gửi'}</h2>
+            <h2>Bước 2: Phân công xử lý & Gửi</h2>
           </div>
 
           <div className="card-body">
             {error && <div className="alert alert-error">{error}</div>}
 
-            {currentStep === 1 && (
-              <div className="form-grid">
-                {/* ── OCR Section ─────────────────────────────────────── */}
-                <div className="form-group full-width ocr-section">
-                  <label>OCR - Trích xuất tự động</label>
-                  <div className="ocr-upload-row">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="application/pdf,image/png,image/jpeg,image/jpg,image/tiff"
-                      onChange={handleFileChange}
-                      style={{ display: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={ocrLoading}
-                    >
-                      {selectedFile ? 'Đổi tệp' : 'Tải tệp lên'}
-                    </button>
-                    {selectedFile && (
-                      <span className="file-name-display">{selectedFile.name}</span>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={handleOcr}
-                      disabled={ocrLoading || !selectedFile}
-                    >
-                      {ocrLoading ? 'Đang xử lý OCR...' : 'OCR'}
-                    </button>
-                  </div>
-                  {ocrLoading && (
-                    <div className="ocr-progress">
-                      <div className="spinner" style={{ width: 20, height: 20 }} />
-                      <span>Đang trích xuất nội dung...</span>
-                    </div>
-                  )}
-                  {ocrSuccess && (
-                    <div className="alert alert-success" style={{ marginTop: 8 }}>
-                      {ocrSuccess}
-                    </div>
-                  )}
-                  {ocrRawText && (
-                    <details style={{ marginTop: 8 }}>
-                      <summary style={{ cursor: 'pointer', color: '#636e72', fontSize: 12 }}>
-                        Xem văn bản OCR thô ({ocrRawText.length} ký tự)
-                      </summary>
-                      <pre
-                        style={{
-                          background: '#f8f9fa',
-                          border: '1px solid #dee2e6',
-                          borderRadius: 4,
-                          padding: 8,
-                          fontSize: 11,
-                          maxHeight: 200,
-                          overflow: 'auto',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          marginTop: 4,
-                        }}
-                      >
-                        {ocrRawText}
-                      </pre>
-                    </details>
-                  )}
-                  <p style={{ fontSize: 12, color: '#636e72', marginTop: 6 }}>
-                    Tải lên tài liệu quét (PNG, JPEG, TIFF, PDF) và nhấn OCR để tự động trích xuất thông tin.
-                  </p>
-                </div>
+            <div className="processor-instructions">
+              <p>Phân công nhân viên xử lý văn bản này. Phải chọn ít nhất một <strong>XLC (Người xử lý chính)</strong>.</p>
+            </div>
 
-                {/* ── OCR Fields (auto-extracted) ────────────────────────── */}
-                <div className="form-group full-width">
-                  <label htmlFor="issuer">Cơ quan ban hành</label>
-                  <input
-                    id="issuer"
-                    name="issuer"
-                    type="text"
-                    value={form.issuer}
-                    onChange={handleChange}
-                    placeholder="VD: ỦY BAN NHÂN DÂN TỈNH NINH BÌNH"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="documentNumber">Số ký hiệu</label>
-                  <input
-                    id="documentNumber"
-                    name="documentNumber"
-                    type="text"
-                    value={form.documentNumber}
-                    onChange={handleChange}
-                    placeholder="VD: 61/2026/QĐ-UBND"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="dateLetter">Ngày, tháng, năm văn bản</label>
-                  <input
-                    id="dateLetter"
-                    name="dateLetter"
-                    type="text"
-                    value={form.dateLetter}
-                    onChange={handleChange}
-                    placeholder="VD: 2026-05-26 hoặc 26/05/2026"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="documentType">Loại văn bản</label>
-                  <input
-                    id="documentType"
-                    name="documentType"
-                    type="text"
-                    value={form.documentType}
-                    onChange={handleChange}
-                    placeholder="VD: QUYẾT ĐỊNH, CÔNG VĂN..."
-                    list="docTypeSuggestions"
-                  />
-                  <datalist id="docTypeSuggestions">
-                    <option value="QUYẾT ĐỊNH" />
-                    <option value="CÔNG VĂN" />
-                    <option value="THÔNG BÁO" />
-                    <option value="TỜ TRÌNH" />
-                    <option value="BÁO CÁO" />
-                    <option value="KẾ HOẠCH" />
-                    <option value="HƯỚNG DẪN" />
-                    <option value="CHỈ THỊ" />
-                  </datalist>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="pageCount">Số trang văn bản</label>
-                  <input
-                    id="pageCount"
-                    name="pageCount"
-                    type="number"
-                    min="1"
-                    value={form.pageCount}
-                    onChange={handleChange}
-                    placeholder="VD: 3"
-                  />
-                </div>
-
-                <div className="form-group full-width">
-                  <label htmlFor="summary">Trích yếu nội dung</label>
-                  <textarea
-                    id="summary"
-                    name="summary"
-                    value={form.summary}
-                    onChange={handleChange}
-                    placeholder="VD: Ban hành Quy chế đào tạo, bồi dưỡng cán bộ, công chức, viên chức trên địa bàn tỉnh..."
-                    rows={2}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="signerName">Họ tên người ký</label>
-                  <input
-                    id="signerName"
-                    name="signerName"
-                    type="text"
-                    value={form.signerName}
-                    onChange={handleChange}
-                    placeholder="VD: Nguyễn Anh Chức"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="signerTitle">Chức vụ người ký</label>
-                  <input
-                    id="signerTitle"
-                    name="signerTitle"
-                    type="text"
-                    value={form.signerTitle}
-                    onChange={handleChange}
-                    placeholder="VD: PHÓ CHỦ TỊCH"
-                    list="signerTitleSuggestions"
-                  />
-                  <datalist id="signerTitleSuggestions">
-                    <option value="CHỦ TỊCH" />
-                    <option value="PHÓ CHỦ TỊCH" />
-                    <option value="GIÁM ĐỐC" />
-                    <option value="TRƯỞNG PHÒNG" />
-                  </datalist>
-                </div>
-
-                {/* ── Clerk-Entered Fields ─────────────────────────────── */}
-                <div className="form-group">
-                  <label htmlFor="arrivalNumber">Số đến</label>
-                  <input
-                    id="arrivalNumber"
-                    type="number"
-                    min="1"
-                    value={arrivalNumber}
-                    onChange={(e) => setArrivalNumber(e.target.value)}
-                    placeholder="Số tự động tăng khi tiếp nhận"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="dateReceived">Ngày đến <span className="required">*</span></label>
-                  <input
-                    id="dateReceived"
-                    type="date"
-                    value={dateReceived}
-                    onChange={(e) => setDateReceived(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="urgency">Độ khẩn</label>
-                  <select
-                    id="urgency"
-                    value={urgency}
-                    onChange={(e) => setUrgency(e.target.value as Urgency)}
-                  >
-                    {URGENCY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group full-width">
-                  <label htmlFor="notes">Ghi chú</label>
-                  <textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Ghi chú bổ sung..."
-                    rows={2}
-                  />
-                </div>
-
-                {/* ── Attachments ─────────────────────────────────────── */}
-                <div className="form-group full-width">
-                  <label>Tệp đính kèm</label>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleAddAttachment}
-                    style={{ padding: '8px 0' }}
-                  />
-                  {attachments.length > 0 && (
-                    <div className="attachment-list">
-                      {attachments.map((att, idx) => (
-                        <div key={idx} className="attachment-item">
-                          <span>{att.name}</span>
-                          <button
-                            type="button"
-                            className="att-remove-btn"
-                            onClick={() => handleRemoveAttachment(idx)}
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+            <div className="processor-legend">
+              <div className="legend-item">
+                <span className="legend-badge xl">XLC</span>
+                <span>Người xử lý chính — Người chịu trách nhiệm chính</span>
               </div>
-            )}
+              <div className="legend-item">
+                <span className="legend-badge ph">PHXL</span>
+                <span>Người phối hợp xử lý — Hỗ trợ người xử lý chính</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-badge xd">XDB</span>
+                <span>Để biết</span>
+              </div>
+            </div>
 
-            {currentStep === 2 && (
-              <div>
-                <div className="processor-instructions">
-                  <p>Phân công nhân viên xử lý văn bản này. Phải chọn ít nhất một <strong>XLC (Người xử lý chính)</strong>.</p>
-                </div>
-
-                <div className="processor-legend">
-                  <div className="legend-item">
-                    <span className="legend-badge xl">XLC</span>
-                    <span>Người xử lý chính — Người chịu trách nhiệm chính</span>
-                  </div>
-                  <div className="legend-item">
-                    <span className="legend-badge ph">PHXL</span>
-                    <span>Người phối hợp xử lý — Hỗ trợ người xử lý chính</span>
-                  </div>
-                  <div className="legend-item">
-                    <span className="legend-badge xd">XDB</span>
-                    <span>Để biết</span>
-                  </div>
-                </div>
-
-                <div className="processor-section">
-                  <h3>Chọn người xử lý</h3>
-                  {loadingProcessors ? (
-                    <div className="loading-spinner"><div className="spinner" /></div>
-                  ) : (
-                    <div className="processor-grid">
-                      {processors.map((processor) => {
-                        const currentType = getUserProcessorType(processor.id);
-                        return (
-                          <div key={processor.id} className={`processor-card ${currentType ? 'selected' : ''}`}>
-                            <div className="processor-card-header">
-                              <div className="processor-avatar">
-                                {processor.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
-                              </div>
-                              <div className="processor-info">
-                                <div className="processor-name">{processor.fullName}</div>
-                                <div className="processor-roles">{getProcessorRole(processor.id)}</div>
-                              </div>
-                            </div>
-                            <div className="processor-type-buttons">
-                              {(['XLC', 'PHXL', 'XDB'] as ProcessorType[]).map((type) => (
-                                <button
-                                  key={type}
-                                  type="button"
-                                  className={`processor-type-btn ${currentType === type ? 'active' : ''} type-${type.toLowerCase()}`}
-                                  onClick={() => handleProcessorToggle(processor.id, type)}
-                                  title={PROCESSOR_TYPE_LABELS[type]}
-                                >
-                                  {type}
-                                </button>
-                              ))}
-                            </div>
+            <div className="processor-section">
+              <h3>Chọn người xử lý</h3>
+              {loadingProcessors ? (
+                <div className="loading-spinner"><div className="spinner" /></div>
+              ) : (
+                <div className="processor-grid">
+                  {processors.map((processor) => {
+                    const currentType = getUserProcessorType(processor.id);
+                    return (
+                      <div key={processor.id} className={`processor-card ${currentType ? 'selected' : ''}`}>
+                        <div className="processor-card-header">
+                          <div className="processor-avatar">
+                            {processor.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          <div className="processor-info">
+                            <div className="processor-name">{processor.fullName}</div>
+                            <div className="processor-roles">{getProcessorRole(processor.id)}</div>
+                          </div>
+                        </div>
+                        <div className="processor-type-buttons">
+                          {(['XLC', 'PHXL', 'XDB'] as ProcessorType[]).map((type) => (
+                            <button
+                              key={type}
+                              type="button"
+                              className={`processor-type-btn ${currentType === type ? 'active' : ''} type-${type.toLowerCase()}`}
+                              onClick={() => handleProcessorToggle(processor.id, type)}
+                              title={PROCESSOR_TYPE_LABELS[type]}
+                            >
+                              {type}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <div className="form-group" style={{ marginTop: 24 }}>
-                  <label htmlFor="processingInstructions">Hướng dẫn xử lý</label>
-                  <textarea
-                    id="processingInstructions"
-                    value={processingInstructions}
-                    onChange={(e) => setProcessingInstructions(e.target.value)}
-                    placeholder="Hướng dẫn cách xử lý văn bản này..."
-                    rows={4}
-                  />
-                </div>
-
-                {/* ── Summary ──────────────────────────────────────── */}
-                <div className="submission-summary">
-                  <h3>Tóm tắt nộp văn bản</h3>
-                  <div className="summary-grid">
-                    <div className="summary-item">
-                      <span className="summary-label">Cơ quan ban hành</span>
-                      <span className="summary-value">{form.issuer || '—'}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Số ký hiệu</span>
-                      <span className="summary-value">{form.documentNumber || '—'}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Loại văn bản</span>
-                      <span className="summary-value">{form.documentType || '—'}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Ngày văn bản</span>
-                      <span className="summary-value">{form.dateLetter || '—'}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Trích yếu</span>
-                      <span className="summary-value">{form.summary || '—'}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Người ký</span>
-                      <span className="summary-value">
-                        {form.signerName
-                          ? `${form.signerName}${form.signerTitle ? ` (${form.signerTitle})` : ''}`
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Số đến</span>
-                      <span className="summary-value">{arrivalNumber || 'Tự động'}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Ngày đến</span>
-                      <span className="summary-value">{dateReceived}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Độ khẩn</span>
-                      <span className="summary-value">{URGENCY_LABELS[urgency]}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Tệp đính kèm</span>
-                      <span className="summary-value">{attachments.length} tệp</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Người xử lý</span>
-                      <span className="summary-value">{processorsList.length}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="form-actions">
-              {currentStep === 2 && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => { setCurrentStep(1); setError(''); }}
-                >
-                  Quay lại
-                </button>
-              )}
-              <div style={{ flex: 1 }} />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => navigate('/incoming-documents')}
-              >
-                Hủy
-              </button>
-              {currentStep === 1 && (
-                <button type="button" className="btn btn-primary" onClick={handleContinue}>
-                  Tiếp tục
-                </button>
-              )}
-              {currentStep === 2 && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleConfirm}
-                  disabled={submitting}
-                >
-                  {submitting ? 'Đang gửi...' : 'Xác nhận & Gửi'}
-                </button>
               )}
             </div>
+
+            <div className="form-group" style={{ marginTop: 24 }}>
+              <label htmlFor="processingInstructions">Hướng dẫn xử lý</label>
+              <textarea
+                id="processingInstructions"
+                value={processingInstructions}
+                onChange={(e) => setProcessingInstructions(e.target.value)}
+                placeholder="Hướng dẫn cách xử lý văn bản này..."
+                rows={4}
+              />
+            </div>
+
+            {/* Summary */}
+            <div className="submission-summary">
+              <h3>Tóm tắt nộp văn bản</h3>
+              <div className="summary-grid">
+                <div className="summary-item">
+                  <span className="summary-label">Cơ quan ban hành</span>
+                  <span className="summary-value">{form.issuer || '—'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Số ký hiệu</span>
+                  <span className="summary-value">{form.documentNumber || '—'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Loại văn bản</span>
+                  <span className="summary-value">{form.documentType || '—'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Ngày văn bản</span>
+                  <span className="summary-value">{form.dateLetter || '—'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Trích yếu</span>
+                  <span className="summary-value">{form.summary || '—'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Người ký</span>
+                  <span className="summary-value">
+                    {form.signerName
+                      ? `${form.signerName}${form.signerTitle ? ` (${form.signerTitle})` : ''}`
+                      : '—'}
+                  </span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Số đến</span>
+                  <span className="summary-value">{arrivalNumber || 'Tự động'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Ngày đến</span>
+                  <span className="summary-value">{dateReceived}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Độ khẩn</span>
+                  <span className="summary-value">{URGENCY_LABELS[urgency]}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Tệp đính kèm</span>
+                  <span className="summary-value">{attachments.length} tệp</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Người xử lý</span>
+                  <span className="summary-value">{processorsList.length}</span>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
+
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => { setCurrentStep(1); setError(''); }}
+          >
+            Quay lại
+          </button>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate('/incoming-documents')}
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleConfirm}
+            disabled={submitting}
+          >
+            {submitting ? 'Đang gửi...' : 'Xác nhận & Gửi'}
+          </button>
         </div>
       </div>
     </>
