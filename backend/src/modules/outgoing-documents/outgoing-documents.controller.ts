@@ -166,13 +166,13 @@ export class OutgoingDocumentsController {
   async updateStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const id = parseInt(req.params.id as string);
-      const { status, returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress } = req.body;
+      const { status, returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress, urgency, confidentialityLevel } = req.body;
 
       const result = await outgoingDocumentsService.updateStatus(
         id,
         status as string,
         req.user!.userId,
-        { returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress },
+        { returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress, urgency, confidentialityLevel },
       );
 
       res.status(200).json(successResponse(result, 'Cập nhật trạng thái thành công'));

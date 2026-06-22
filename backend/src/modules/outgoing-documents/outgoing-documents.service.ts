@@ -349,6 +349,10 @@ export class OutgoingDocumentsService {
       sentDate?: string;
       recipientName?: string;
       recipientAddress?: string;
+      /** Urgency name/id để cập nhật khi phát hành (THUONG, KHAN, THUONG_KHAN, HOA_TOC) */
+      urgency?: string;
+      /** Confidentiality name/code/id để cập nhật khi phát hành */
+      confidentialityLevel?: string;
     },
   ) {
     const outgoing = await outgoingDocumentsRepository.findById(id);
@@ -394,6 +398,10 @@ export class OutgoingDocumentsService {
         if (options?.sentDate) outgoingUpdateData.sentDate = new Date(options.sentDate);
         if (options?.recipientName) outgoingUpdateData.recipientName = options.recipientName;
         if (options?.recipientAddress) outgoingUpdateData.recipientAddress = options.recipientAddress;
+        // Cập nhật urgencyId trên OutgoingDocument nếu được cung cấp
+        if (options?.urgency) {
+          outgoingUpdateData.urgencyId = await resolveUrgencyIdWithDefault(options.urgency);
+        }
         break;
       case 'RECALLED':
         outgoingUpdateData.recalledAt = now;
@@ -413,11 +421,31 @@ export class OutgoingDocumentsService {
         break;
     }
 
+    // Resolve confidentialityId nếu được cung cấp (dùng cho ISSUED)
+    let newConfidentialityId: number | undefined;
+    if (newStatus === 'ISSUED' && options?.confidentialityLevel) {
+      newConfidentialityId = await resolveConfidentialityIdWithDefault(options.confidentialityLevel);
+    }
+
+    // Resolve urgencyId cho Document nếu được cung cấp (dùng cho ISSUED)
+    let newUrgencyId: number | undefined;
+    if (newStatus === 'ISSUED' && options?.urgency) {
+      newUrgencyId = await resolveUrgencyIdWithDefault(options.urgency);
+    }
+
     await prisma.$transaction(async (tx) => {
-      // Cập nhật trạng thái Document
+      // Cập nhật trạng thái Document (và urgency/confidentiality nếu được cung cấp)
       await tx.document.update({
         where: { id: outgoing.documentId },
-        data: { status: newStatus as any, updatedBy: userId },
+        data: {
+          status: newStatus as any,
+          updatedBy: userId,
+          ...(newConfidentialityId !== undefined && { confidentialityId: newConfidentialityId }),
+          ...(newUrgencyId !== undefined && {
+            urgencyId: newUrgencyId,
+            urgencyLevel: mapUrgencyToPriority(options?.urgency) as any,
+          }),
+        },
       });
 
       // Cập nhật OutgoingDocument với thông tin workflow
