@@ -35,6 +35,30 @@ function mapUrgencyToPriority(urgency?: string | null): string | undefined {
  * Định nghĩa các trạng thái kế tiếp hợp lệ từ mỗi trạng thái hiện tại.
  * Dùng để kiểm soát workflow nghiêm ngặt.
  */
+/**
+ * DESIGN NOTE – Register vs Issue (pending supervisor confirmation)
+ * ----------------------------------------------------------------
+ * Current: APPROVED → WAITING_FOR_ISSUE → ISSUED  (1 combined step)
+ *
+ * The Document Clerk enters dispatch number, issuance date, urgency,
+ * confidentiality and recipient info all in a single "Issue" action.
+ *
+ * Alternative: APPROVED → WAITING_FOR_ISSUE → REGISTERED → ISSUED  (2 steps)
+ *   - REGISTERED: clerk fills in the register book (vào sổ)
+ *   - ISSUED:     clerk formally publishes the document (ban hành)
+ *
+ * If supervisor approves the 2-step approach, the following changes are needed:
+ *   1. Add REGISTERED to DocumentStatus enum in schema.prisma
+ *   2. Add registeredAt / registeredBy fields to OutgoingDocument
+ *   3. Update VALID_TRANSITIONS below:
+ *        WAITING_FOR_ISSUE: ['REGISTERED', 'TRASHED']
+ *        REGISTERED:        ['ISSUED', 'TRASHED']
+ *   4. Run `prisma migrate dev`
+ *   5. Add "Vào sổ" button + modal in OutgoingDocumentDetailPage.tsx
+ *
+ * See DESIGN_NOTE.md in project root for full analysis.
+ * ----------------------------------------------------------------
+ */
 const VALID_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ['SUBMITTED', 'TRASHED'],
   SUBMITTED: ['APPROVED', 'RETURNED', 'TRASHED'],
@@ -48,6 +72,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   REJECTED: ['DRAFT'],
   CANCELLED: [],
 };
+
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
