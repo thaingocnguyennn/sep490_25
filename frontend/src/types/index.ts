@@ -377,6 +377,10 @@ export interface UpdateOutgoingStatusRequest {
   recipientName?: string;
   recipientAddress?: string;
   recipientEmail?: string;
+  /** Độ khẩn tùy chọn khi phát hành (THUONG, KHAN, THUONG_KHAN, HOA_TOC) */
+  urgency?: UrgencyCodeOrName;
+  /** Độ mật tùy chọn khi phát hành (THUONG, MAT, TOI_MAT, TUYET_MAT) */
+  confidentialityLevel?: ConfidentialityCodeOrName;
 }
 
 export interface OutgoingDocumentFilterParams {

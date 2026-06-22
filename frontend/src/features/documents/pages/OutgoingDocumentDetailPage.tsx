@@ -62,6 +62,8 @@ export default function OutgoingDocumentDetailPage() {
   const [dispatchNumber, setDispatchNumber] = useState('');
   const [issuanceDate, setIssuanceDate] = useState('');
   const [sentDate, setSentDate] = useState('');
+  const [issueUrgency, setIssueUrgency] = useState<string>('');
+  const [issueConfidentiality, setIssueConfidentiality] = useState<string>('');
 
   // Drag & Drop upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -154,6 +156,8 @@ export default function OutgoingDocumentDetailPage() {
       dispatchNumber: dispatchNumber || undefined,
       issuanceDate: issuanceDate || undefined,
       sentDate: sentDate || undefined,
+      urgency: issueUrgency || undefined,
+      confidentialityLevel: issueConfidentiality || undefined,
     };
 
     const result = await updateStatus(doc.id, payload);
@@ -165,6 +169,8 @@ export default function OutgoingDocumentDetailPage() {
       setDispatchNumber('');
       setIssuanceDate('');
       setSentDate('');
+      setIssueUrgency('');
+      setIssueConfidentiality('');
     }
   };
 
@@ -634,6 +640,39 @@ export default function OutgoingDocumentDetailPage() {
                       onChange={(e) => setSentDate(e.target.value)}
                       style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
                     />
+                  </div>
+                </div>
+                {/* Độ khẩn và Độ mật khi phát hành */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Độ khẩn</label>
+                    <select
+                      id="issue-urgency-select"
+                      value={issueUrgency}
+                      onChange={(e) => setIssueUrgency(e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                    >
+                      <option value="">— Giữ nguyên —</option>
+                      <option value="THUONG">Thường</option>
+                      <option value="KHAN">Khẩn</option>
+                      <option value="THUONG_KHAN">Thượng khẩn</option>
+                      <option value="HOA_TOC">Hỏa tốc</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Độ mật</label>
+                    <select
+                      id="issue-confidentiality-select"
+                      value={issueConfidentiality}
+                      onChange={(e) => setIssueConfidentiality(e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                    >
+                      <option value="">— Giữ nguyên —</option>
+                      <option value="THUONG">Thường</option>
+                      <option value="MAT">Mật</option>
+                      <option value="TOI_MAT">Tối mật</option>
+                      <option value="TUYET_MAT">Tuyệt mật</option>
+                    </select>
                   </div>
                 </div>
               </>

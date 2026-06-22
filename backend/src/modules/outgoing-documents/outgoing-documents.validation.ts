@@ -204,6 +204,33 @@ export const updateOutgoingStatusValidation = [
   body('sentDate')
     .optional()
     .isISO8601().withMessage('Ngày gửi không đúng định dạng ISO8601'),
+
+  // Độ khẩn và độ mật tùy chọn khi phát hành (status = ISSUED)
+  body('urgency')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ khẩn không hợp lệ');
+      }
+      return true;
+    }),
+
+  body('confidentialityLevel')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = [
+        'NORMAL', 'CONFIDENTIAL', 'TOP_SECRET',
+        'THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT',
+        'A', 'B', 'C',
+      ];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Mức độ mật không hợp lệ');
+      }
+      return true;
+    }),
 ];
 
 // ─── Validation params ID chung ───────────────────────────────────────────────
