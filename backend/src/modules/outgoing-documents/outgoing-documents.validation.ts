@@ -302,3 +302,14 @@ export const listOutgoingDocumentsValidation = [
       return true;
     }),
 ];
+
+// ─── Validation gán Văn thư ───────────────────────────────────────────────────
+
+export const assignClerkValidation = [
+  param('id')
+    .isInt({ min: 1 }).withMessage('ID văn bản phải là số nguyên dương'),
+
+  body('clerkId')
+    .notEmpty().withMessage('ID Văn thư không được để trống')
+    .isInt({ min: 1 }).withMessage('ID Văn thư phải là số nguyên dương'),
+];

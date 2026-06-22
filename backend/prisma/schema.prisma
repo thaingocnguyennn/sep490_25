@@ -147,13 +147,14 @@ model User {
   documentProcessors DocumentProcessor[]
 
   // Outgoing document workflow relations
-  outgoingSubmitted OutgoingDocument[] @relation("OutgoingSubmittedBy")
-  outgoingApproved  OutgoingDocument[] @relation("OutgoingApprovedBy")
-  outgoingReturned  OutgoingDocument[] @relation("OutgoingReturnedBy")
-  outgoingForwarded OutgoingDocument[] @relation("OutgoingForwardedBy")
-  outgoingIssued    OutgoingDocument[] @relation("OutgoingIssuedBy")
-  outgoingRecalled  OutgoingDocument[] @relation("OutgoingRecalledBy")
-  outgoingTrashed   OutgoingDocument[] @relation("OutgoingTrashedBy")
+  outgoingSubmitted     OutgoingDocument[] @relation("OutgoingSubmittedBy")
+  outgoingApproved      OutgoingDocument[] @relation("OutgoingApprovedBy")
+  outgoingReturned      OutgoingDocument[] @relation("OutgoingReturnedBy")
+  outgoingForwarded     OutgoingDocument[] @relation("OutgoingForwardedBy")
+  outgoingIssued        OutgoingDocument[] @relation("OutgoingIssuedBy")
+  outgoingRecalled      OutgoingDocument[] @relation("OutgoingRecalledBy")
+  outgoingTrashed       OutgoingDocument[] @relation("OutgoingTrashedBy")
+  outgoingAssignedClerk OutgoingDocument[] @relation("OutgoingAssignedClerk")
 }
 
 model Role {
@@ -326,21 +327,26 @@ model OutgoingDocument {
   trashedAt    DateTime? // Thời điểm đưa vào thùng rác
   trashedBy    Int? // Người đưa vào thùng rác
 
+  // Văn thư được gán xử lý
+  assignedClerkId Int? // FK -> User (Văn thư được gán phát hành văn bản)
+
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  submittedByUser User?    @relation("OutgoingSubmittedBy", fields: [submittedBy], references: [id])
-  approvedByUser  User?    @relation("OutgoingApprovedBy", fields: [approvedBy], references: [id])
-  returnedByUser  User?    @relation("OutgoingReturnedBy", fields: [returnedBy], references: [id])
-  forwardedByUser User?    @relation("OutgoingForwardedBy", fields: [forwardedBy], references: [id])
-  issuedByUser    User?    @relation("OutgoingIssuedBy", fields: [issuedBy], references: [id])
-  recalledByUser  User?    @relation("OutgoingRecalledBy", fields: [recalledBy], references: [id])
-  trashedByUser   User?    @relation("OutgoingTrashedBy", fields: [trashedBy], references: [id])
-  urgency         Urgency? @relation(fields: [urgencyId], references: [id])
+  document          Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  submittedByUser   User?    @relation("OutgoingSubmittedBy", fields: [submittedBy], references: [id])
+  approvedByUser    User?    @relation("OutgoingApprovedBy", fields: [approvedBy], references: [id])
+  returnedByUser    User?    @relation("OutgoingReturnedBy", fields: [returnedBy], references: [id])
+  forwardedByUser   User?    @relation("OutgoingForwardedBy", fields: [forwardedBy], references: [id])
+  issuedByUser      User?    @relation("OutgoingIssuedBy", fields: [issuedBy], references: [id])
+  recalledByUser    User?    @relation("OutgoingRecalledBy", fields: [recalledBy], references: [id])
+  trashedByUser     User?    @relation("OutgoingTrashedBy", fields: [trashedBy], references: [id])
+  assignedClerk     User?    @relation("OutgoingAssignedClerk", fields: [assignedClerkId], references: [id])
+  urgency           Urgency? @relation(fields: [urgencyId], references: [id])
 
   @@index([urgencyId])
+  @@index([assignedClerkId])
 }
 
 model DocumentProcessor {

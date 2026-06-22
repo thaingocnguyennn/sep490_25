@@ -11,6 +11,7 @@ import {
   updateOutgoingStatusValidation,
   outgoingIdParamValidation,
   listOutgoingDocumentsValidation,
+  assignClerkValidation,
 } from './outgoing-documents.validation';
 
 const router = Router();
@@ -96,6 +97,17 @@ router.patch(
   updateOutgoingStatusValidation,
   validateRequest,
   outgoingDocumentsController.updateStatus.bind(outgoingDocumentsController),
+);
+
+// ─── Route gán Văn thư ───────────────────────────────────────────────────────
+// PATCH /outgoing-documents/:id/assign-clerk — Gán Văn thư xử lý văn bản
+router.patch(
+  '/:id/assign-clerk',
+  authenticate,
+  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
+  assignClerkValidation,
+  validateRequest,
+  outgoingDocumentsController.assignClerk.bind(outgoingDocumentsController),
 );
 
 export default router;

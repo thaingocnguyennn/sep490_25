@@ -333,6 +333,9 @@ export interface OutgoingDocument {
   issuedByUser: { id: number; fullName: string } | null;
   recalledByUser: { id: number; fullName: string } | null;
   trashedByUser: { id: number; fullName: string } | null;
+  /** Văn thư được gán xử lý văn bản đi */
+  assignedClerkId: number | null;
+  assignedClerk: { id: number; fullName: string } | null;
 }
 
 export interface CreateOutgoingDocumentRequest {

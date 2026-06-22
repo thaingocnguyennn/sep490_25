@@ -131,3 +131,15 @@ export const updateOutgoingStatus = async (
   const res = await api.patch<ApiResponse<OutgoingDocument>>(`${BASE}/${id}/status`, data);
   return res.data.data!;
 };
+
+/**
+ * Gán Văn thư (DOCUMENT_CLERK) để xử lý văn bản đi.
+ * Chỉ dành cho DEPARTMENT_HEAD hoặc ADMIN.
+ */
+export const assignOutgoingClerk = async (
+  id: number,
+  clerkId: number,
+): Promise<OutgoingDocument> => {
+  const res = await api.patch<ApiResponse<OutgoingDocument>>(`${BASE}/${id}/assign-clerk`, { clerkId });
+  return res.data.data!;
+};

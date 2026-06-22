@@ -43,6 +43,8 @@ export interface OutgoingDocumentWithRelations {
   trashedAt: Date | null;
   trashedBy: number | null;
   notes: string | null;
+  assignedClerkId: number | null;
+  assignedClerk: { id: number; fullName: string } | null;
   createdAt: Date;
   updatedAt: Date;
   document: {
@@ -120,6 +122,7 @@ const OUTGOING_INCLUDE = {
   issuedByUser: { select: { id: true, fullName: true } },
   recalledByUser: { select: { id: true, fullName: true } },
   trashedByUser: { select: { id: true, fullName: true } },
+  assignedClerk: { select: { id: true, fullName: true } },
 } as const;
 
 // ─── Repository ───────────────────────────────────────────────────────────────

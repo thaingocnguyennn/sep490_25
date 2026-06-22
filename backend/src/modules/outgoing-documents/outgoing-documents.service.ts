@@ -497,6 +497,67 @@ export class OutgoingDocumentsService {
 
     return outgoingDocumentsRepository.findById(id);
   }
+
+  /**
+   * Gán Văn thư (DOCUMENT_CLERK) để xử lý văn bản đi.
+   * Chỉ cho phép khi văn bản đang ở trạng thái APPROVED hoặc WAITING_FOR_ISSUE.
+   * Người gán phải có role DEPARTMENT_HEAD hoặc ADMIN.
+   */
+  async assignClerk(id: number, clerkId: number, assignedBy: number) {
+    const outgoing = await outgoingDocumentsRepository.findById(id);
+    const allowedStatuses = ['APPROVED', 'WAITING_FOR_ISSUE'];
+
+    if (!allowedStatuses.includes(outgoing.document.status)) {
+      throw new BadRequestError(
+        `Chỉ có thể gán Văn thư khi văn bản ở trạng thái: ${allowedStatuses.join(', ')}. ` +
+        `Trạng thái hiện tại: ${outgoing.document.status}`,
+      );
+    }
+
+    // Kiểm tra clerkId có tồn tại và có role DOCUMENT_CLERK không
+    const clerk = await prisma.user.findUnique({
+      where: { id: clerkId },
+      include: {
+        userRoles: {
+          include: { role: true },
+        },
+      },
+    });
+
+    if (!clerk) {
+      throw new NotFoundError(`Không tìm thấy người dùng với ID ${clerkId}`);
+    }
+
+    const hasClerkRole = clerk.userRoles.some(
+      (ur) => ur.role.name === 'DOCUMENT_CLERK',
+    );
+
+    if (!hasClerkRole) {
+      throw new BadRequestError(
+        `Người dùng "${clerk.fullName}" không có role DOCUMENT_CLERK. ` +
+        `Chỉ có thể gán người có role Văn thư.`,
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.outgoingDocument.update({
+        where: { id },
+        data: { assignedClerkId: clerkId },
+      });
+
+      await tx.systemLog.create({
+        data: {
+          userId: assignedBy,
+          action: 'OUTGOING_ASSIGN_CLERK',
+          entityType: 'OutgoingDocument',
+          entityId: id,
+          details: `Gán Văn thư "${clerk.fullName}" (ID: ${clerkId}) để xử lý văn bản đi`,
+        },
+      });
+    });
+
+    return outgoingDocumentsRepository.findById(id);
+  }
 }
 
 export const outgoingDocumentsService = new OutgoingDocumentsService();

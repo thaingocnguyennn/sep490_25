@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getOutgoingDocumentById } from '../../../api/modules/outgoing-documents';
+import { assignOutgoingClerk } from '../../../api/modules/outgoing-documents';
+import { usersApi } from '../../../api/modules/users';
 import { useOutgoingDocumentActions } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
@@ -52,6 +54,13 @@ export default function OutgoingDocumentDetailPage() {
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [showOcrResult, setShowOcrResult] = useState(false);
 
+  // Modal gán Văn thư
+  const [assignClerkModal, setAssignClerkModal] = useState(false);
+  const [clerkList, setClerkList] = useState<{ id: number; fullName: string }[]>([]);
+  const [selectedClerkId, setSelectedClerkId] = useState<string>('');
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
   // Modal trạng thái
   const [statusModal, setStatusModal] = useState<{
     open: boolean;
@@ -88,6 +97,7 @@ export default function OutgoingDocumentDetailPage() {
   const canRecall  = isClerk && doc?.document.status === 'ISSUED';
   const canTrash   = (isSpecialist || isClerk || isDeptHead) && !['COMPLETED', 'TRASHED', 'CANCELLED'].includes(doc?.document.status ?? '');
   const canRestore = (isClerk || isAdmin) && doc?.document.status === 'TRASHED';
+  const canAssignClerk = (isDeptHead || isAdmin) && ['APPROVED', 'WAITING_FOR_ISSUE'].includes(doc?.document.status ?? '');
 
   const loadDoc = async () => {
     if (!id) return;
@@ -100,6 +110,37 @@ export default function OutgoingDocumentDetailPage() {
       setError(err instanceof Error ? err.message : 'Không tải được thông tin văn bản đi');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadClerks = async () => {
+    try {
+      const res = await usersApi.getAll({ role: 'DOCUMENT_CLERK', limit: 100 });
+      setClerkList(res.data.data?.items.map((u) => ({ id: u.id, fullName: u.fullName })) ?? []);
+    } catch {
+      setClerkList([]);
+    }
+  };
+
+  const handleOpenAssignClerk = () => {
+    setSelectedClerkId('');
+    setAssignError(null);
+    loadClerks();
+    setAssignClerkModal(true);
+  };
+
+  const handleAssignClerk = async () => {
+    if (!doc || !selectedClerkId) return;
+    setAssignLoading(true);
+    setAssignError(null);
+    try {
+      const result = await assignOutgoingClerk(doc.id, parseInt(selectedClerkId));
+      setDoc(result);
+      setAssignClerkModal(false);
+    } catch (err: unknown) {
+      setAssignError(err instanceof Error ? err.message : 'Không thể gán Văn thư');
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -251,6 +292,12 @@ export default function OutgoingDocumentDetailPage() {
               🔙 Thu hồi
             </button>
           )}
+          {canAssignClerk && (
+            <button id="btn-assign-clerk" className="btn btn-secondary" onClick={handleOpenAssignClerk}
+              style={{ borderColor: '#6c5ce7', color: '#6c5ce7' }}>
+              👤 Gán Văn thư
+            </button>
+          )}
           {canRestore && (
             <button id="btn-restore-doc" className="btn btn-secondary" onClick={() => setStatusModal({ open: true, action: 'restore' })}
               style={{ borderColor: '#27ae60', color: '#27ae60' }}>
@@ -303,6 +350,7 @@ export default function OutgoingDocumentDetailPage() {
                       ['Email người nhận', doc.recipientEmail || '—'],
                       ['Ngày gửi', formatDate(doc.sentDate)],
                       ['Số trang', doc.pageCount ? `${doc.pageCount} trang` : '—'],
+                      ['Văn thư xử lý', doc.assignedClerk?.fullName || '—'],
                       ['Độ khẩn', null], // render manually
                       ['Trạng thái', null],
                       ['Phòng ban', doc.document.department?.name || '—'],
@@ -709,6 +757,72 @@ export default function OutgoingDocumentDetailPage() {
                 }}
               >
                 {actionLoading ? '⏳ Đang xử lý...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal gán Văn thư */}
+      {assignClerkModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}
+          onClick={() => setAssignClerkModal(false)}
+        >
+          <div
+            style={{ background: 'white', borderRadius: 12, padding: 32, width: 440, maxWidth: '90vw' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0 }}>👤 Gán Văn thư xử lý</h3>
+            <p style={{ color: '#636e72', fontSize: 14, marginBottom: 16 }}>
+              Chọn Văn thư sẽ phụ trách vào sổ và phát hành văn bản này.
+            </p>
+
+            {assignError && (
+              <div style={{ background: '#fdf0f0', border: '1px solid #fcc', borderRadius: 8, padding: '10px 14px', marginBottom: 12, color: '#e74c3c', fontSize: 14 }}>
+                ⚠️ {assignError}
+              </div>
+            )}
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                Văn thư <span style={{ color: '#e74c3c' }}>*</span>
+              </label>
+              <select
+                id="assign-clerk-select"
+                value={selectedClerkId}
+                onChange={(e) => setSelectedClerkId(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+              >
+                <option value="">— Chọn Văn thư —</option>
+                {clerkList.map((clerk) => (
+                  <option key={clerk.id} value={String(clerk.id)}>
+                    {clerk.fullName}
+                  </option>
+                ))}
+              </select>
+              {clerkList.length === 0 && (
+                <p style={{ fontSize: 13, color: '#e67e22', marginTop: 6 }}>
+                  ⚠️ Không tìm thấy người dùng có role Văn thư trong hệ thống.
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setAssignClerkModal(false)} disabled={assignLoading}>
+                Hủy
+              </button>
+              <button
+                id="btn-confirm-assign-clerk"
+                className="btn btn-primary"
+                onClick={handleAssignClerk}
+                disabled={assignLoading || !selectedClerkId}
+                style={{ background: '#6c5ce7' }}
+              >
+                {assignLoading ? '⏳ Đang gán...' : 'Xác nhận gán'}
               </button>
             </div>
           </div>

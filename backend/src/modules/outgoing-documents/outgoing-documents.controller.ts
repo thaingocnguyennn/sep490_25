@@ -180,6 +180,27 @@ export class OutgoingDocumentsController {
       next(error);
     }
   }
+
+  /**
+   * PATCH /outgoing-documents/:id/assign-clerk
+   * Gán Văn thư để xử lý văn bản đi.
+   */
+  async assignClerk(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const { clerkId } = req.body;
+
+      const result = await outgoingDocumentsService.assignClerk(
+        id,
+        parseInt(clerkId),
+        req.user!.userId,
+      );
+
+      res.status(200).json(successResponse(result, 'Gán Văn thư thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const outgoingDocumentsController = new OutgoingDocumentsController();
