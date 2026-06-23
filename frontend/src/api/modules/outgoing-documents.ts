@@ -151,3 +151,21 @@ export const updateOutgoingStatus = async (
   const res = await api.patch<ApiResponse<OutgoingDocument>>(`${BASE}/${id}/status`, data);
   return res.data.data!;
 };
+
+export interface SendEmailResult {
+  sentCount: number;
+  failedCount: number;
+  sentEmails: string[];
+  failedEmails: string[];
+}
+
+/**
+ * Gửi văn bản đi đã phát hành qua email cho danh sách người nhận.
+ */
+export const sendOutgoingEmail = async (
+  id: number,
+  recipients: string[],
+): Promise<SendEmailResult> => {
+  const res = await api.post<ApiResponse<SendEmailResult>>(`${BASE}/${id}/send-email`, { recipients });
+  return res.data.data!;
+};

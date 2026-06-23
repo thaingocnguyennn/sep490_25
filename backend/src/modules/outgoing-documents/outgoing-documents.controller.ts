@@ -194,6 +194,26 @@ export class OutgoingDocumentsController {
       next(error);
     }
   }
+
+  /**
+   * POST /outgoing-documents/:id/send-email
+   * Gửi văn bản đi qua email cho danh sách người nhận.
+   */
+  async sendEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const recipients: string[] = req.body.recipients;
+
+      const result = await outgoingDocumentsService.sendDocumentByEmail(
+        id,
+        recipients,
+        req.user!.userId,
+      );
+      res.status(200).json(successResponse(result, `Đã gửi email thành công cho ${result.sentCount} người nhận`));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const outgoingDocumentsController = new OutgoingDocumentsController();

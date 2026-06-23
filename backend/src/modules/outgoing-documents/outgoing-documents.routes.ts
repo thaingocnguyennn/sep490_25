@@ -108,4 +108,14 @@ router.delete(
   outgoingDocumentsController.delete.bind(outgoingDocumentsController),
 );
 
+// POST /outgoing-documents/:id/send-email — Gửi văn bản qua email
+router.post(
+  '/:id/send-email',
+  authenticate,
+  requireRole(ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK, ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
+  outgoingIdParamValidation,
+  validateRequest,
+  outgoingDocumentsController.sendEmail.bind(outgoingDocumentsController),
+);
+
 export default router;
