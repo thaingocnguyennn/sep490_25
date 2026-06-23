@@ -474,15 +474,17 @@ export class DocumentsService {
       outgoingMonthly[month] += row._count.id;
     }
 
-    // ─── 3. Phân bổ trạng thái văn bản đi (DocumentLifecycleStatus) ─────────
-    const outgoingStatusDistribution = await prisma.outgoingDocument.groupBy({
-      by: ['documentLifecycleStatus'],
+    // ─── 3. Phân bổ trạng thái văn bản đi (Document.status) ─────────────────
+    const outgoingStatusDistribution = await prisma.document.groupBy({
+      by: ['status'],
+      where: { type: 'OUTGOING', documentStatus: 'ACTIVE' },
       _count: { id: true },
     });
 
     // ─── 4. Phân bổ theo độ khẩn văn bản đến ────────────────────────────────
-    const incomingByUrgency = await prisma.incomingDocument.groupBy({
+    const incomingByUrgency = await prisma.document.groupBy({
       by: ['urgencyId'],
+      where: { type: 'INCOMING', documentStatus: 'ACTIVE' },
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
@@ -493,10 +495,10 @@ export class DocumentsService {
       .filter((id): id is number => id !== null);
 
     const urgencies = urgencyIds.length > 0
-      ? await prisma.urgencyLevel.findMany({ where: { id: { in: urgencyIds } } })
+      ? await prisma.urgency.findMany({ where: { id: { in: urgencyIds } } })
       : [];
 
-    const urgencyMap = new Map(urgencies.map((u) => [u.id, u.name]));
+    const urgencyMap = new Map(urgencies.map((u: any) => [u.id, u.name]));
 
     const urgencyDistribution = incomingByUrgency.map((r) => ({
       name: r.urgencyId ? urgencyMap.get(r.urgencyId) ?? 'Không xác định' : 'Chưa phân loại',
@@ -525,7 +527,7 @@ export class DocumentsService {
         outgoing: outgoingMonthly,
       },
       outgoingStatus: outgoingStatusDistribution.map((r) => ({
-        status: r.documentLifecycleStatus,
+        status: r.status,
         count: r._count.id,
       })),
       incomingStatus: incomingStatusDistribution.map((r) => ({
