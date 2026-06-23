@@ -282,4 +282,14 @@ export const incomingDocumentsApi = {
 
   processByHead: (id: number, data: ProcessIncomingDocumentRequest) =>
     api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/process`, data),
+
+  // Thống kê Văn bản đến (thêm mới)
+  getStatistics: (params?: { dateFrom?: string; dateTo?: string; departmentId?: number }) =>
+    api.get<ApiResponse<{
+      totalCount: number;
+      byStatus: { status: string; count: number }[];
+      byDocumentType: { documentType: string; count: number }[];
+      byDepartment: { departmentId: number | null; departmentName: string; count: number }[];
+      byMonth: { month: string; count: number }[];
+    }>>('/incoming-documents/statistics', { params }),
 };

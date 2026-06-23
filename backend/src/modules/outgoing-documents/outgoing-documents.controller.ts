@@ -56,7 +56,14 @@ export class OutgoingDocumentsController {
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;
       const confidentialityLevel = req.query.confidentialityLevel as string | undefined;
-      const departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined;
+      let departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined;
+
+      if (req.user!.roles.includes('SPECIALIST') && 
+          !req.user!.roles.includes('ADMIN') && 
+          !req.user!.roles.includes('DEPARTMENT_HEAD') && 
+          !req.user!.roles.includes('DOCUMENT_CLERK')) {
+        departmentId = req.user!.departmentId || -1;
+      }
 
       const params = { search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId };
 
@@ -261,9 +268,16 @@ export class OutgoingDocumentsController {
     try {
       const dateFrom    = req.query.dateFrom    as string | undefined;
       const dateTo      = req.query.dateTo      as string | undefined;
-      const departmentId = req.query.departmentId
+      let departmentId = req.query.departmentId
         ? parseInt(req.query.departmentId as string)
         : undefined;
+
+      if (req.user!.roles.includes('SPECIALIST') && 
+          !req.user!.roles.includes('ADMIN') && 
+          !req.user!.roles.includes('DEPARTMENT_HEAD') && 
+          !req.user!.roles.includes('DOCUMENT_CLERK')) {
+        departmentId = req.user!.departmentId || -1;
+      }
 
       const data = await outgoingDocumentsService.getStatistics({
         dateFrom,

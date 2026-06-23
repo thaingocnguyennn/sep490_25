@@ -33,6 +33,13 @@ router.get(
   incomingDocumentsController.list.bind(incomingDocumentsController)
 );
 
+// Thống kê Văn bản đến (thêm mới, phải đặt trước /:id)
+router.get(
+  '/statistics',
+  authenticate,
+  incomingDocumentsController.getStatistics.bind(incomingDocumentsController)
+);
+
 router.get(
   '/:id',
   authenticate,

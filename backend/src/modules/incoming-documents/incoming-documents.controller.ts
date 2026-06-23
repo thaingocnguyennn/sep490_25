@@ -124,6 +124,35 @@ export class IncomingDocumentsController {
       next(error);
     }
   }
+
+  // ─── Thống kê Văn bản đến (thêm mới, không sửa code cũ) ──────────────────
+  async getStatistics(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo   = req.query.dateTo   as string | undefined;
+
+      // Phân quyền: SPECIALIST chỉ xem phòng ban mình
+      let departmentId: number | undefined;
+      const roles: string[] = req.user!.roles ?? [];
+      const isSpecialistOnly =
+        roles.includes('SPECIALIST') &&
+        !roles.includes('ADMIN') &&
+        !roles.includes('DEPARTMENT_HEAD') &&
+        !roles.includes('DOCUMENT_CLERK');
+      if (isSpecialistOnly) {
+        departmentId = req.user!.departmentId || -1;
+      }
+
+      const data = await incomingDocumentsService.getStatistics({
+        dateFrom,
+        dateTo,
+        departmentId,
+      });
+      res.status(200).json(successResponse(data, 'Lấy thống kê văn bản đến thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const incomingDocumentsController = new IncomingDocumentsController();

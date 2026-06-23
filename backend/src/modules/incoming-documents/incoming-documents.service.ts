@@ -377,6 +377,110 @@ export class IncomingDocumentsService {
 
     return this.getById(id);
   }
+
+  // ─── Thống kê Văn bản đến (thêm mới, không sửa code cũ) ──────────────────
+  async getStatistics(params: {
+    dateFrom?: string;
+    dateTo?: string;
+    departmentId?: number;
+  } = {}) {
+    const { dateFrom, dateTo, departmentId } = params;
+
+    const baseDocFilter: Record<string, unknown> = {
+      documentStatus: 'ACTIVE',
+      type: 'INCOMING',
+    };
+
+    if (dateFrom || dateTo) {
+      baseDocFilter.createdAt = {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
+      };
+    }
+
+    if (departmentId !== undefined) {
+      baseDocFilter.departmentId = departmentId;
+    }
+
+    const baseFilter: Record<string, unknown> = { document: baseDocFilter };
+
+    const totalCount = await prisma.incomingDocument.count({
+      where: baseFilter as any,
+    });
+
+    const byStatusRaw = await prisma.document.groupBy({
+      by: ['status'],
+      where: baseDocFilter as any,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+    const byStatus = byStatusRaw.map((r) => ({
+      status: r.status as string,
+      count: r._count.id,
+    }));
+
+    const byDocTypeRaw = await prisma.incomingDocument.groupBy({
+      by: ['documentType'],
+      where: baseFilter as any,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+    const byDocumentType = byDocTypeRaw.map((r) => ({
+      documentType: r.documentType ?? 'Chưa phân loại',
+      count: r._count.id,
+    }));
+
+    const byDeptRaw = await prisma.document.groupBy({
+      by: ['departmentId'],
+      where: { ...baseDocFilter, departmentId: { not: null } } as any,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 10,
+    });
+    const deptIds = byDeptRaw
+      .map((r) => r.departmentId)
+      .filter((id): id is number => id !== null);
+    const depts = await prisma.department.findMany({
+      where: { id: { in: deptIds } },
+      select: { id: true, name: true },
+    });
+    const deptMap = new Map(depts.map((d) => [d.id, d.name]));
+    const byDepartment = byDeptRaw.map((r) => ({
+      departmentId: r.departmentId,
+      departmentName: r.departmentId
+        ? (deptMap.get(r.departmentId) ?? 'Không xác định')
+        : 'Chưa gán phòng ban',
+      count: r._count.id,
+    }));
+
+    const now = new Date();
+    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const monthlyDocs = await prisma.incomingDocument.findMany({
+      where: {
+        ...baseFilter,
+        dateReceived: { gte: twelveMonthsAgo },
+      } as any,
+      select: { dateReceived: true },
+    });
+    const monthlyMap = new Map<string, number>();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap.set(key, 0);
+    }
+    for (const doc of monthlyDocs) {
+      if (doc.dateReceived) {
+        const key = `${doc.dateReceived.getFullYear()}-${String(doc.dateReceived.getMonth() + 1).padStart(2, '0')}`;
+        if (monthlyMap.has(key)) monthlyMap.set(key, (monthlyMap.get(key) ?? 0) + 1);
+      }
+    }
+    const byMonth = Array.from(monthlyMap.entries()).map(([month, count]) => ({
+      month,
+      count,
+    }));
+
+    return { totalCount, byStatus, byDocumentType, byDepartment, byMonth };
+  }
 }
 
 export const incomingDocumentsService = new IncomingDocumentsService();
