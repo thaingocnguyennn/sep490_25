@@ -4,11 +4,13 @@ import { body, param, query } from 'express-validator';
 
 export const createOutgoingDocumentValidation = [
   body('title')
+    .trim()
     .notEmpty().withMessage('Tiêu đề văn bản không được để trống')
     .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
 
   body('description')
     .optional()
+    .trim()
     .isString().withMessage('Mô tả phải là chuỗi ký tự'),
 
   body('urgency')
@@ -54,22 +56,27 @@ export const createOutgoingDocumentValidation = [
 
   body('documentType')
     .optional()
+    .trim()
     .isString().withMessage('Loại văn bản phải là chuỗi ký tự'),
 
   body('recipientName')
     .optional()
+    .trim()
     .isString().withMessage('Tên người nhận phải là chuỗi ký tự'),
 
   body('recipientAddress')
     .optional()
+    .trim()
     .isString().withMessage('Địa chỉ người nhận phải là chuỗi ký tự'),
 
   body('recipientEmail')
     .optional()
+    .trim()
     .isEmail().withMessage('Email người nhận không hợp lệ'),
 
   body('notes')
     .optional()
+    .trim()
     .isString().withMessage('Ghi chú phải là chuỗi ký tự'),
 ];
 
@@ -81,11 +88,13 @@ export const updateOutgoingMetadataValidation = [
 
   body('title')
     .optional()
+    .trim()
     .notEmpty().withMessage('Tiêu đề không được rỗng nếu được cung cấp')
     .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
 
   body('description')
     .optional()
+    .trim()
     .isString(),
 
   body('urgency')
@@ -134,26 +143,32 @@ export const updateOutgoingMetadataValidation = [
 
   body('documentType')
     .optional()
+    .trim()
     .isString(),
 
   body('documentNumber')
     .optional()
+    .trim()
     .isString(),
 
   body('signerName')
     .optional()
+    .trim()
     .isString(),
 
   body('signerTitle')
     .optional()
+    .trim()
     .isString(),
 
   body('recipientName')
     .optional()
+    .trim()
     .isString(),
 
   body('recipientAddress')
     .optional()
+    .trim()
     .isString(),
 
   body('recipientEmail')

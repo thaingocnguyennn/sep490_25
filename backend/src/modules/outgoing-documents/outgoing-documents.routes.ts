@@ -87,7 +87,7 @@ router.patch(
   outgoingDocumentsController.updateMetadata.bind(outgoingDocumentsController),
 );
 
-// ─── Route cập nhật trạng thái (workflow) ────────────────────────────────────
+// ─── Route cập nhật trạng thái (workflow) & Xóa ────────────────────────────────────
 // PATCH /outgoing-documents/:id/status — Cập nhật trạng thái (#5 → #16)
 router.patch(
   '/:id/status',
@@ -96,6 +96,16 @@ router.patch(
   updateOutgoingStatusValidation,
   validateRequest,
   outgoingDocumentsController.updateStatus.bind(outgoingDocumentsController),
+);
+
+// DELETE /outgoing-documents/:id — Xóa mềm văn bản đi
+router.delete(
+  '/:id',
+  authenticate,
+  requireRole(ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK, ROLES.DEPARTMENT_HEAD),
+  outgoingIdParamValidation,
+  validateRequest,
+  outgoingDocumentsController.delete.bind(outgoingDocumentsController),
 );
 
 export default router;

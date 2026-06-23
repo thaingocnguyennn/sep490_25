@@ -180,6 +180,20 @@ export class OutgoingDocumentsController {
       next(error);
     }
   }
+
+  /**
+   * DELETE /outgoing-documents/:id
+   * Xóa mềm văn bản đi (chức năng #5 - Delete).
+   */
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const result = await outgoingDocumentsService.softDelete(id, req.user!.userId);
+      res.status(200).json(successResponse(result, 'Đã đưa văn bản đi vào thùng rác'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const outgoingDocumentsController = new OutgoingDocumentsController();

@@ -497,6 +497,56 @@ export class OutgoingDocumentsService {
 
     return outgoingDocumentsRepository.findById(id);
   }
+
+  /**
+   * Xóa mềm văn bản đi (chức năng #5 - Delete).
+   * Chuyển trạng thái sang TRASHED.
+   * Chỉ cho phép chuyên viên, văn thư hoặc trưởng phòng xóa văn bản chưa hoàn tất/hủy.
+   */
+  async softDelete(id: number, userId: number) {
+    const outgoing = await outgoingDocumentsRepository.findById(id);
+    const currentStatus = outgoing.document.status;
+    const forbiddenStatuses = ['COMPLETED', 'TRASHED', 'CANCELLED'];
+
+    if (forbiddenStatuses.includes(currentStatus)) {
+      throw new BadRequestError(
+        `Không thể xóa văn bản đang ở trạng thái "${currentStatus}".`,
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Đổi trạng thái document thành TRASHED
+      await tx.document.update({
+        where: { id: outgoing.documentId },
+        data: {
+          status: 'TRASHED',
+          updatedBy: userId,
+        },
+      });
+
+      // Cập nhật thông tin thùng rác trong outgoingDocument
+      await tx.outgoingDocument.update({
+        where: { id },
+        data: {
+          trashedAt: new Date(),
+          trashedBy: userId,
+        },
+      });
+
+      // Ghi log xóa mềm
+      await tx.systemLog.create({
+        data: {
+          userId,
+          action: 'OUTGOING_SOFT_DELETE',
+          entityType: 'OutgoingDocument',
+          entityId: id,
+          details: `Xóa mềm (chuyển vào thùng rác) văn bản đi`,
+        },
+      });
+    });
+
+    return outgoingDocumentsRepository.findById(id);
+  }
 }
 
 export const outgoingDocumentsService = new OutgoingDocumentsService();
