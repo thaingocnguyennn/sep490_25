@@ -26,17 +26,17 @@ const formatDate = (dateStr: string | null | undefined): string => {
 
 // Helper: tên trạng thái tiếng Việt
 const STATUS_LABEL: Record<string, string> = {
-  DRAFT:             'Bản nháp',
-  SUBMITTED:         'Chờ duyệt',
-  RETURNED:          'Trả lại',
-  APPROVED:          'Đã duyệt',
+  DRAFT: 'Bản nháp',
+  SUBMITTED: 'Chờ duyệt',
+  RETURNED: 'Trả lại',
+  APPROVED: 'Đã duyệt',
   WAITING_FOR_ISSUE: 'Chờ phát hành',
-  ISSUED:            'Đã phát hành',
-  COMPLETED:         'Hoàn tất',
-  RECALLED:          'Thu hồi',
-  TRASHED:           'Thùng rác',
-  REJECTED:          'Từ chối',
-  CANCELLED:         'Đã hủy',
+  ISSUED: 'Đã phát hành',
+  COMPLETED: 'Hoàn tất',
+  RECALLED: 'Thu hồi',
+  TRASHED: 'Thùng rác',
+  REJECTED: 'Từ chối',
+  CANCELLED: 'Đã hủy',
 };
 
 export default function OutgoingDocumentDetailPage() {
@@ -79,22 +79,22 @@ export default function OutgoingDocumentDetailPage() {
   const justCreated = (location.state as { justCreated?: boolean })?.justCreated;
 
   // Xác định role
-  const isSpecialist   = user?.roles.includes('SPECIALIST');
-  const isDeptHead     = user?.roles.includes('DEPARTMENT_HEAD');
-  const isClerk        = user?.roles.includes('DOCUMENT_CLERK');
-  const isAdmin        = user?.roles.includes('ADMIN');
+  const isSpecialist = user?.roles.includes('SPECIALIST');
+  const isDeptHead = user?.roles.includes('DEPARTMENT_HEAD');
+  const isClerk = user?.roles.includes('DOCUMENT_CLERK');
+  const isAdmin = user?.roles.includes('ADMIN');
 
-  const canEdit   = (isSpecialist || isClerk) && ['DRAFT', 'RETURNED'].includes(doc?.document.status ?? '');
+  const canEdit = (isSpecialist || isClerk) && ['DRAFT', 'RETURNED'].includes(doc?.document.status ?? '');
   const canUpload = (isSpecialist || isClerk) && ['DRAFT', 'RETURNED'].includes(doc?.document.status ?? '');
-  const canOcr    = canUpload && !!doc?.document.fileUrl;
+  const canOcr = canUpload && !!doc?.document.fileUrl;
   const canSubmit = isSpecialist && doc?.document.status === 'DRAFT';
   const canApprove = isDeptHead && doc?.document.status === 'SUBMITTED';
-  const canReturn  = isDeptHead && doc?.document.status === 'SUBMITTED';
+  const canReturn = isDeptHead && doc?.document.status === 'SUBMITTED';
   const canForward = isDeptHead && doc?.document.status === 'APPROVED';
-  const canIssue   = isClerk && doc?.document.status === 'WAITING_FOR_ISSUE';
-  const canRecall  = isClerk && doc?.document.status === 'ISSUED';
+  const canIssue = isClerk && doc?.document.status === 'WAITING_FOR_ISSUE';
+  const canRecall = isClerk && doc?.document.status === 'ISSUED';
   const canSendEmail = (isSpecialist || isClerk || isDeptHead || isAdmin) && doc?.document.status === 'ISSUED';
-  const canTrash   = (isSpecialist || isClerk || isDeptHead) && !['COMPLETED', 'TRASHED', 'CANCELLED'].includes(doc?.document.status ?? '');
+  const canTrash = (isSpecialist || isClerk || isDeptHead) && !['COMPLETED', 'TRASHED', 'CANCELLED'].includes(doc?.document.status ?? '');
   const canRestore = (isClerk || isAdmin) && doc?.document.status === 'TRASHED';
 
   const loadDoc = async () => {
@@ -159,12 +159,12 @@ export default function OutgoingDocumentDetailPage() {
     }
 
     const statusMap: Record<string, string> = {
-      submit:  'SUBMITTED',
+      submit: 'SUBMITTED',
       approve: 'APPROVED',
-      return:  'RETURNED',
+      return: 'RETURNED',
       forward: 'WAITING_FOR_ISSUE',
-      issue:   'ISSUED',
-      recall:  'RECALLED',
+      issue: 'ISSUED',
+      recall: 'RECALLED',
       restore: 'DRAFT',
     };
 
@@ -469,8 +469,8 @@ export default function OutgoingDocumentDetailPage() {
                     <div style={{ fontSize: 13, color: '#636e72' }}>
                       OCR: <strong>{
                         doc.document.ocrStatus === 'COMPLETED' ? '✅ Hoàn tất' :
-                        doc.document.ocrStatus === 'PROCESSING' ? '⏳ Đang xử lý' :
-                        doc.document.ocrStatus === 'FAILED' ? '❌ Thất bại' : '⏸️ Chưa chạy'
+                          doc.document.ocrStatus === 'PROCESSING' ? '⏳ Đang xử lý' :
+                            doc.document.ocrStatus === 'FAILED' ? '❌ Thất bại' : '⏸️ Chưa chạy'
                       }</strong>
                     </div>
                     {canOcr && (
@@ -591,13 +591,13 @@ export default function OutgoingDocumentDetailPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ marginTop: 0 }}>
-              {statusModal.action === 'submit'  && '📤 Trình văn bản để duyệt'}
+              {statusModal.action === 'submit' && '📤 Trình văn bản để duyệt'}
               {statusModal.action === 'approve' && '✅ Phê duyệt văn bản'}
-              {statusModal.action === 'return'  && '↩️ Trả lại văn bản'}
+              {statusModal.action === 'return' && '↩️ Trả lại văn bản'}
               {statusModal.action === 'forward' && '📨 Chuyển cho văn thư phát hành'}
-              {statusModal.action === 'issue'   && '🚀 Phát hành văn bản'}
-              {statusModal.action === 'recall'  && '🔙 Thu hồi văn bản đã phát hành'}
-              {statusModal.action === 'trash'   && '🗑️ Chuyển vào thùng rác'}
+              {statusModal.action === 'issue' && '🚀 Phát hành văn bản'}
+              {statusModal.action === 'recall' && '🔙 Thu hồi văn bản đã phát hành'}
+              {statusModal.action === 'trash' && '🗑️ Chuyển vào thùng rác'}
               {statusModal.action === 'restore' && '♻️ Khôi phục từ thùng rác'}
             </h3>
 
@@ -710,10 +710,10 @@ export default function OutgoingDocumentDetailPage() {
             {/* Xác nhận chung */}
             {!['return', 'recall', 'issue'].includes(statusModal.action || '') && (
               <p style={{ color: '#636e72', marginBottom: 20 }}>
-                {statusModal.action === 'submit'  && 'Xác nhận trình văn bản lên Trưởng phòng để duyệt?'}
+                {statusModal.action === 'submit' && 'Xác nhận trình văn bản lên Trưởng phòng để duyệt?'}
                 {statusModal.action === 'approve' && 'Xác nhận phê duyệt văn bản này?'}
                 {statusModal.action === 'forward' && 'Xác nhận chuyển văn bản cho Văn thư để cấp số và phát hành?'}
-                {statusModal.action === 'trash'   && 'Văn bản sẽ được chuyển vào thùng rác. Có thể khôi phục sau.'}
+                {statusModal.action === 'trash' && 'Văn bản sẽ được chuyển vào thùng rác. Có thể khôi phục sau.'}
                 {statusModal.action === 'restore' && 'Khôi phục văn bản này từ thùng rác về trạng thái Bản nháp?'}
               </p>
             )}
@@ -733,8 +733,8 @@ export default function OutgoingDocumentDetailPage() {
                 disabled={actionLoading || (statusModal.action === 'return' && !returnReason.trim()) || (statusModal.action === 'recall' && !recallReason.trim())}
                 style={{
                   background: statusModal.action === 'trash' ? '#e74c3c' :
-                               statusModal.action === 'recall' ? '#c0392b' :
-                               statusModal.action === 'approve' ? '#27ae60' : undefined,
+                    statusModal.action === 'recall' ? '#c0392b' :
+                      statusModal.action === 'approve' ? '#27ae60' : undefined,
                 }}
               >
                 {actionLoading ? '⏳ Đang xử lý...' : 'Xác nhận'}

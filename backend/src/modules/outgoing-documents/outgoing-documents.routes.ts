@@ -34,6 +34,14 @@ router.get(
   outgoingDocumentsController.listTrashed.bind(outgoingDocumentsController),
 );
 
+// GET /outgoing-documents/statistics — Thống kê văn bản đi
+// PHẢI đặt TRƯỚC /:id để tránh Express nhầm "statistics" là một :id
+router.get(
+  '/statistics',
+  authenticate,
+  outgoingDocumentsController.getStatistics.bind(outgoingDocumentsController),
+);
+
 // GET /outgoing-documents/:id — Chi tiết văn bản đi
 router.get(
   '/:id',
