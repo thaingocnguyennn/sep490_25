@@ -122,12 +122,54 @@ export interface ProcessIncomingDocumentRequest {
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
 }
 
+/** Thống kê KPI tổng quan */
+export interface DashboardKpi {
+  totalIncoming: number;
+  totalOutgoing: number;
+  incomingPending: number;
+  outgoingIssued: number;
+  total: number;
+}
+
+/** Trend 12 tháng */
+export interface DashboardTrend {
+  year: number;
+  months: string[];
+  incoming: number[];
+  outgoing: number[];
+}
+
+/** Phân bổ theo trạng thái */
+export interface StatusDistributionItem {
+  status: string;
+  count: number;
+}
+
+/** Phân bổ theo độ khẩn */
+export interface UrgencyDistributionItem {
+  name: string;
+  count: number;
+}
+
+/** Toàn bộ dữ liệu thống kê Dashboard */
+export interface DashboardStats {
+  kpi: DashboardKpi;
+  trend: DashboardTrend;
+  outgoingStatus: StatusDistributionItem[];
+  incomingStatus: StatusDistributionItem[];
+  urgencyDistribution: UrgencyDistributionItem[];
+}
+
 export const documentsApi = {
   // ─── List & Filter ──────────────────────────────────────────────────────
 
   /** Get basic document stats */
   getStats: () =>
     api.get<ApiResponse<{ total: number; incoming: number; outgoing: number }>>('/documents/stats'),
+
+  /** Thống kê tổng hợp Dashboard (đến + đi) theo Nghị định 30/2020/NĐ-CP */
+  getDashboardStats: (params?: { year?: number }) =>
+    api.get<ApiResponse<DashboardStats>>('/documents/dashboard-stats', { params }),
 
   /** Get paginated & filtered document list */
   getAll: (params?: DocumentFilterParams) =>

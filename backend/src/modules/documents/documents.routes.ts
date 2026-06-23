@@ -39,6 +39,12 @@ router.get(
   documentsController.getStats.bind(documentsController)
 );
 
+// GET /documents/dashboard-stats?year=2025 — Thống kê tổng hợp đến/đi theo Nghị định 30
+router.get(
+  '/dashboard-stats',
+  documentsController.getDashboardStats.bind(documentsController)
+);
+
 // GET /documents/export — Export document list to Excel or PDF
 router.get(
   '/export',
