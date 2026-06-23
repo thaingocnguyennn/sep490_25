@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getOutgoingDocumentById, deleteOutgoingDocument } from '../../../api/modules/outgoing-documents';
+import { getOutgoingDocumentById, deleteOutgoingDocument, sendOutgoingEmail, SendEmailResult } from '../../../api/modules/outgoing-documents';
 import { useOutgoingDocumentActions } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
@@ -69,6 +69,13 @@ export default function OutgoingDocumentDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
+  // Email modal state
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailList, setEmailList] = useState<string[]>([]);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailResult, setEmailResult] = useState<SendEmailResult | null>(null);
+
   const justCreated = (location.state as { justCreated?: boolean })?.justCreated;
 
   // Xác định role
@@ -86,6 +93,7 @@ export default function OutgoingDocumentDetailPage() {
   const canForward = isDeptHead && doc?.document.status === 'APPROVED';
   const canIssue   = isClerk && doc?.document.status === 'WAITING_FOR_ISSUE';
   const canRecall  = isClerk && doc?.document.status === 'ISSUED';
+  const canSendEmail = (isSpecialist || isClerk || isDeptHead || isAdmin) && doc?.document.status === 'ISSUED';
   const canTrash   = (isSpecialist || isClerk || isDeptHead) && !['COMPLETED', 'TRASHED', 'CANCELLED'].includes(doc?.document.status ?? '');
   const canRestore = (isClerk || isAdmin) && doc?.document.status === 'TRASHED';
 
@@ -272,6 +280,16 @@ export default function OutgoingDocumentDetailPage() {
             <button id="btn-trash-doc" className="btn btn-secondary" onClick={() => setStatusModal({ open: true, action: 'trash' })}
               style={{ borderColor: '#e74c3c', color: '#e74c3c' }}>
               🗑️ Thùng rác
+            </button>
+          )}
+          {canSendEmail && (
+            <button
+              id="btn-send-email"
+              className="btn btn-primary"
+              onClick={() => { setEmailModal(true); setEmailResult(null); setEmailList([]); setEmailInput(doc?.recipientEmail || ''); }}
+              style={{ background: '#16a085' }}
+            >
+              📧 Gửi Email
             </button>
           )}
         </div>
@@ -722,6 +740,108 @@ export default function OutgoingDocumentDetailPage() {
                 {actionLoading ? '⏳ Đang xử lý...' : 'Xác nhận'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Gửi Email ──────────────────────────────────────────────── */}
+      {emailModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 20 }}>📧 Gửi văn bản qua Email</h2>
+            <p style={{ margin: '0 0 20px', color: '#636e72', fontSize: 14 }}>Nhập địa chỉ email người nhận. Có thể thêm nhiều email.</p>
+
+            {!emailResult ? (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={e => setEmailInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        const val = emailInput.trim();
+                        if (val && !emailList.includes(val)) {
+                          setEmailList(prev => [...prev, val]);
+                          setEmailInput('');
+                        }
+                      }
+                    }}
+                    placeholder="example@email.com (Enter để thêm)"
+                    style={{ flex: 1, padding: '8px 12px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      const val = emailInput.trim();
+                      if (val && !emailList.includes(val)) {
+                        setEmailList(prev => [...prev, val]);
+                        setEmailInput('');
+                      }
+                    }}
+                    style={{ padding: '8px 14px' }}
+                  >
+                    + Thêm
+                  </button>
+                </div>
+
+                {emailList.length > 0 && (
+                  <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {emailList.map(email => (
+                      <span key={email} style={{ background: '#e8f4fd', color: '#2980b9', borderRadius: 20, padding: '4px 10px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        ✉️ {email}
+                        <button onClick={() => setEmailList(prev => prev.filter(e => e !== email))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e74c3c', fontWeight: 700, padding: 0, lineHeight: 1 }}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+                  <button className="btn btn-secondary" onClick={() => setEmailModal(false)} disabled={emailSending}>Hủy</button>
+                  <button
+                    className="btn btn-primary"
+                    disabled={emailSending || emailList.length === 0}
+                    style={{ background: '#16a085' }}
+                    onClick={async () => {
+                      if (!doc) return;
+                      setEmailSending(true);
+                      try {
+                        const result = await sendOutgoingEmail(doc.id, emailList);
+                        setEmailResult(result);
+                      } catch (err: unknown) {
+                        alert(err instanceof Error ? err.message : 'Gửi email thất bại');
+                      } finally {
+                        setEmailSending(false);
+                      }
+                    }}
+                  >
+                    {emailSending ? '⏳ Đang gửi...' : `📨 Gửi cho ${emailList.length} người nhận`}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Hiển thị kết quả gửi */
+              <div>
+                <div style={{ background: emailResult.failedCount === 0 ? '#d4edda' : '#fff3cd', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                  <p style={{ margin: 0, fontWeight: 600, color: emailResult.failedCount === 0 ? '#155724' : '#856404' }}>
+                    {emailResult.failedCount === 0 ? '✅ Gửi email thành công!' : '⚠️ Gửi email hoàn tất (có lỗi)'}
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: 14, color: '#636e72' }}>
+                    Thành công: {emailResult.sentCount} | Thất bại: {emailResult.failedCount}
+                  </p>
+                </div>
+                {emailResult.failedEmails.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <p style={{ fontSize: 13, color: '#e74c3c', margin: '0 0 4px', fontWeight: 600 }}>Email gửi thất bại:</p>
+                    {emailResult.failedEmails.map(e => <p key={e} style={{ margin: '2px 0', fontSize: 13, color: '#636e72' }}>• {e}</p>)}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-primary" onClick={() => setEmailModal(false)}>Đóng</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

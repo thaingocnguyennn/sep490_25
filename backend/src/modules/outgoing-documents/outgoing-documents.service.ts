@@ -3,6 +3,7 @@ import { outgoingDocumentsRepository } from './outgoing-documents.repository';
 import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
+import { sendEmail } from '../../shared/services/email.service';
 import { DocumentStatus } from '@prisma/client';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
@@ -546,6 +547,117 @@ export class OutgoingDocumentsService {
     });
 
     return outgoingDocumentsRepository.findById(id);
+  }
+
+  /**
+   * Gửi văn bản đi qua email cho một danh sách email cụ thể.
+   * Chỉ cho phép gửi khi trạng thái là ISSUED.
+   */
+  async sendDocumentByEmail(
+    id: number,
+    recipients: string[], // danh sách email
+    userId: number,
+  ) {
+    const outgoing = await outgoingDocumentsRepository.findById(id);
+    const docStatus = outgoing.document.status;
+
+    if (docStatus !== 'ISSUED') {
+      throw new BadRequestError(
+        `Chỉ có thể gửi email khi văn bản đã được Phát hành (ISSUED). Trạng thái hiện tại: ${docStatus}`,
+      );
+    }
+
+    if (!recipients || recipients.length === 0) {
+      throw new BadRequestError('Danh sách email người nhận không được để trống');
+    }
+
+    const title = outgoing.document.title;
+    const docNumber = outgoing.dispatchNumber || outgoing.documentNumber || 'KHÔNG CÓ SỐ';
+    const issuanceDate = outgoing.issuanceDate
+      ? new Date(outgoing.issuanceDate).toLocaleDateString('vi-VN')
+      : 'Chưa xác định';
+    const signerName = outgoing.signerName || 'Chưa xác định';
+    const signerTitle = outgoing.signerTitle || '';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 6px 6px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">&#128394; Văn bản chính thức</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 20px;">
+          <p style="color: #333;">Kính gửi Quý đơn vị / Cá nhân,</p>
+          <p style="color: #333;">Hệ thống quản lý văn bản trân trọng gửi đến Quý vị văn bản sau:</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+            <tr style="background: #fff; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px; font-weight: bold; color: #555; width: 160px;">&#128204; Tiêu đề:</td>
+              <td style="padding: 10px; color: #222;">${title}</td>
+            </tr>
+            <tr style="background: #f5f5f5; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px; font-weight: bold; color: #555;">&#128196; Số hiệu:</td>
+              <td style="padding: 10px; color: #222;">${docNumber}</td>
+            </tr>
+            <tr style="background: #fff; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px; font-weight: bold; color: #555;">&#128197; Ngày ban hành:</td>
+              <td style="padding: 10px; color: #222;">${issuanceDate}</td>
+            </tr>
+            <tr style="background: #f5f5f5;">
+              <td style="padding: 10px; font-weight: bold; color: #555;">&#128100; Người ký:</td>
+              <td style="padding: 10px; color: #222;">${signerName}${signerTitle ? ` &ndash; ${signerTitle}` : ''}</td>
+            </tr>
+          </table>
+          <p style="color: #888; font-size: 13px;">Email này được gửi tự động từ Hệ thống Quản lý Văn bản. Vui lòng không trả lời email này.</p>
+        </div>
+      </div>
+    `;
+
+    // Tạo danh sách file đính kèm nếu có file
+    const attachments: Array<{ filename: string; path: string }> = [];
+    const fileUrl = outgoing.document.fileUrl;
+    if (fileUrl) {
+      const filePath = path.join(config.uploadDir || 'uploads', path.basename(fileUrl));
+      if (fs.existsSync(filePath)) {
+        attachments.push({
+          filename: `${title}.${path.extname(fileUrl).slice(1) || 'pdf'}`,
+          path: filePath,
+        });
+      }
+    }
+
+    // Gửi email
+    const failedEmails: string[] = [];
+    const sentEmails: string[] = [];
+
+    for (const email of recipients) {
+      try {
+        await sendEmail({
+          to: email,
+          subject: `[Văn bản] ${title} - Số: ${docNumber}`,
+          html,
+          attachments,
+        });
+        sentEmails.push(email);
+      } catch {
+        failedEmails.push(email);
+      }
+    }
+
+    // Ghi log
+    await prisma.systemLog.create({
+      data: {
+        userId,
+        action: 'OUTGOING_SEND_EMAIL',
+        entityType: 'OutgoingDocument',
+        entityId: id,
+        details: `Gửi email văn bản đi. Thành công: [${sentEmails.join(', ')}]. Thất bại: [${failedEmails.join(', ')}]`,
+      },
+    });
+
+    return {
+      sentCount: sentEmails.length,
+      failedCount: failedEmails.length,
+      sentEmails,
+      failedEmails,
+    };
   }
 }
 
