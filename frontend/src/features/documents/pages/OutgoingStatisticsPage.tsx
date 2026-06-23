@@ -4,6 +4,7 @@ import {
   OutgoingStatisticsData,
   OutgoingStatisticsParams,
 } from '../../../api/modules/outgoing-documents';
+import { useAuth } from '../../../contexts/AuthContext';
 
 // ─── Hằng số nhãn tiếng Việt ─────────────────────────────────────────────────
 
@@ -250,6 +251,7 @@ function MonthlyTrendChart({ data }: { data: { month: string; count: number }[] 
 // ─── Trang Thống kê Văn bản đi ────────────────────────────────────────────────
 
 export default function OutgoingStatisticsPage() {
+  const { user } = useAuth();
   const [data, setData]       = useState<OutgoingStatisticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -316,6 +318,16 @@ export default function OutgoingStatisticsPage() {
           Tổng hợp số liệu và xu hướng văn bản đi trong hệ thống
         </p>
       </div>
+
+      {user?.roles?.includes('SPECIALIST') && !user?.roles?.includes('ADMIN') && !user?.roles?.includes('DEPARTMENT_HEAD') && !user?.roles?.includes('DOCUMENT_CLERK') && (
+        <div style={{
+          background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8,
+          padding: '12px 16px', marginBottom: 24, color: '#1e40af', fontSize: 14,
+          display: 'flex', alignItems: 'center', gap: 8
+        }}>
+          ℹ️ Đang xem dữ liệu nội bộ phòng ban.
+        </div>
+      )}
 
       {/* ── Bộ lọc thời gian ───────────────────────────────────────────── */}
       <div

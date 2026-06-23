@@ -91,7 +91,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </NavLink>
-            <NavLink to="/outgoing-documents/statistics" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Thống kê văn bản đi">
+            <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Thống kê văn bản">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="20" x2="18" y2="10" />
                 <line x1="12" y1="20" x2="12" y2="4" />
@@ -158,13 +158,13 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
               </svg>
               Văn bản đi
             </NavLink>
-            <NavLink to="/outgoing-documents/statistics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="20" x2="18" y2="10" />
                 <line x1="12" y1="20" x2="12" y2="4" />
                 <line x1="6"  y1="20" x2="6"  y2="14" />
               </svg>
-              Thống kê văn bản đi
+              Thống kê văn bản
             </NavLink>
           </>
         )}

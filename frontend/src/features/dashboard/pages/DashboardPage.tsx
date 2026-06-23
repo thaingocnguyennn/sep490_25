@@ -240,6 +240,16 @@ export default function DashboardPage() {
       </div>
 
       <div className="page-content">
+        {user?.roles?.includes('SPECIALIST') && !user?.roles?.includes('ADMIN') && !user?.roles?.includes('DEPARTMENT_HEAD') && !user?.roles?.includes('DOCUMENT_CLERK') && (
+          <div style={{
+            background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8,
+            padding: '12px 16px', marginBottom: 16, color: '#1e40af', fontSize: 14,
+            display: 'flex', alignItems: 'center', gap: 8
+          }}>
+            ℹ️ Đang xem dữ liệu nội bộ phòng ban.
+          </div>
+        )}
+
         {/* Thông báo lỗi */}
         {error && (
           <div style={{

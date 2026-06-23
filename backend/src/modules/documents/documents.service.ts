@@ -421,33 +421,51 @@ export class DocumentsService {
    *  - Phân bổ trạng thái văn bản đi (theo DocumentLifecycleStatus)
    *  - Phân bổ theo độ khẩn của văn bản đến
    */
-  async getDashboardStats(params: { year?: number }) {
+  async getDashboardStats(params: { year?: number; departmentId?: number }) {
     const year = params.year ?? new Date().getFullYear();
+    const departmentId = params.departmentId;
     const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
     const endOfYear = new Date(`${year + 1}-01-01T00:00:00.000Z`);
 
+    const baseDocumentFilter: any = { documentStatus: 'ACTIVE' };
+    if (departmentId && departmentId !== -1) {
+      baseDocumentFilter.departmentId = departmentId;
+    } else if (departmentId === -1) {
+      // If departmentId is -1, it means the user has no department but is restricted.
+      // We force a query that matches nothing.
+      baseDocumentFilter.departmentId = -1;
+    }
+
     // ─── 1. KPI tổng quan ───────────────────────────────────────────────────
     const [totalIncoming, totalOutgoing, incomingPending, outgoingIssued] = await Promise.all([
-      prisma.incomingDocument.count(),
-      prisma.outgoingDocument.count(),
-      prisma.document.count({
-        where: {
-          type: 'INCOMING',
-          status: { in: ['PENDING', 'IN_PROGRESS'] },
-          documentStatus: 'ACTIVE',
-        },
+      prisma.incomingDocument.count({
+        where: { document: baseDocumentFilter },
       }),
       prisma.outgoingDocument.count({
-        where: { document: { status: 'ISSUED' } },
+        where: { document: baseDocumentFilter },
+      }),
+      prisma.document.count({
+        where: {
+          ...baseDocumentFilter,
+          type: 'INCOMING',
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
+        },
+      }),
+      prisma.document.count({
+        where: { 
+          ...baseDocumentFilter,
+          type: 'OUTGOING',
+          status: 'ISSUED' 
+        },
       }),
     ]);
 
     // ─── 2. Trend 12 tháng trong năm ────────────────────────────────────────
-    // Truy vấn thô theo tháng (0-11) để tổng hợp lượng văn bản
     const [incomingByMonth, outgoingByMonth] = await Promise.all([
       prisma.incomingDocument.groupBy({
         by: ['dateReceived'],
         where: {
+          document: baseDocumentFilter,
           dateReceived: { gte: startOfYear, lt: endOfYear },
         },
         _count: { id: true },
@@ -455,41 +473,44 @@ export class DocumentsService {
       prisma.outgoingDocument.groupBy({
         by: ['createdAt'],
         where: {
+          document: baseDocumentFilter,
           createdAt: { gte: startOfYear, lt: endOfYear },
         },
         _count: { id: true },
       }),
     ]);
 
-    // Tổng hợp theo tháng (mảng 12 phần tử, index = tháng 0-11)
     const incomingMonthly = Array(12).fill(0);
     const outgoingMonthly = Array(12).fill(0);
 
     for (const row of incomingByMonth) {
-      const month = new Date(row.dateReceived).getMonth();
-      incomingMonthly[month] += row._count.id;
+      if (row.dateReceived) {
+        const month = new Date(row.dateReceived).getMonth();
+        incomingMonthly[month] += row._count.id;
+      }
     }
     for (const row of outgoingByMonth) {
-      const month = new Date(row.createdAt).getMonth();
-      outgoingMonthly[month] += row._count.id;
+      if (row.createdAt) {
+        const month = new Date(row.createdAt).getMonth();
+        outgoingMonthly[month] += row._count.id;
+      }
     }
 
     // ─── 3. Phân bổ trạng thái văn bản đi (Document.status) ─────────────────
     const outgoingStatusDistribution = await prisma.document.groupBy({
       by: ['status'],
-      where: { type: 'OUTGOING', documentStatus: 'ACTIVE' },
+      where: { ...baseDocumentFilter, type: 'OUTGOING' },
       _count: { id: true },
     });
 
     // ─── 4. Phân bổ theo độ khẩn văn bản đến ────────────────────────────────
     const incomingByUrgency = await prisma.document.groupBy({
       by: ['urgencyId'],
-      where: { type: 'INCOMING', documentStatus: 'ACTIVE' },
+      where: { ...baseDocumentFilter, type: 'INCOMING' },
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
 
-    // Lấy tên độ khẩn theo id
     const urgencyIds = incomingByUrgency
       .map((r) => r.urgencyId)
       .filter((id): id is number => id !== null);
@@ -508,7 +529,7 @@ export class DocumentsService {
     // ─── 5. Phân bổ trạng thái văn bản đến (document.status) ────────────────
     const incomingStatusDistribution = await prisma.document.groupBy({
       by: ['status'],
-      where: { type: 'INCOMING', documentStatus: 'ACTIVE' },
+      where: { ...baseDocumentFilter, type: 'INCOMING' },
       _count: { id: true },
     });
 
