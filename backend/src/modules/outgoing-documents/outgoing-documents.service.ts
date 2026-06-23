@@ -10,6 +10,8 @@ import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../../config';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 // ─── Helper: Map Urgency → Priority (legacy derivation) ──────────────────────
 
@@ -713,7 +715,7 @@ export class OutgoingDocumentsService {
       by: ['status'],
       where: {
         ...baseDocumentFilter,
-        outgoingDocument: { isNot: null },
+        type: 'OUTGOING',
       } as any,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
@@ -742,7 +744,7 @@ export class OutgoingDocumentsService {
       by: ['departmentId'],
       where: {
         ...baseDocumentFilter,
-        outgoingDocument: { isNot: null },
+        type: 'OUTGOING',
         departmentId: { not: null },
       } as any,
       _count: { id: true },
@@ -806,7 +808,7 @@ export class OutgoingDocumentsService {
       where: {
         ...baseDocumentFilter,
         status: 'ISSUED',
-        outgoingDocument: { isNot: null },
+        type: 'OUTGOING',
       } as any,
     });
 
@@ -818,6 +820,150 @@ export class OutgoingDocumentsService {
       byDepartment,
       byMonth,
     };
+  }
+
+  /**
+   * Export danh sách Văn bản đi ra file Excel.
+   */
+  async exportToExcel(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    urgency?: string;
+    includeTrashed?: boolean;
+    documentType?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    confidentialityLevel?: string;
+    departmentId?: number;
+  }): Promise<Buffer> {
+    const listParams = { ...params, page: 1, limit: 10000 };
+    const { items } = await outgoingDocumentsRepository.findAll(listParams as any);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'DMS System';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Văn bản đi');
+
+    sheet.columns = [
+      { header: 'STT', key: 'index', width: 6 },
+      { header: 'Số đi', key: 'dispatchNumber', width: 15 },
+      { header: 'Số/Ký hiệu', key: 'documentNumber', width: 20 },
+      { header: 'Nơi nhận', key: 'recipientName', width: 25 },
+      { header: 'Trích yếu', key: 'title', width: 40 },
+      { header: 'Người ký', key: 'signerName', width: 20 },
+      { header: 'Loại VB', key: 'documentType', width: 15 },
+      { header: 'Độ khẩn', key: 'urgencyName', width: 15 },
+      { header: 'Ngày gửi', key: 'sentDate', width: 15 },
+      { header: 'Ngày phát hành', key: 'issuedAt', width: 15 },
+      { header: 'Trạng thái', key: 'status', width: 15 },
+    ];
+
+    sheet.getRow(1).font = { bold: true, size: 12 };
+    sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+    items.forEach((item, index) => {
+      sheet.addRow({
+        index: index + 1,
+        dispatchNumber: item.dispatchNumber || '—',
+        documentNumber: item.document.documentNumber || '—',
+        recipientName: item.recipientName || '—',
+        title: item.document.title || '—',
+        signerName: item.signerName || '—',
+        documentType: item.documentType || '—',
+        urgencyName: item.document.urgency?.name || '—',
+        sentDate: item.sentDate ? new Date(item.sentDate).toLocaleDateString('vi-VN') : '—',
+        issuedAt: item.issuedAt ? new Date(item.issuedAt).toLocaleDateString('vi-VN') : '—',
+        status: item.document.status,
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as unknown as Buffer;
+  }
+
+  /**
+   * Export danh sách Văn bản đi ra file PDF.
+   */
+  async exportToPdf(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    urgency?: string;
+    includeTrashed?: boolean;
+    documentType?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    confidentialityLevel?: string;
+    departmentId?: number;
+  }): Promise<Buffer> {
+    const listParams = { ...params, page: 1, limit: 10000 };
+    const { items } = await outgoingDocumentsRepository.findAll(listParams as any);
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(16).text('BÁO CÁO VĂN BẢN ĐI', { align: 'center' });
+      doc.moveDown(0.5);
+      doc.fontSize(10).text(`Ngày xuất: ${new Date().toLocaleString('vi-VN')}`, { align: 'center' });
+      doc.moveDown(1.5);
+
+      const startX = 40;
+      let y = doc.y;
+      const colWidths = [30, 80, 80, 100, 250, 70, 70];
+      const headers = ['STT', 'Số đi', 'Số/Ký hiệu', 'Nơi nhận', 'Trích yếu', 'Ngày gửi', 'Trạng thái'];
+
+      doc.fontSize(9).font('Helvetica-Bold');
+      headers.forEach((header, i) => {
+        const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0);
+        doc.text(header, x, y, { width: colWidths[i], align: 'left' });
+      });
+
+      y = doc.y + 4;
+      doc.moveTo(startX, y).lineTo(startX + colWidths.reduce((a, b) => a + b, 0), y).stroke();
+      y += 6;
+
+      doc.font('Helvetica').fontSize(8);
+      items.forEach((item, index) => {
+        if (y > doc.page.height - 60) {
+          doc.addPage();
+          y = 40;
+        }
+
+        const title = item.document.title.length > 50 ? item.document.title.substring(0, 50) + '...' : item.document.title;
+        const recipient = (item.recipientName || '').length > 20 ? (item.recipientName || '').substring(0, 20) + '...' : (item.recipientName || '—');
+
+        const row = [
+          String(index + 1),
+          item.dispatchNumber ? String(item.dispatchNumber) : '—',
+          item.document.documentNumber || '—',
+          recipient,
+          title,
+          item.sentDate ? new Date(item.sentDate).toLocaleDateString('vi-VN') : '—',
+          item.document.status,
+        ];
+
+        row.forEach((cell, i) => {
+          const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0);
+          doc.text(cell, x, y, { width: colWidths[i], align: 'left' });
+        });
+
+        y = doc.y + 4;
+      });
+
+      doc.moveDown(2);
+      doc.fontSize(8).text(`Tổng số: ${items.length} văn bản`, { align: 'right' });
+
+      doc.end();
+    });
   }
 }
 
