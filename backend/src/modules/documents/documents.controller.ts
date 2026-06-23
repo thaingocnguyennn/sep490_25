@@ -20,6 +20,20 @@ export class DocumentsController {
   }
 
   /**
+   * GET /documents/dashboard-stats?year=2025
+   * Thống kê tổng hợp văn bản đến và đi theo Nghị định 30/2020/NĐ-CP.
+   */
+  async getDashboardStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const year = req.query.year ? Number(req.query.year) : undefined;
+      const stats = await documentsService.getDashboardStats({ year });
+      res.status(200).json(successResponse(stats, 'Dashboard stats retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /documents
    * List documents with filtering and pagination.
    */

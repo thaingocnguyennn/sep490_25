@@ -406,10 +406,134 @@ export class DocumentsService {
   }
 
   /**
-   * Get basic stats for dashboard.
+   * Get basic stats for dashboard (legacy, simple version).
    */
   async getStats(): Promise<{ total: number; incoming: number; outgoing: number }> {
     return documentsRepository.getStats();
+  }
+
+  /**
+   * GET /documents/dashboard-stats
+   * Thống kê tổng hợp văn bản đến và đi theo Nghị định 30/2020/NĐ-CP.
+   * Trả về:
+   *  - KPI tổng quan (tổng đến, tổng đi, đang xử lý, đã hoàn thành)
+   *  - Trend 12 tháng so sánh lượng văn bản đến/đi
+   *  - Phân bổ trạng thái văn bản đi (theo DocumentLifecycleStatus)
+   *  - Phân bổ theo độ khẩn của văn bản đến
+   */
+  async getDashboardStats(params: { year?: number }) {
+    const year = params.year ?? new Date().getFullYear();
+    const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+    const endOfYear = new Date(`${year + 1}-01-01T00:00:00.000Z`);
+
+    // ─── 1. KPI tổng quan ───────────────────────────────────────────────────
+    const [totalIncoming, totalOutgoing, incomingPending, outgoingIssued] = await Promise.all([
+      prisma.incomingDocument.count(),
+      prisma.outgoingDocument.count(),
+      prisma.document.count({
+        where: {
+          type: 'INCOMING',
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
+          documentStatus: 'ACTIVE',
+        },
+      }),
+      prisma.outgoingDocument.count({
+        where: { document: { status: 'ISSUED' } },
+      }),
+    ]);
+
+    // ─── 2. Trend 12 tháng trong năm ────────────────────────────────────────
+    // Truy vấn thô theo tháng (0-11) để tổng hợp lượng văn bản
+    const [incomingByMonth, outgoingByMonth] = await Promise.all([
+      prisma.incomingDocument.groupBy({
+        by: ['dateReceived'],
+        where: {
+          dateReceived: { gte: startOfYear, lt: endOfYear },
+        },
+        _count: { id: true },
+      }),
+      prisma.outgoingDocument.groupBy({
+        by: ['createdAt'],
+        where: {
+          createdAt: { gte: startOfYear, lt: endOfYear },
+        },
+        _count: { id: true },
+      }),
+    ]);
+
+    // Tổng hợp theo tháng (mảng 12 phần tử, index = tháng 0-11)
+    const incomingMonthly = Array(12).fill(0);
+    const outgoingMonthly = Array(12).fill(0);
+
+    for (const row of incomingByMonth) {
+      const month = new Date(row.dateReceived).getMonth();
+      incomingMonthly[month] += row._count.id;
+    }
+    for (const row of outgoingByMonth) {
+      const month = new Date(row.createdAt).getMonth();
+      outgoingMonthly[month] += row._count.id;
+    }
+
+    // ─── 3. Phân bổ trạng thái văn bản đi (DocumentLifecycleStatus) ─────────
+    const outgoingStatusDistribution = await prisma.outgoingDocument.groupBy({
+      by: ['documentLifecycleStatus'],
+      _count: { id: true },
+    });
+
+    // ─── 4. Phân bổ theo độ khẩn văn bản đến ────────────────────────────────
+    const incomingByUrgency = await prisma.incomingDocument.groupBy({
+      by: ['urgencyId'],
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+
+    // Lấy tên độ khẩn theo id
+    const urgencyIds = incomingByUrgency
+      .map((r) => r.urgencyId)
+      .filter((id): id is number => id !== null);
+
+    const urgencies = urgencyIds.length > 0
+      ? await prisma.urgencyLevel.findMany({ where: { id: { in: urgencyIds } } })
+      : [];
+
+    const urgencyMap = new Map(urgencies.map((u) => [u.id, u.name]));
+
+    const urgencyDistribution = incomingByUrgency.map((r) => ({
+      name: r.urgencyId ? urgencyMap.get(r.urgencyId) ?? 'Không xác định' : 'Chưa phân loại',
+      count: r._count.id,
+    }));
+
+    // ─── 5. Phân bổ trạng thái văn bản đến (document.status) ────────────────
+    const incomingStatusDistribution = await prisma.document.groupBy({
+      by: ['status'],
+      where: { type: 'INCOMING', documentStatus: 'ACTIVE' },
+      _count: { id: true },
+    });
+
+    return {
+      kpi: {
+        totalIncoming,
+        totalOutgoing,
+        incomingPending,       // Văn bản đến đang chờ / đang xử lý
+        outgoingIssued,        // Văn bản đi đã được phát hành
+        total: totalIncoming + totalOutgoing,
+      },
+      trend: {
+        year,
+        months: ['T1','T2','T3','T4','T5','T6','T7','T8','T9','T10','T11','T12'],
+        incoming: incomingMonthly,
+        outgoing: outgoingMonthly,
+      },
+      outgoingStatus: outgoingStatusDistribution.map((r) => ({
+        status: r.documentLifecycleStatus,
+        count: r._count.id,
+      })),
+      incomingStatus: incomingStatusDistribution.map((r) => ({
+        status: r.status,
+        count: r._count.id,
+      })),
+      urgencyDistribution,
+    };
   }
 
   /**
