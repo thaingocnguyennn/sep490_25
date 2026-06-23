@@ -214,6 +214,31 @@ export class OutgoingDocumentsController {
       next(error);
     }
   }
+
+  /**
+   * GET /outgoing-documents/statistics
+   * Trả về số liệu thống kê văn bản đi.
+   * Query params: dateFrom, dateTo, departmentId
+   */
+  async getStatistics(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dateFrom    = req.query.dateFrom    as string | undefined;
+      const dateTo      = req.query.dateTo      as string | undefined;
+      const departmentId = req.query.departmentId
+        ? parseInt(req.query.departmentId as string)
+        : undefined;
+
+      const data = await outgoingDocumentsService.getStatistics({
+        dateFrom,
+        dateTo,
+        departmentId,
+      });
+
+      res.status(200).json(successResponse(data, 'Lấy thống kê văn bản đi thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const outgoingDocumentsController = new OutgoingDocumentsController();

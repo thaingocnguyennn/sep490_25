@@ -659,6 +659,166 @@ export class OutgoingDocumentsService {
       failedEmails,
     };
   }
+
+  /**
+   * Thống kê văn bản đi theo các chiều dữ liệu:
+   *  - Tổng số văn bản đi
+   *  - Phân bổ theo trạng thái (DRAFT, SUBMITTED, APPROVED, ISSUED, ...)
+   *  - Phân bổ theo loại văn bản (documentType)
+   *  - Phân bổ theo phòng ban soạn thảo
+   *  - Xu hướng theo tháng (12 tháng gần nhất)
+   *
+   * @param params - Bộ lọc thời gian (dateFrom, dateTo) và phòng ban
+   */
+  async getStatistics(params: {
+    dateFrom?: string;
+    dateTo?: string;
+    departmentId?: number;
+  } = {}) {
+    const { dateFrom, dateTo, departmentId } = params;
+
+    // ── Điều kiện chung áp dụng cho mọi truy vấn ───────────────────────────
+    const baseDocumentFilter: Record<string, unknown> = {
+      documentStatus: 'ACTIVE', // Chỉ đếm văn bản đang hoạt động
+    };
+
+    if (dateFrom || dateTo) {
+      baseDocumentFilter.createdAt = {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
+      };
+    }
+
+    if (departmentId) {
+      baseDocumentFilter.departmentId = departmentId;
+    }
+
+    const baseOutgoingFilter: Record<string, unknown> = {
+      document: baseDocumentFilter,
+    };
+
+    // ── 1. Tổng số văn bản đi ─────────────────────────────────────────────
+    const totalCount = await prisma.outgoingDocument.count({
+      where: baseOutgoingFilter as any,
+    });
+
+    // ── 2. Phân bổ theo trạng thái ────────────────────────────────────────
+    const rawByStatus = await prisma.outgoingDocument.groupBy({
+      by: ['id'], // groupBy status thông qua document relation
+      where: baseOutgoingFilter as any,
+    });
+
+    // Lấy trực tiếp từ bảng Document, join outgoing để giữ đúng phạm vi
+    const byStatusRaw = await prisma.document.groupBy({
+      by: ['status'],
+      where: {
+        ...baseDocumentFilter,
+        outgoingDocument: { isNot: null },
+      } as any,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+
+    const byStatus = byStatusRaw.map((row) => ({
+      status: row.status as string,
+      count: row._count.id,
+    }));
+
+    // ── 3. Phân bổ theo loại văn bản ──────────────────────────────────────
+    const byDocumentTypeRaw = await prisma.outgoingDocument.groupBy({
+      by: ['documentType'],
+      where: baseOutgoingFilter as any,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+
+    const byDocumentType = byDocumentTypeRaw.map((row) => ({
+      documentType: row.documentType ?? 'Chưa phân loại',
+      count: row._count.id,
+    }));
+
+    // ── 4. Phân bổ theo phòng ban soạn thảo ──────────────────────────────
+    const byDepartmentRaw = await prisma.document.groupBy({
+      by: ['departmentId'],
+      where: {
+        ...baseDocumentFilter,
+        outgoingDocument: { isNot: null },
+        departmentId: { not: null },
+      } as any,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 10, // Giới hạn top 10 phòng ban
+    });
+
+    // Lấy tên phòng ban từ danh sách id
+    const departmentIds = byDepartmentRaw
+      .map((r) => r.departmentId)
+      .filter((id): id is number => id !== null);
+
+    const departments = await prisma.department.findMany({
+      where: { id: { in: departmentIds } },
+      select: { id: true, name: true },
+    });
+
+    const departmentMap = new Map(departments.map((d) => [d.id, d.name]));
+
+    const byDepartment = byDepartmentRaw.map((row) => ({
+      departmentId: row.departmentId,
+      departmentName: row.departmentId ? (departmentMap.get(row.departmentId) ?? 'Không xác định') : 'Chưa gán phòng ban',
+      count: row._count.id,
+    }));
+
+    // ── 5. Xu hướng theo 12 tháng gần nhất ───────────────────────────────
+    const now = new Date();
+    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+
+    const monthlyRaw = await prisma.outgoingDocument.findMany({
+      where: {
+        ...baseOutgoingFilter,
+        createdAt: { gte: twelveMonthsAgo },
+      } as any,
+      select: { createdAt: true },
+    });
+
+    // Nhóm theo tháng trong JavaScript để tránh phụ thuộc DB-specific date funcs
+    const monthlyMap = new Map<string, number>();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap.set(key, 0);
+    }
+
+    for (const doc of monthlyRaw) {
+      const d = doc.createdAt;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyMap.has(key)) {
+        monthlyMap.set(key, (monthlyMap.get(key) ?? 0) + 1);
+      }
+    }
+
+    const byMonth = Array.from(monthlyMap.entries()).map(([month, count]) => ({
+      month,
+      count,
+    }));
+
+    // ── 6. Số lượng đã phát hành trong kỳ ────────────────────────────────
+    const issuedCount = await prisma.document.count({
+      where: {
+        ...baseDocumentFilter,
+        status: 'ISSUED',
+        outgoingDocument: { isNot: null },
+      } as any,
+    });
+
+    return {
+      totalCount,
+      issuedCount,
+      byStatus,
+      byDocumentType,
+      byDepartment,
+      byMonth,
+    };
+  }
 }
 
 export const outgoingDocumentsService = new OutgoingDocumentsService();

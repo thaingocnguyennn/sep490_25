@@ -33,6 +33,7 @@ import OutgoingDocumentsPage from '../features/documents/pages/OutgoingDocuments
 import CreateOutgoingDocumentPage from '../features/documents/pages/CreateOutgoingDocumentPage';
 import OutgoingDocumentDetailPage from '../features/documents/pages/OutgoingDocumentDetailPage';
 import OutgoingDocumentEditPage from '../features/documents/pages/OutgoingDocumentEditPage';
+import OutgoingStatisticsPage from '../features/documents/pages/OutgoingStatisticsPage';
 
 
 export const routes: RouteObject[] = [
@@ -61,11 +62,12 @@ export const routes: RouteObject[] = [
       { path: 'incoming-documents/pending', element: <PendingIncomingDocumentsPage /> },
       { path: 'incoming-documents/:id', element: <IncomingDocumentDetailPage /> },
       // Outgoing document routes
-      { path: 'outgoing-documents', element: <OutgoingDocumentsPage /> },
-      { path: 'outgoing-documents/new', element: <CreateOutgoingDocumentPage /> },
-      { path: 'outgoing-documents/trash', element: <OutgoingDocumentsPage /> },
-      { path: 'outgoing-documents/:id', element: <OutgoingDocumentDetailPage /> },
-      { path: 'outgoing-documents/:id/edit', element: <OutgoingDocumentEditPage /> },
+      { path: 'outgoing-documents',             element: <OutgoingDocumentsPage /> },
+      { path: 'outgoing-documents/new',         element: <CreateOutgoingDocumentPage /> },
+      { path: 'outgoing-documents/statistics',  element: <OutgoingStatisticsPage /> },
+      { path: 'outgoing-documents/trash',       element: <OutgoingDocumentsPage /> },
+      { path: 'outgoing-documents/:id',         element: <OutgoingDocumentDetailPage /> },
+      { path: 'outgoing-documents/:id/edit',    element: <OutgoingDocumentEditPage /> },
     ],
   },
   {

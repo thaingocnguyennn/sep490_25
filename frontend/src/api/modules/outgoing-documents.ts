@@ -169,3 +169,59 @@ export const sendOutgoingEmail = async (
   const res = await api.post<ApiResponse<SendEmailResult>>(`${BASE}/${id}/send-email`, { recipients });
   return res.data.data!;
 };
+
+// ─── Thống kê ─────────────────────────────────────────────────────────────────
+
+export interface OutgoingStatsByStatus {
+  status: string;
+  count: number;
+}
+
+export interface OutgoingStatsByDocumentType {
+  documentType: string;
+  count: number;
+}
+
+export interface OutgoingStatsByDepartment {
+  departmentId: number | null;
+  departmentName: string;
+  count: number;
+}
+
+export interface OutgoingStatsByMonth {
+  month: string; // format: "YYYY-MM"
+  count: number;
+}
+
+export interface OutgoingStatisticsData {
+  totalCount: number;
+  issuedCount: number;
+  byStatus: OutgoingStatsByStatus[];
+  byDocumentType: OutgoingStatsByDocumentType[];
+  byDepartment: OutgoingStatsByDepartment[];
+  byMonth: OutgoingStatsByMonth[];
+}
+
+export interface OutgoingStatisticsParams {
+  dateFrom?: string;
+  dateTo?: string;
+  departmentId?: number;
+}
+
+/**
+ * Lấy số liệu thống kê văn bản đi từ server.
+ */
+export const getOutgoingStatistics = async (
+  params: OutgoingStatisticsParams = {},
+): Promise<OutgoingStatisticsData> => {
+  const queryParams = new URLSearchParams();
+  if (params.dateFrom)    queryParams.set('dateFrom',    params.dateFrom);
+  if (params.dateTo)      queryParams.set('dateTo',      params.dateTo);
+  if (params.departmentId !== undefined)
+    queryParams.set('departmentId', String(params.departmentId));
+
+  const query = queryParams.toString();
+  const url = query ? `${BASE}/statistics?${query}` : `${BASE}/statistics`;
+  const res = await api.get<ApiResponse<OutgoingStatisticsData>>(url);
+  return res.data.data!;
+};
