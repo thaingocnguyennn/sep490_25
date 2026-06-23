@@ -17,12 +17,7 @@ import RoleFormPage from '../features/roles/pages/RoleFormPage';
 import DepartmentsPage from '../features/departments/pages/DepartmentsPage';
 import DepartmentFormPage from '../features/departments/pages/DepartmentFormPage';
 import DepartmentDetailPage from '../features/departments/pages/DepartmentDetailPage';
-// Document management pages
-import DocumentsPage from '../features/documents/pages/DocumentsPage';
-import ArchivedDocumentsPage from '../features/documents/pages/ArchivedDocumentsPage';
-import DocumentUploadPage from '../features/documents/pages/DocumentUploadPage';
-import DocumentDetailPage from '../features/documents/pages/DocumentDetailPage';
-import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
+
 // Incoming document pages (from dev branch)
 import IncomingDocumentsPage from '../features/documents/pages/IncomingDocumentsPage';
 import AddIncomingDocumentPage from '../features/documents/pages/AddIncomingDocumentPage';
@@ -52,12 +47,7 @@ export const routes: RouteObject[] = [
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/edit', element: <ProfileEditPage /> },
       { path: 'change-password', element: <ChangePasswordPage /> },
-      // Document management routes
-      { path: 'documents', element: <DocumentsPage /> },
-      { path: 'documents/upload', element: <DocumentUploadPage /> },
-      { path: 'documents/archived', element: <ArchivedDocumentsPage /> },
-      { path: 'documents/:id', element: <DocumentDetailPage /> },
-      { path: 'documents/:id/edit', element: <DocumentEditPage /> },
+
       // Incoming document routes (from dev branch)
       { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
       { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
