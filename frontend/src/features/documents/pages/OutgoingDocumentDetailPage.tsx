@@ -175,8 +175,8 @@ export default function OutgoingDocumentDetailPage() {
       dispatchNumber: dispatchNumber || undefined,
       issuanceDate: issuanceDate || undefined,
       sentDate: sentDate || undefined,
-      urgency: issueUrgency || undefined,
-      confidentialityLevel: issueConfidentiality || undefined,
+      urgency: (issueUrgency || undefined) as any,
+      confidentialityLevel: (issueConfidentiality || undefined) as any,
     };
 
     const result = await updateStatus(doc.id, payload);
