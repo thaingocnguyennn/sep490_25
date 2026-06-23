@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getOutgoingDocumentById } from '../../../api/modules/outgoing-documents';
+import { getOutgoingDocumentById, deleteOutgoingDocument } from '../../../api/modules/outgoing-documents';
 import { useOutgoingDocumentActions } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
@@ -138,6 +138,18 @@ export default function OutgoingDocumentDetailPage() {
   const handleStatusUpdate = async () => {
     if (!doc || !statusModal.action) return;
 
+    if (statusModal.action === 'trash') {
+      try {
+        const result = await deleteOutgoingDocument(doc.id);
+        setDoc(result);
+        setStatusModal({ open: false, action: null });
+        return;
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : 'Không thể xóa văn bản');
+        return;
+      }
+    }
+
     const statusMap: Record<string, string> = {
       submit:  'SUBMITTED',
       approve: 'APPROVED',
@@ -145,7 +157,6 @@ export default function OutgoingDocumentDetailPage() {
       forward: 'WAITING_FOR_ISSUE',
       issue:   'ISSUED',
       recall:  'RECALLED',
-      trash:   'TRASHED',
       restore: 'DRAFT',
     };
 
@@ -292,42 +303,42 @@ export default function OutgoingDocumentDetailPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <tbody>
                     {[
-                      ['Tiêu đề', doc.document.title],
-                      ['Loại văn bản', doc.documentType || '—'],
-                      ['Số ký hiệu (gốc)', doc.documentNumber || '—'],
-                      ['Số phát hành', doc.dispatchNumber || '—'],
-                      ['Ngày ban hành', formatDate(doc.issuanceDate)],
-                      ['Người ký', doc.signerName ? `${doc.signerName}${doc.signerTitle ? ` (${doc.signerTitle})` : ''}` : '—'],
-                      ['Người/Cơ quan nhận', doc.recipientName || '—'],
-                      ['Địa chỉ người nhận', doc.recipientAddress || '—'],
-                      ['Email người nhận', doc.recipientEmail || '—'],
-                      ['Ngày gửi', formatDate(doc.sentDate)],
-                      ['Số trang', doc.pageCount ? `${doc.pageCount} trang` : '—'],
-                      ['Độ khẩn', null], // render manually
-                      ['Trạng thái', null],
-                      ['Phòng ban', doc.document.department?.name || '—'],
-                      ['Người tạo', doc.document.createdByUser?.fullName || '—'],
-                      ['Ngày tạo', formatDateTime(doc.createdAt)],
+                      ['📌 Tiêu đề', doc.document.title],
+                      ['🏷️ Loại văn bản', doc.documentType || '—'],
+                      ['🔢 Số ký hiệu (gốc)', doc.documentNumber || '—'],
+                      ['🚀 Số phát hành', doc.dispatchNumber || '—'],
+                      ['📅 Ngày ban hành', formatDate(doc.issuanceDate)],
+                      ['👤 Người ký', doc.signerName ? `${doc.signerName}${doc.signerTitle ? ` (${doc.signerTitle})` : ''}` : '—'],
+                      ['🏢 Người/Cơ quan nhận', doc.recipientName || '—'],
+                      ['📍 Địa chỉ người nhận', doc.recipientAddress || '—'],
+                      ['✉️ Email người nhận', doc.recipientEmail || '—'],
+                      ['📤 Ngày gửi', formatDate(doc.sentDate)],
+                      ['📄 Số trang', doc.pageCount ? `${doc.pageCount} trang` : '—'],
+                      ['⚠️ Độ khẩn', null], // render manually
+                      ['🚥 Trạng thái', null],
+                      ['🏛️ Phòng ban', doc.document.department?.name || '—'],
+                      ['✍️ Người tạo', doc.document.createdByUser?.fullName || '—'],
+                      ['🕒 Ngày tạo', formatDateTime(doc.createdAt)],
                     ].map(([label, value]) => {
-                      if (label === 'Độ khẩn') {
+                      if (label === '⚠️ Độ khẩn') {
                         return (
                           <tr key={label as string}>
-                            <td style={{ padding: '8px 0', color: '#636e72', width: 180, fontWeight: 500 }}>{label}</td>
+                            <td style={{ padding: '8px 0', color: '#636e72', width: 220, fontWeight: 500 }}>{label}</td>
                             <td style={{ padding: '8px 0' }}><UrgencyBadge urgency={doc.urgency} /></td>
                           </tr>
                         );
                       }
-                      if (label === 'Trạng thái') {
+                      if (label === '🚥 Trạng thái') {
                         return (
                           <tr key={label as string}>
-                            <td style={{ padding: '8px 0', color: '#636e72', width: 180, fontWeight: 500 }}>{label}</td>
+                            <td style={{ padding: '8px 0', color: '#636e72', width: 220, fontWeight: 500 }}>{label}</td>
                             <td style={{ padding: '8px 0' }}><DocumentStatusBadge status={docStatus} /></td>
                           </tr>
                         );
                       }
                       return (
                         <tr key={label as string}>
-                          <td style={{ padding: '8px 0', color: '#636e72', width: 180, fontWeight: 500 }}>{label}</td>
+                          <td style={{ padding: '8px 0', color: '#636e72', width: 220, fontWeight: 500 }}>{label}</td>
                           <td style={{ padding: '8px 0' }}>{value}</td>
                         </tr>
                       );

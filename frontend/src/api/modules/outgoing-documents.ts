@@ -121,6 +121,26 @@ export const updateOutgoingMetadata = async (
 };
 
 /**
+ * Gán Văn thư (DOCUMENT_CLERK) để xử lý văn bản đi.
+ * Chỉ dành cho DEPARTMENT_HEAD hoặc ADMIN.
+ */
+export const assignOutgoingClerk = async (
+  id: number,
+  clerkId: number,
+): Promise<OutgoingDocument> => {
+  const res = await api.patch<ApiResponse<OutgoingDocument>>(`${BASE}/${id}/assign-clerk`, { clerkId });
+  return res.data.data!;
+};
+
+/**
+ * Xóa mềm văn bản đi.
+ */
+export const deleteOutgoingDocument = async (id: number): Promise<OutgoingDocument> => {
+  const res = await api.delete<ApiResponse<OutgoingDocument>>(`${BASE}/${id}`);
+  return res.data.data!;
+};
+
+/**
  * Cập nhật trạng thái workflow văn bản đi.
  * Dùng cho nhiều chức năng: submit, approve, return, issue, recall, trash...
  */
