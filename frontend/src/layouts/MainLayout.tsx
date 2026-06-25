@@ -8,7 +8,7 @@ interface LayoutContextValue {
 }
 
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isDepartmentHead, isSpecialist, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -71,6 +71,14 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </NavLink>
+            {(isDepartmentHead || isSpecialist || isAdmin) && (
+              <NavLink to="/incoming-documents/pending" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Văn bản chờ xử lý">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </NavLink>
+            )}
             <NavLink to="/outgoing-documents" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Văn bản đi">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" />
@@ -110,6 +118,15 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
               </svg>
               Văn bản đến
             </NavLink>
+            {(isDepartmentHead || isSpecialist || isAdmin) && (
+              <NavLink to="/incoming-documents/pending" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                Văn bản chờ xử lý
+              </NavLink>
+            )}
             <NavLink to="/outgoing-documents" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" />

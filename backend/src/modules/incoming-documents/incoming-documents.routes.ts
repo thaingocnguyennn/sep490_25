@@ -7,6 +7,7 @@ import { ROLES } from '../../shared/constants/roles';
 import {
   createIncomingDocumentValidation,
   processIncomingDocumentValidation,
+  processSpecialistDocumentValidation,
 } from './incoming-documents.validation';
 
 const router = Router();
@@ -25,6 +26,13 @@ router.get(
   authenticate,
   requireRole(ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
   incomingDocumentsController.listPendingForHead.bind(incomingDocumentsController)
+);
+
+router.get(
+  '/pending-for-specialist',
+  authenticate,
+  requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
+  incomingDocumentsController.listPendingForSpecialist.bind(incomingDocumentsController)
 );
 
 router.get(
@@ -65,6 +73,15 @@ router.post(
   processIncomingDocumentValidation,
   validateRequest,
   incomingDocumentsController.processByHead.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/process-specialist',
+  authenticate,
+  requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
+  processSpecialistDocumentValidation,
+  validateRequest,
+  incomingDocumentsController.processBySpecialist.bind(incomingDocumentsController)
 );
 
 export default router;
