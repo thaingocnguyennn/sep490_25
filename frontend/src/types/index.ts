@@ -347,6 +347,7 @@ export interface CreateOutgoingDocumentRequest {
   recipientAddress?: string;
   recipientEmail?: string;
   notes?: string;
+  relatedIncomingDocumentId?: number;
 }
 
 export interface UpdateOutgoingMetadataRequest {

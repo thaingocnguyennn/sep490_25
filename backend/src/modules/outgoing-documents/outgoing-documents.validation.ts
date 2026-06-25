@@ -78,6 +78,10 @@ export const createOutgoingDocumentValidation = [
     .optional()
     .trim()
     .isString().withMessage('Ghi chú phải là chuỗi ký tự'),
+
+  body('relatedIncomingDocumentId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID văn bản liên quan phải là số nguyên dương'),
 ];
 
 // ─── Validation cập nhật metadata ────────────────────────────────────────────

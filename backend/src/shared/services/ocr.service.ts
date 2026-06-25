@@ -17,6 +17,7 @@ export interface OcrResult {
 
 export interface ExtractedFields {
   issuer?: string;
+  recipientName?: string;
   documentNumber?: string;
   dateLetter?: string;
   documentType?: string;
@@ -335,15 +336,26 @@ async function runOcrOnPdf(pdfBuffer: Buffer): Promise<OcrResult> {
 
 // ─── Field extraction ─────────────────────────────────────────────────────────
 
-export function extractFieldsFromOcrText(ocrText: string): ExtractedFields {
+export function extractFieldsFromOcrText(ocrText: string, mode: string = 'INCOMING'): ExtractedFields {
   const fields: ExtractedFields = {};
   if (!ocrText || ocrText.trim().length === 0) return fields;
 
   const rawLines = ocrText.split('\n');
   const lines = rawLines.map((l) => l.trim()).filter(Boolean);
 
-  // 1. Cơ quan ban hành
-  {
+  // 1. Cơ quan ban hành (INCOMING) hoặc Nơi nhận (OUTGOING)
+  if (mode === 'OUTGOING') {
+    const linesLower = lines.map(l => l.toLowerCase());
+    const kinhGuiIdx = linesLower.findIndex(l => l.includes('kính gửi'));
+    if (kinhGuiIdx !== -1) {
+      const textAfter = lines[kinhGuiIdx].replace(/kính\s*gửi\s*[:-]?\s*/i, '').trim();
+      if (textAfter) {
+        fields.recipientName = textAfter;
+      } else if (kinhGuiIdx + 1 < lines.length) {
+        fields.recipientName = lines[kinhGuiIdx + 1].replace(/^[-\+\*\.]\s*/, '').trim();
+      }
+    }
+  } else {
     const orgLines: string[] = [];
     for (let i = 0; i < Math.min(12, lines.length); i++) {
       const l = lines[i];

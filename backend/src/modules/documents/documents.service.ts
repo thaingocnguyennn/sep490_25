@@ -475,8 +475,9 @@ export class DocumentsService {
     }
 
     // ─── 3. Phân bổ trạng thái văn bản đi (DocumentLifecycleStatus) ─────────
-    const outgoingStatusDistribution = await prisma.outgoingDocument.groupBy({
-      by: ['documentLifecycleStatus'],
+    const outgoingStatusDistribution = await prisma.document.groupBy({
+      by: ['status'],
+      where: { type: 'OUTGOING', documentStatus: 'ACTIVE' },
       _count: { id: true },
     });
 
@@ -493,7 +494,7 @@ export class DocumentsService {
       .filter((id): id is number => id !== null);
 
     const urgencies = urgencyIds.length > 0
-      ? await prisma.urgencyLevel.findMany({ where: { id: { in: urgencyIds } } })
+      ? await prisma.urgency.findMany({ where: { id: { in: urgencyIds } } })
       : [];
 
     const urgencyMap = new Map(urgencies.map((u) => [u.id, u.name]));
@@ -688,9 +689,9 @@ export class DocumentsService {
   /**
    * Perform OCR on an uploaded file buffer.
    */
-  async performOcr(imageBuffer: Buffer, mimeType: string) {
+  async performOcr(imageBuffer: Buffer, mimeType: string, mode: string = 'INCOMING') {
     const result = await performOcr(imageBuffer, mimeType);
-    const extractedFields = extractFieldsFromOcrText(result.text);
+    const extractedFields = extractFieldsFromOcrText(result.text, mode);
 
     return {
       text: result.text,

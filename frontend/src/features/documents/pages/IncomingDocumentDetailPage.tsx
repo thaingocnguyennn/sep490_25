@@ -129,6 +129,9 @@ export default function IncomingDocumentDetailPage() {
     !!headStep &&
     headStep.status === 'PENDING';
 
+  const isProcessor = d.processors?.some((p) => p.user.id === user?.id);
+  const canReply = isProcessor && d.status !== 'DRAFT' && d.status !== 'TRASHED';
+
   const handleProcessClose = () => {
     setProcessOpen(false);
     if (searchParams.get('process') === '1') {
@@ -143,6 +146,15 @@ export default function IncomingDocumentDetailPage() {
       <div className="top-bar">
         <h1>Chi tiết Văn bản đến</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          {canReply && (
+            <button
+              className="btn btn-outline"
+              onClick={() => navigate(`/outgoing-documents/create?fromIncomingId=${doc.id}`)}
+              title="Tạo văn bản đi phúc đáp cho văn bản này"
+            >
+              Phúc đáp văn bản
+            </button>
+          )}
           {canProcess && (
             <button
               className="btn btn-primary"

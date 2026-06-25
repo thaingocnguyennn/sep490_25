@@ -326,7 +326,8 @@ export class DocumentsController {
         return;
       }
       const mimeType = req.body.mimeType || req.file.mimetype;
-      const result = await documentsService.performOcr(req.file.buffer, mimeType);
+      const mode = req.body.mode || req.query.mode || 'INCOMING';
+      const result = await documentsService.performOcr(req.file.buffer, mimeType, mode);
       res.status(200).json(successResponse(result, 'OCR completed'));
     } catch (error) {
       next(error);

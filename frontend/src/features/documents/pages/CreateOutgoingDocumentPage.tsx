@@ -1,13 +1,11 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom';
 import { useOutgoingDocumentActions, useDepartments } from '../../../shared/hooks';
-import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgency';
-import type {
-  CreateOutgoingDocumentRequest,
-  UrgencyName,
-  ConfidentialityName,
-} from '../../../types';
+import { documentsApi } from '../../../api';
+import type { CreateOutgoingDocumentRequest, OcrResult, UrgencyName } from '../../../types';
+import DocumentViewer from '../components/DocumentViewer';
+import type { LayoutContextValue } from '../../../layouts/MainLayout';
 
 const URGENCY_OPTIONS: { value: UrgencyName; label: string }[] = URGENCY_LIST.map((o) => ({
   value: o.value,
@@ -22,7 +20,20 @@ const DOC_TYPES = [
 
 export default function CreateOutgoingDocumentPage() {
   const navigate = useNavigate();
-  const { loading, error, create, clearError } = useOutgoingDocumentActions();
+  const [searchParams] = useSearchParams();
+  const fromIncomingId = searchParams.get('fromIncomingId');
+  
+  const { create, uploadFile, loading: creating } = useOutgoingDocumentActions();
+  const { departments } = useDepartments();
+  const layout = useOutletContext<LayoutContextValue>();
+
+  // State
+  const [error, setError] = useState('');
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrSuccess, setOcrSuccess] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<CreateOutgoingDocumentRequest>({
     title: '',
@@ -35,20 +46,24 @@ export default function CreateOutgoingDocumentPage() {
     recipientAddress: '',
     recipientEmail: '',
     notes: '',
+    relatedIncomingDocumentId: fromIncomingId ? Number(fromIncomingId) : undefined,
   });
-
-  const { departments } = useDepartments();
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  const validate = (): boolean => {
-    const errs: Record<string, string> = {};
-    if (!form.title.trim()) {
-      errs.title = 'Tiêu đề văn bản không được để trống';
-    }
-    setValidationErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+  // Collapse sidebar
+  useEffect(() => {
+    if (layout) layout.setSidebarCollapsed(true);
+    return () => {
+      if (layout) layout.setSidebarCollapsed(false);
+    };
+  }, [layout]);
+
+  useEffect(() => {
+    return () => {
+      if (documentPreviewUrl) URL.revokeObjectURL(documentPreviewUrl);
+    };
+  }, [documentPreviewUrl]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -58,273 +73,283 @@ export default function CreateOutgoingDocumentPage() {
     if (validationErrors[name]) {
       setValidationErrors((prev) => ({ ...prev, [name]: '' }));
     }
-    if (error) clearError();
+    setError('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (documentPreviewUrl) URL.revokeObjectURL(documentPreviewUrl);
+      setSelectedFile(file);
+      setDocumentPreviewUrl(URL.createObjectURL(file));
+      setError('');
+      setOcrSuccess('');
+    }
+  };
+
+  const handleOcr = async () => {
+    if (!selectedFile) {
+      setError('Vui lòng tải tệp lên trước khi chạy OCR.');
+      return;
+    }
+
+    setOcrLoading(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('mimeType', selectedFile.type);
+      formData.append('mode', 'OUTGOING'); // Request outbound logic
+
+      const { data } = await documentsApi.getOcr(formData);
+      const result = data.data as OcrResult;
+      const fields = result.extractedFields;
+
+      setForm((prev) => ({
+        ...prev,
+        title: fields.summary || prev.title,
+        documentType: fields.documentType || prev.documentType,
+        recipientName: fields.recipientName || prev.recipientName,
+      }));
+
+      const extractedKeys = Object.keys(fields);
+      if (extractedKeys.length === 0) {
+        setOcrSuccess('');
+        setError('Không trích xuất được thông tin nào. Vui lòng nhập thủ công.');
+      } else {
+        setOcrSuccess(`Đã trích xuất thành công: ${extractedKeys.join(', ')}.`);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Xử lý OCR thất bại.');
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!form.title.trim()) errs.title = 'Tiêu đề văn bản không được để trống';
+    if (!selectedFile) errs.file = 'Vui lòng tải lên tệp dự thảo';
+    setValidationErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      setError('Vui lòng kiểm tra lại các trường bắt buộc.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async () => {
     if (!validate()) return;
+    if (!selectedFile) return;
 
-    const result = await create({
-      ...form,
-      title: form.title.trim(),
-      description: form.description?.trim() || undefined,
-      documentType: form.documentType || undefined,
-      departmentId: form.departmentId ? Number(form.departmentId) : undefined,
-      recipientName: form.recipientName?.trim() || undefined,
-      recipientAddress: form.recipientAddress?.trim() || undefined,
-      recipientEmail: form.recipientEmail?.trim() || undefined,
-      notes: form.notes?.trim() || undefined,
-    });
-
-    if (result) {
-      // Sau khi tạo thành công, điều hướng sang trang chi tiết để upload file
-      navigate(`/outgoing-documents/${result.id}`, {
-        state: { justCreated: true },
+    try {
+      const result = await create({
+        ...form,
+        title: form.title.trim(),
+        description: form.description?.trim() || undefined,
+        documentType: form.documentType || undefined,
+        departmentId: form.departmentId ? Number(form.departmentId) : undefined,
+        recipientName: form.recipientName?.trim() || undefined,
+        recipientAddress: form.recipientAddress?.trim() || undefined,
+        recipientEmail: form.recipientEmail?.trim() || undefined,
+        notes: form.notes?.trim() || undefined,
       });
+
+      if (result) {
+        // Upload the file
+        await uploadFile(result.id, selectedFile);
+        navigate(`/outgoing-documents/${result.id}`, { state: { justCreated: true } });
+      }
+    } catch (err: any) {
+      setError(err.message || 'Lỗi khi tạo văn bản đi');
     }
   };
 
   return (
-    <>
-      <div className="top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            className="btn btn-secondary"
-            onClick={() => navigate('/outgoing-documents')}
-            style={{ padding: '6px 12px' }}
-          >
-            ← Quay lại
-          </button>
-          <h1>Tạo Văn bản đi mới</h1>
+    <div className="ocr-page-shell">
+      <div className="ocr-workspace-topbar">
+        <h1>Tạo Văn bản đi mới</h1>
+        <div className="ocr-status-pill">
+          <span className="ocr-status-dot" />
+          Dự thảo
         </div>
+        <button className="btn btn-secondary" onClick={() => navigate('/outgoing-documents')}>
+          Quay lại
+        </button>
       </div>
 
-      <div className="page-content">
-        <div className="card" style={{ maxWidth: 860, margin: '0 auto' }}>
-          <div className="card-header">
-            <h2>📄 Thông tin văn bản đi</h2>
-            <p style={{ color: '#636e72', fontSize: 14, margin: 0 }}>
-              Nhập thông tin cơ bản. Sau khi tạo bạn có thể upload file và chạy OCR để điền tự động.
-            </p>
-          </div>
+      {error && (
+        <div className="alert alert-error" style={{ margin: '8px 16px', flexShrink: 0 }}>
+          {error}
+        </div>
+      )}
 
-          <div className="card-body">
-            {error && (
-              <div
-                style={{
-                  padding: '12px 16px', background: '#fdf0f0', border: '1px solid #fcc',
-                  borderRadius: 8, color: '#e74c3c', marginBottom: 20,
-                }}
-              >
-                ⚠️ {error}
+      <div className="ocr-workspace">
+        {/* LEFT: Viewer & OCR */}
+        <div className="ocr-workspace-viewer-col">
+          <DocumentViewer file={selectedFile} fileUrl={documentPreviewUrl} />
+          
+          <div className="ocr-upload-toolbar">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,image/png,image/jpeg,image/jpg,image/tiff"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={ocrLoading || creating}
+            >
+              {selectedFile ? 'Đổi tệp' : 'Tải tệp lên *'}
+            </button>
+            {selectedFile && <span className="file-name-display">{selectedFile.name}</span>}
+            
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleOcr}
+              disabled={ocrLoading || creating || !selectedFile}
+            >
+              {ocrLoading ? 'Đang OCR...' : 'Trích xuất OCR'}
+            </button>
+
+            {ocrLoading && (
+              <div className="ocr-progress-bar">
+                <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                <span>Đang xử lý...</span>
               </div>
             )}
+            {ocrSuccess && !error && (
+              <div className="alert alert-success" style={{ margin: 0, padding: '4px 10px', fontSize: 12 }}>
+                {ocrSuccess}
+              </div>
+            )}
+          </div>
+        </div>
 
-            <form id="form-create-outgoing" onSubmit={handleSubmit}>
-              {/* Tiêu đề */}
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label htmlFor="title" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Tiêu đề văn bản <span style={{ color: '#e74c3c' }}>*</span>
-                </label>
-                <input
+        {/* RIGHT: Form */}
+        <div className="ocr-workspace-form-col">
+          <div className="ocr-form-tabs">
+            <button type="button" className="ocr-form-tab active">
+              Thông tin Dự thảo
+            </button>
+          </div>
+
+          <div className="ocr-form-scroll">
+            <div className="form-section-body" style={{ padding: 16 }}>
+              {form.relatedIncomingDocumentId && (
+                <div className="alert alert-info" style={{ marginBottom: 16 }}>
+                  Văn bản này đang phúc đáp văn bản đến ID: {form.relatedIncomingDocumentId}
+                </div>
+              )}
+
+              <div className="form-group summary-field">
+                <label htmlFor="title">Tiêu đề (Trích yếu) <span className="required">*</span></label>
+                <textarea
                   id="title"
                   name="title"
-                  type="text"
                   value={form.title}
                   onChange={handleChange}
-                  placeholder="Nhập tiêu đề / trích yếu nội dung văn bản..."
-                  style={{
-                    width: '100%', padding: '10px 14px',
-                    border: `1px solid ${validationErrors.title ? '#e74c3c' : '#dfe6e9'}`,
-                    borderRadius: 8, fontSize: 15, boxSizing: 'border-box',
-                  }}
+                  rows={3}
+                  className={validationErrors.title ? 'is-invalid' : ''}
+                  placeholder="Tiêu đề / Trích yếu nội dung..."
                 />
-                {validationErrors.title && (
-                  <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.title}</p>
-                )}
+                {validationErrors.title && <span className="error-text">{validationErrors.title}</span>}
               </div>
 
-              {/* Hàng 2 cột: Loại VB + Độ khẩn */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+              <div className="form-group">
+                <label htmlFor="recipientName">Nơi nhận (Kính gửi)</label>
+                <input
+                  id="recipientName"
+                  name="recipientName"
+                  type="text"
+                  value={form.recipientName}
+                  onChange={handleChange}
+                  placeholder="Trích xuất từ phần Kính gửi của VB..."
+                />
+              </div>
+
+              <div className="signer-row">
                 <div className="form-group">
-                  <label htmlFor="documentType" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                    Loại văn bản
-                  </label>
+                  <label htmlFor="documentType">Loại văn bản</label>
                   <select
                     id="documentType"
                     name="documentType"
                     value={form.documentType}
                     onChange={handleChange}
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
                   >
-                    <option value="">-- Chọn loại văn bản --</option>
-                    {DOC_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
+                    <option value="">-- Chọn loại --</option>
+                    {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-
                 <div className="form-group">
-                  <label htmlFor="departmentId" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                    Phòng ban soạn thảo
-                  </label>
+                  <label htmlFor="departmentId">Phòng ban</label>
                   <select
                     id="departmentId"
                     name="departmentId"
                     value={form.departmentId || ''}
                     onChange={handleChange}
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
                   >
-                    <option value="">-- Chọn phòng ban --</option>
-                    {departments.map((dept) => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
+                    <option value="">-- Chọn --</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
+              </div>
 
+              <div className="signer-row">
                 <div className="form-group">
-                  <label htmlFor="urgency" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                    Độ khẩn
-                  </label>
+                  <label htmlFor="urgency">Độ khẩn</label>
                   <select
                     id="urgency"
                     name="urgency"
                     value={form.urgency}
                     onChange={handleChange}
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
                   >
-                    {URGENCY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
+                    {URGENCY_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* Mức độ mật */}
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label htmlFor="confidentialityLevel" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Mức độ mật
-                </label>
-                <select
-                  id="confidentialityLevel"
-                  name="confidentialityLevel"
-                  value={form.confidentialityLevel as ConfidentialityName | undefined}
-                  onChange={handleChange}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
-                >
-                  {CONFIDENTIALITY_OPTIONS.map((opt) => (
-                    <option key={opt.name} value={opt.name}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Người nhận */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                <div className="form-group">
-                  <label htmlFor="recipientName" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                    Người/Cơ quan nhận
-                  </label>
-                  <input
-                    id="recipientName"
-                    name="recipientName"
-                    type="text"
-                    value={form.recipientName}
-                    onChange={handleChange}
-                    placeholder="Tên người hoặc cơ quan nhận..."
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="recipientEmail" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                    Email người nhận
-                  </label>
-                  <input
-                    id="recipientEmail"
-                    name="recipientEmail"
-                    type="email"
-                    value={form.recipientEmail}
-                    onChange={handleChange}
-                    placeholder="example@domain.com..."
-                    style={{ width: '100%', padding: '10px 14px', border: `1px solid ${validationErrors.recipientEmail ? '#e74c3c' : '#dfe6e9'}`, borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                  {validationErrors.recipientEmail && (
-                    <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.recipientEmail}</p>
-                  )}
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="recipientAddress" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                    Địa chỉ người nhận
-                  </label>
-                  <input
-                    id="recipientAddress"
-                    name="recipientAddress"
-                    type="text"
-                    value={form.recipientAddress}
-                    onChange={handleChange}
-                    placeholder="Địa chỉ..."
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-              </div>
-
-              {/* Mô tả */}
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label htmlFor="description" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Mô tả thêm
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={form.description}
-                  onChange={handleChange}
-                  placeholder="Mô tả thêm về văn bản (nếu có)..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              {/* Ghi chú */}
-              <div className="form-group" style={{ marginBottom: 28 }}>
-                <label htmlFor="notes" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Ghi chú nội bộ
-                </label>
+              <div className="form-group summary-field">
+                <label htmlFor="notes">Ghi chú</label>
                 <textarea
                   id="notes"
                   name="notes"
                   value={form.notes}
                   onChange={handleChange}
-                  placeholder="Ghi chú nội bộ (không in ra văn bản)..."
                   rows={2}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
+                  placeholder="Ghi chú thêm..."
                 />
               </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => navigate('/outgoing-documents')}
-                  disabled={loading}
-                >
-                  Hủy
-                </button>
-                <button
-                  id="btn-submit-create-outgoing"
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? '⏳ Đang tạo...' : '✅ Tạo văn bản đi'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
+
+        {/* Action bar */}
+        <div className="ocr-actions-bar">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate('/outgoing-documents')}
+            disabled={creating}
+          >
+            Hủy
+          </button>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSubmit}
+            disabled={creating}
+          >
+            {creating ? 'Đang lưu...' : 'Lưu nháp'}
+          </button>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

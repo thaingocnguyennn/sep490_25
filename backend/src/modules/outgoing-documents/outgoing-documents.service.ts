@@ -129,6 +129,7 @@ export class OutgoingDocumentsService {
     recipientEmail?: string;
     notes?: string;
     createdBy: number;
+    relatedIncomingDocumentId?: number;
   }) {
     // Tự động sinh số văn bản nội bộ
     const documentNumber = await documentsRepository.generateDocumentNumber('OUTGOING');
@@ -167,6 +168,7 @@ export class OutgoingDocumentsService {
           recipientEmail: data.recipientEmail,
           urgencyId,
           notes: data.notes,
+          relatedIncomingDocumentId: data.relatedIncomingDocumentId,
         },
       });
 
@@ -713,7 +715,7 @@ export class OutgoingDocumentsService {
       by: ['status'],
       where: {
         ...baseDocumentFilter,
-        outgoingDocument: { isNot: null },
+        outgoingDocuments: { some: {} },
       } as any,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
@@ -742,7 +744,7 @@ export class OutgoingDocumentsService {
       by: ['departmentId'],
       where: {
         ...baseDocumentFilter,
-        outgoingDocument: { isNot: null },
+        outgoingDocuments: { some: {} },
         departmentId: { not: null },
       } as any,
       _count: { id: true },
@@ -806,7 +808,7 @@ export class OutgoingDocumentsService {
       where: {
         ...baseDocumentFilter,
         status: 'ISSUED',
-        outgoingDocument: { isNot: null },
+        outgoingDocuments: { some: {} },
       } as any,
     });
 
