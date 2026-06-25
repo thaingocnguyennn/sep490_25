@@ -41,6 +41,42 @@ export class UsersController {
     }
   }
 
+  async getApprovers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const departmentId = req.user?.departmentId;
+      if (!departmentId) {
+        return res.status(400).json({ success: false, message: 'User does not belong to a department' });
+      }
+      const result = await usersService.getAll({
+        limit: 100,
+        role: 'DEPARTMENT_HEAD',
+        status: 'ACTIVE',
+        departmentId: departmentId,
+      });
+      res.status(200).json(successResponse(result.users, 'Approvers retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getClerks(req: Request, res: Response, next: NextFunction) {
+    try {
+      const departmentId = req.user?.departmentId;
+      if (!departmentId) {
+        return res.status(400).json({ success: false, message: 'User does not belong to a department' });
+      }
+      const result = await usersService.getAll({
+        limit: 100,
+        role: 'DOCUMENT_CLERK',
+        status: 'ACTIVE',
+        departmentId: departmentId,
+      });
+      res.status(200).json(successResponse(result.users, 'Clerks retrieved'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = Number(req.params.id);

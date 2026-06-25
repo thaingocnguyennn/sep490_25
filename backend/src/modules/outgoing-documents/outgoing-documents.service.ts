@@ -383,6 +383,8 @@ export class OutgoingDocumentsService {
       urgency?: string;
       /** Confidentiality name/code/id để cập nhật khi phát hành */
       confidentialityLevel?: string;
+      assignedApproverId?: number;
+      assignedClerkId?: number;
     },
   ) {
     const outgoing = await outgoingDocumentsRepository.findById(id);
@@ -404,34 +406,50 @@ export class OutgoingDocumentsService {
 
     switch (newStatus) {
       case 'SUBMITTED':
+        if (!options?.assignedApproverId) {
+          throw new BadRequestError('Vui lòng chọn người phê duyệt (assignedApproverId)');
+        }
+        outgoingUpdateData.assignedApproverId = options.assignedApproverId;
         outgoingUpdateData.submittedAt = now;
         outgoingUpdateData.submittedBy = userId;
         break;
       case 'APPROVED':
+        if (outgoing.assignedApproverId && outgoing.assignedApproverId !== userId) {
+          throw new BadRequestError('Bạn không được phân quyền để duyệt văn bản này');
+        }
+        if (options?.assignedClerkId) {
+          outgoingUpdateData.assignedClerkId = options.assignedClerkId;
+        }
         outgoingUpdateData.approvedAt = now;
         outgoingUpdateData.approvedBy = userId;
         break;
       case 'RETURNED':
+        if (outgoing.assignedApproverId && outgoing.assignedApproverId !== userId) {
+          throw new BadRequestError('Bạn không được phân quyền để trả lại văn bản này');
+        }
         outgoingUpdateData.returnedAt = now;
         outgoingUpdateData.returnedBy = userId;
         outgoingUpdateData.returnReason = options?.returnReason;
         break;
-      case 'WAITING_FOR_ISSUE':
+      case 'WAITING_FOR_ISSUE': // Văn thư vào sổ
+        if (outgoing.assignedClerkId && outgoing.assignedClerkId !== userId) {
+          throw new BadRequestError('Bạn không được phân quyền để vào sổ văn bản này');
+        }
+        if (options?.dispatchNumber) outgoingUpdateData.dispatchNumber = options.dispatchNumber;
+        if (options?.issuanceDate) outgoingUpdateData.issuanceDate = new Date(options.issuanceDate);
+        if (options?.urgency) outgoingUpdateData.urgencyId = await resolveUrgencyIdWithDefault(options.urgency);
         outgoingUpdateData.forwardedAt = now;
         outgoingUpdateData.forwardedBy = userId;
         break;
-      case 'ISSUED':
+      case 'ISSUED': // Văn thư phát hành
+        if (outgoing.assignedClerkId && outgoing.assignedClerkId !== userId) {
+          throw new BadRequestError('Bạn không được phân quyền để phát hành văn bản này');
+        }
         outgoingUpdateData.issuedAt = now;
         outgoingUpdateData.issuedBy = userId;
-        if (options?.dispatchNumber) outgoingUpdateData.dispatchNumber = options.dispatchNumber;
-        if (options?.issuanceDate) outgoingUpdateData.issuanceDate = new Date(options.issuanceDate);
         if (options?.sentDate) outgoingUpdateData.sentDate = new Date(options.sentDate);
         if (options?.recipientName) outgoingUpdateData.recipientName = options.recipientName;
         if (options?.recipientAddress) outgoingUpdateData.recipientAddress = options.recipientAddress;
-        // Cập nhật urgencyId trên OutgoingDocument nếu được cung cấp
-        if (options?.urgency) {
-          outgoingUpdateData.urgencyId = await resolveUrgencyIdWithDefault(options.urgency);
-        }
         break;
       case 'RECALLED':
         outgoingUpdateData.recalledAt = now;

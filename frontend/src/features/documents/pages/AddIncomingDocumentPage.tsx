@@ -3,7 +3,6 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   documentsApi,
   incomingDocumentsApi,
-  type OcrResult,
   type ProcessorType,
   type Urgency,
 } from '../../../api';
@@ -13,7 +12,7 @@ import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import DocumentViewer from '../components/DocumentViewer';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
-import type { ConfidentialityCodeOrName } from '../../../types';
+import type { ConfidentialityCodeOrName, OcrResult } from '../../../types';
 
 interface ProcessorAssignment {
   userId: number;
@@ -176,7 +175,7 @@ export default function AddIncomingDocumentPage() {
         signerTitle: fields.signerTitle || prev.signerTitle,
       }));
 
-      setOcrRawText(result.text || '');
+      setOcrRawText(result.ocrText || '');
 
       const extractedKeys = Object.keys(fields);
       if (extractedKeys.length === 0) {

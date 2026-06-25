@@ -22,6 +22,18 @@ router.get(
 );
 
 router.get(
+  '/approvers',
+  requireRole(ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK),
+  usersController.getApprovers.bind(usersController)
+);
+
+router.get(
+  '/clerks',
+  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.SPECIALIST),
+  usersController.getClerks.bind(usersController)
+);
+
+router.get(
   '/',
   usersController.getAllUsers.bind(usersController)
 );

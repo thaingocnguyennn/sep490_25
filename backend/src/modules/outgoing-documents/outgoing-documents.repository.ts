@@ -43,6 +43,8 @@ export interface OutgoingDocumentWithRelations {
   trashedAt: Date | null;
   trashedBy: number | null;
   notes: string | null;
+  assignedApproverId: number | null;
+  assignedClerkId: number | null;
   createdAt: Date;
   updatedAt: Date;
   document: {

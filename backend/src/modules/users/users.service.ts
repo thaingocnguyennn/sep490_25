@@ -14,6 +14,7 @@ export class UsersService {
     search?: string;
     status?: string;
     role?: string;
+    departmentId?: number;
   }): Promise<UserListResult> {
     return usersRepository.findAll({
       page: params.page ? Number(params.page) : 1,
@@ -21,6 +22,7 @@ export class UsersService {
       search: params.search,
       status: params.status as any,
       role: params.role,
+      departmentId: params.departmentId,
     });
   }
 

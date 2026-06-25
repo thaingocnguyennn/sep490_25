@@ -7,7 +7,6 @@ export { departmentsApi } from './modules/departments';
 export type {
   IncomingDocumentDetail,
   IncomingDocumentListItem,
-  OcrResult,
   CreateIncomingDocumentRequest,
   ProcessIncomingDocumentRequest,
   HeadAction,
