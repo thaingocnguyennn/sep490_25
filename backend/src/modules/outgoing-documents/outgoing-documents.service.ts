@@ -131,6 +131,7 @@ export class OutgoingDocumentsService {
     recipientEmail?: string;
     notes?: string;
     createdBy: number;
+    relatedIncomingDocumentId?: number;
   }) {
     // Tự động sinh số văn bản nội bộ
     const documentNumber = await documentsRepository.generateDocumentNumber('OUTGOING');
@@ -169,6 +170,7 @@ export class OutgoingDocumentsService {
           recipientEmail: data.recipientEmail,
           urgencyId,
           notes: data.notes,
+          relatedIncomingDocumentId: data.relatedIncomingDocumentId,
         },
       });
 

@@ -329,4 +329,8 @@ export const ocrValidation = [
     .optional()
     .isIn(['image/png', 'image/jpeg', 'image/jpg', 'image/tiff', 'image/bmp', 'image/webp', 'application/pdf'])
     .withMessage('Unsupported file type'),
+  body('mode')
+    .optional()
+    .isIn(['INCOMING', 'OUTGOING'])
+    .withMessage('Mode must be either INCOMING or OUTGOING'),
 ];

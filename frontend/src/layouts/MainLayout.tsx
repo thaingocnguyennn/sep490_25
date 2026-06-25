@@ -66,6 +66,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
               </svg>
             </NavLink>
 
+
             <NavLink to="/incoming-documents" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Văn bản đến">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -111,6 +112,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
               Hồ sơ cá nhân
             </NavLink>
 
+            <div className="nav-section-title">Tài liệu</div>
 
             <NavLink to="/incoming-documents" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

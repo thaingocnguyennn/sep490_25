@@ -711,9 +711,9 @@ export class DocumentsService {
   /**
    * Perform OCR on an uploaded file buffer.
    */
-  async performOcr(imageBuffer: Buffer, mimeType: string) {
+  async performOcr(imageBuffer: Buffer, mimeType: string, mode: string = 'INCOMING') {
     const result = await performOcr(imageBuffer, mimeType);
-    const extractedFields = extractFieldsFromOcrText(result.text);
+    const extractedFields = extractFieldsFromOcrText(result.text, mode);
 
     return {
       text: result.text,

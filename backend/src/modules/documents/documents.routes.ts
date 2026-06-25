@@ -56,7 +56,7 @@ router.get(
 // POST /documents/ocr — Perform OCR on uploaded file
 router.post(
   '/ocr',
-  requireRole('DOCUMENT_CLERK'),
+  requireRole('DOCUMENT_CLERK', 'SPECIALIST'),
   ocrUpload.single('file'),
   ocrValidation,
   validateRequest,
