@@ -34,6 +34,26 @@ export const createIncomingDocumentValidation = [
       }
       return true;
     }),
+  body('confidentialityLevel')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ mật không hợp lệ. Các giá trị hợp lệ: THUONG, MAT, TOI_MAT, TUYET_MAT');
+      }
+      return true;
+    }),
+  body('confidentialityId')
+    .optional()
+    .custom((value) => {
+      const v = String(value).trim().toUpperCase();
+      const allowed = ['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      if (!allowed.includes(v) && !/^\d+$/.test(v)) {
+        throw new Error('Độ mật không hợp lệ');
+      }
+      return true;
+    }),
   body('notes').optional().trim(),
   body('processingInstructions').optional().trim(),
   body('processorIds').isArray({ min: 1 }).withMessage('Phải chọn ít nhất một người xử lý'),
@@ -80,4 +100,36 @@ export const processIncomingDocumentValidation = [
     .optional()
     .isArray()
     .withMessage('Tệp đính kèm phải là một mảng'),
+];
+
+export const processSpecialistDocumentValidation = [
+  body('action')
+    .notEmpty()
+    .withMessage('Hành động là bắt buộc')
+    .isIn(['COMPLETE', 'TRANSFER', 'RETURN_TO_HEAD'])
+    .withMessage('Hành động không hợp lệ. Các giá trị hợp lệ: COMPLETE, TRANSFER, RETURN_TO_HEAD'),
+  body('processorIds')
+    .if(body('action').equals('TRANSFER'))
+    .isArray({ min: 1 })
+    .withMessage('Phải chọn ít nhất một người xử lý'),
+  body('processorIds.*.userId')
+    .if(body('action').equals('TRANSFER'))
+    .isInt({ min: 1 })
+    .withMessage('ID người dùng không hợp lệ'),
+  body('processorIds.*.processorType')
+    .if(body('action').equals('TRANSFER'))
+    .isIn(['XLC', 'PHXL', 'XDB'])
+    .withMessage('Loại xử lý không hợp lệ'),
+  body('processingInstructions')
+    .optional({ values: 'falsy' })
+    .isString()
+    .isLength({ max: 2000 })
+    .withMessage('Hướng dẫn xử lý tối đa 2000 ký tự'),
+  body('reason')
+    .if(body('action').equals('RETURN_TO_HEAD'))
+    .notEmpty()
+    .withMessage('Lý do trả lại là bắt buộc')
+    .isString()
+    .isLength({ max: 1000 })
+    .withMessage('Lý do trả lại tối đa 1000 ký tự'),
 ];

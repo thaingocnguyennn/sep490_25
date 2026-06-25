@@ -11,8 +11,11 @@ import { formatUrgency } from '../../../shared/constants/urgency';
 
 export default function PendingIncomingDocumentsPage() {
   const navigate = useNavigate();
-  const { isDepartmentHead, isAdmin } = useAuth();
-  const hasAccess = isDepartmentHead || isAdmin;
+  const { isDepartmentHead, isSpecialist, isAdmin } = useAuth();
+
+  const isHead = isDepartmentHead || isAdmin;
+  const isSpec = isSpecialist || isAdmin;
+  const viewMode = isHead ? ('head' as const) : ('specialist' as const);
 
   const [documents, setDocuments] = useState<IncomingDocumentListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -25,8 +28,11 @@ export default function PendingIncomingDocumentsPage() {
   const load = (p: number, s: string) => {
     setLoading(true);
     setError('');
-    incomingDocumentsApi
-      .getPendingForHead({ page: p, limit, search: s || undefined })
+    const apiCall =
+      viewMode === 'head'
+        ? incomingDocumentsApi.getPendingForHead({ page: p, limit, search: s || undefined })
+        : incomingDocumentsApi.getPendingForSpecialist({ page: p, limit, search: s || undefined });
+    apiCall
       .then(({ data }) => {
         setDocuments(data.data!.items);
         setTotal(data.data!.total);
@@ -36,9 +42,9 @@ export default function PendingIncomingDocumentsPage() {
   };
 
   useEffect(() => {
-    if (hasAccess) load(1, search);
+    if (isHead || isSpec) load(1, search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasAccess]);
+  }, [viewMode]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +54,7 @@ export default function PendingIncomingDocumentsPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  if (!hasAccess) {
+  if (!isHead && !isSpec) {
     return (
       <>
         <div className="top-bar">
@@ -59,17 +65,22 @@ export default function PendingIncomingDocumentsPage() {
         </div>
         <div className="page-content">
           <div className="alert alert-error">
-            Bạn không có quyền truy cập trang này. Chỉ Trưởng phòng hoặc Quản trị viên mới có thể xem văn bản chờ xử lý.
+            Bạn không có quyền truy cập trang này. Chỉ Trưởng phòng hoặc Chuyên viên mới có thể xem văn bản chờ xử lý.
           </div>
         </div>
       </>
     );
   }
 
+  const pageTitle =
+    viewMode === 'head'
+      ? 'Văn bản chờ Trưởng phòng xử lý'
+      : 'Văn bản chờ Chuyên viên xử lý';
+
   return (
     <>
       <div className="top-bar">
-        <h1>Văn bản chờ Trưởng phòng xử lý</h1>
+        <h1>{pageTitle}</h1>
         <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>
           Quay lại danh sách
         </button>
@@ -119,6 +130,7 @@ export default function PendingIncomingDocumentsPage() {
                     <th>Ngày đến</th>
                     <th>Độ khẩn</th>
                     <th>Trạng thái</th>
+                    <th>Văn thư tạo</th>
                     <th>Thao tác</th>
                   </tr>
                 </thead>
@@ -169,10 +181,11 @@ export default function PendingIncomingDocumentsPage() {
                           : '—'}
                       </td>
                       <td><DocumentStatusBadge status={item.document.status} /></td>
+                      <td>{item.createdByClerk?.fullName || '—'}</td>
                       <td>
                         <button
                           className="btn btn-sm btn-primary"
-                          onClick={() => navigate(`/incoming-documents/${item.id}?process=1`)}
+                          onClick={() => navigate(`/incoming-documents/${item.id}`)}
                           title="Xem chi tiết và xử lý"
                         >
                           Xem & xử lý

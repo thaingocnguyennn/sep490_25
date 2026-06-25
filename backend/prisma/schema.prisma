@@ -154,6 +154,8 @@ model User {
   outgoingIssued    OutgoingDocument[] @relation("OutgoingIssuedBy")
   outgoingRecalled  OutgoingDocument[] @relation("OutgoingRecalledBy")
   outgoingTrashed   OutgoingDocument[] @relation("OutgoingTrashedBy")
+
+  incomingDocumentsCreated IncomingDocument[] @relation("IncomingDocumentClerk")
 }
 
 model Role {
@@ -177,6 +179,7 @@ model Confidentiality {
   updatedAt   DateTime @updatedAt
 
   documents Document[]
+  incomingDocuments IncomingDocument[]
 }
 
 // Lookup table for document urgency levels
@@ -284,8 +287,15 @@ model IncomingDocument {
   department   Department? @relation(fields: [departmentId], references: [id])
   departmentId Int?
   urgency      Urgency?    @relation(fields: [urgencyId], references: [id])
+  confidentiality Confidentiality? @relation(fields: [confidentialityId], references: [id])
+  confidentialityId Int?
+
+  createdByClerk   User? @relation("IncomingDocumentClerk", fields: [createdByClerkId], references: [id])
+  createdByClerkId Int?
 
   @@index([urgencyId])
+  @@index([confidentialityId])
+  @@index([createdByClerkId])
 }
 
 model OutgoingDocument {
