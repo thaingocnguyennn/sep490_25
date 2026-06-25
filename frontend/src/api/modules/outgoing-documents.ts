@@ -225,3 +225,17 @@ export const getOutgoingStatistics = async (
   const res = await api.get<ApiResponse<OutgoingStatisticsData>>(url);
   return res.data.data!;
 };
+
+/** Xuất danh sách văn bản đi ra Excel */
+export const exportOutgoingExcel = (params: OutgoingDocumentFilterParams) =>
+  api.get(`${BASE}/export`, {
+    params: { ...params, format: 'excel' },
+    responseType: 'blob',
+  });
+
+/** Xuất danh sách văn bản đi ra PDF */
+export const exportOutgoingPdf = (params: OutgoingDocumentFilterParams) =>
+  api.get(`${BASE}/export`, {
+    params: { ...params, format: 'pdf' },
+    responseType: 'blob',
+  });

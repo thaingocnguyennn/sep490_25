@@ -12,7 +12,16 @@ export class IncomingDocumentsController {
       const priority = req.query.priority as string;
       const urgency = (req.query.urgencyId ?? req.query.urgency) as string | undefined;
 
-      const result = await incomingDocumentsService.list({ page, limit, search, status, priority, urgency });
+      const result = await incomingDocumentsService.list({
+        page,
+        limit,
+        search,
+        status,
+        priority,
+        urgency,
+        userId: req.user!.userId,
+        userRoles: req.user!.roles,
+      });
       res.status(200).json(
         successResponse(
           {
@@ -33,7 +42,12 @@ export class IncomingDocumentsController {
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const idParam = req.params.id as string;
-      const incoming = await incomingDocumentsService.getById(parseInt(idParam));
+      const roles: string[] = req.user!.roles ?? [];
+      const incoming = await incomingDocumentsService.getById(
+        parseInt(idParam),
+        req.user!.userId,
+        roles
+      );
       res.status(200).json(successResponse(incoming, 'Chi tiết văn bản đến'));
     } catch (error) {
       next(error);
@@ -110,6 +124,50 @@ export class IncomingDocumentsController {
     }
   }
 
+  async listPendingForSpecialist(req: Request, res: Response, next: NextFunction) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string | undefined;
+
+      const result = await incomingDocumentsService.listPendingForSpecialist({
+        page,
+        limit,
+        search,
+        userId: req.user!.userId,
+      });
+      res.status(200).json(
+        successResponse(
+          {
+            items: result.items,
+            total: result.total,
+            page,
+            limit,
+            totalPages: Math.ceil(result.total / limit),
+          },
+          'Danh sách văn bản chờ Chuyên viên xử lý'
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async processBySpecialist(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = req.params.id as string;
+      const incoming = await incomingDocumentsService.processBySpecialist(
+        parseInt(idParam),
+        req.body.action,
+        req.body,
+        req.user!.userId
+      );
+      res.status(200).json(successResponse(incoming, 'Xử lý văn bản bởi Chuyên viên thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async processByHead(req: Request, res: Response, next: NextFunction) {
     try {
       const idParam = req.params.id as string;
@@ -120,6 +178,35 @@ export class IncomingDocumentsController {
         req.user!.userId
       );
       res.status(200).json(successResponse(incoming, 'Xử lý văn bản thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ─── Thống kê Văn bản đến (thêm mới, không sửa code cũ) ──────────────────
+  async getStatistics(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo   = req.query.dateTo   as string | undefined;
+
+      // Phân quyền: SPECIALIST chỉ xem phòng ban mình
+      let departmentId: number | undefined;
+      const roles: string[] = req.user!.roles ?? [];
+      const isSpecialistOnly =
+        roles.includes('SPECIALIST') &&
+        !roles.includes('ADMIN') &&
+        !roles.includes('DEPARTMENT_HEAD') &&
+        !roles.includes('DOCUMENT_CLERK');
+      if (isSpecialistOnly) {
+        departmentId = req.user!.departmentId || -1;
+      }
+
+      const data = await incomingDocumentsService.getStatistics({
+        dateFrom,
+        dateTo,
+        departmentId,
+      });
+      res.status(200).json(successResponse(data, 'Lấy thống kê văn bản đến thành công'));
     } catch (error) {
       next(error);
     }

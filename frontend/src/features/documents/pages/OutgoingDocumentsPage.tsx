@@ -5,6 +5,7 @@ import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/Do
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgency';
+import { exportOutgoingExcel, exportOutgoingPdf } from '../../../api/modules/outgoing-documents';
 import type { OutgoingDocumentStatus, UrgencyName, ConfidentialityName } from '../../../types';
 
 const OUTGOING_STATUSES: { value: OutgoingDocumentStatus | ''; label: string }[] = [
@@ -87,6 +88,34 @@ export default function OutgoingDocumentsPage() {
     loadData(1);
   };
 
+  const handleExport = async (format: 'excel' | 'pdf') => {
+    try {
+      const params = {
+        search: search || undefined,
+        status: statusFilter || undefined,
+        urgency: urgencyFilter || undefined,
+        documentType: documentTypeFilter || undefined,
+        confidentialityLevel: confidentialityFilter || undefined,
+        departmentId: departmentFilter ? Number(departmentFilter) : undefined,
+        dateFrom: dateFromFilter || undefined,
+        dateTo: dateToFilter || undefined,
+      };
+
+      const res = format === 'excel' ? await exportOutgoingExcel(params) : await exportOutgoingPdf(params);
+      
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `bao_cao_van_ban_di.${format === 'excel' ? 'xlsx' : 'pdf'}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Lỗi khi xuất file:', err);
+      alert('Đã có lỗi xảy ra khi xuất báo cáo. Vui lòng thử lại.');
+    }
+  };
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -97,6 +126,18 @@ export default function OutgoingDocumentsPage() {
       <div className="top-bar">
         <h1>Văn bản đi</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => handleExport('excel')}
+          >
+            📊 Xuất Excel
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => handleExport('pdf')}
+          >
+            📑 Xuất PDF
+          </button>
           <button
             className="btn btn-secondary"
             onClick={() => navigate('/outgoing-documents/trash')}

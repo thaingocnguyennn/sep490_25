@@ -11,6 +11,7 @@ export interface AuthenticatedUser {
   userId: number;
   username: string;
   roles: RoleName[];
+  departmentId?: number | null;
 }
 
 declare global {

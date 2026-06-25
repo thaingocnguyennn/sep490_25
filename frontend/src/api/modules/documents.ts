@@ -1,5 +1,5 @@
 import api from '../axios';
-import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest } from '../../types';
+import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest, ConfidentialityCodeOrName } from '../../types';
 
 export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
@@ -63,8 +63,11 @@ export interface IncomingDocumentDetail {
   summary: string | null;
   pageCount: number | null;
   urgency: UrgencyRecord | null;
+  confidentiality: { id: number; code: string | null; name: string; description: string | null } | null;
   notes: string | null;
   processingInstructions: string | null;
+  createdByClerkId: number | null;
+  createdByClerk: { id: number; fullName: string } | null;
   document: Document;
 }
 
@@ -82,8 +85,11 @@ export interface IncomingDocumentListItem {
   summary: string | null;
   pageCount: number | null;
   urgency: UrgencyRecord | null;
+  confidentiality: { id: number; code: string | null; name: string; description: string | null } | null;
   notes: string | null;
   processingInstructions: string | null;
+  createdByClerkId: number | null;
+  createdByClerk: { id: number; fullName: string } | null;
   document: Document;
 }
 
@@ -109,9 +115,12 @@ export interface CreateIncomingDocumentRequest {
   processingInstructions?: string;
   processorIds: { userId: number; processorType: ProcessorType }[];
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
+  confidentialityLevel?: ConfidentialityCodeOrName;
+  confidentialityId?: ConfidentialityCodeOrName;
 }
 
 export type HeadAction = 'FINISH' | 'FORWARD' | 'RETURN';
+export type SpecialistAction = 'COMPLETE' | 'TRANSFER' | 'RETURN_TO_HEAD';
 
 export interface ProcessIncomingDocumentRequest {
   action: HeadAction;
@@ -120,6 +129,13 @@ export interface ProcessIncomingDocumentRequest {
   deadline?: string;
   reason?: string;
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
+}
+
+export interface ProcessSpecialistDocumentRequest {
+  action: SpecialistAction;
+  processorIds?: { userId: number; processorType: ProcessorType }[];
+  processingInstructions?: string;
+  reason?: string;
 }
 
 /** Thống kê KPI tổng quan */
@@ -268,6 +284,12 @@ export const incomingDocumentsApi = {
       { params }
     ),
 
+  getPendingForSpecialist: (params?: { page?: number; limit?: number; search?: string }) =>
+    api.get<ApiResponse<PaginatedResponse<IncomingDocumentListItem>>>(
+      '/incoming-documents/pending-for-specialist',
+      { params }
+    ),
+
   getById: (id: number) =>
     api.get<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}`),
 
@@ -282,4 +304,17 @@ export const incomingDocumentsApi = {
 
   processByHead: (id: number, data: ProcessIncomingDocumentRequest) =>
     api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/process`, data),
+
+  processBySpecialist: (id: number, data: ProcessSpecialistDocumentRequest) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/process-specialist`, data),
+
+  // Thống kê Văn bản đến (thêm mới)
+  getStatistics: (params?: { dateFrom?: string; dateTo?: string; departmentId?: number }) =>
+    api.get<ApiResponse<{
+      totalCount: number;
+      byStatus: { status: string; count: number }[];
+      byDocumentType: { documentType: string; count: number }[];
+      byDepartment: { departmentId: number | null; departmentName: string; count: number }[];
+      byMonth: { month: string; count: number }[];
+    }>>('/incoming-documents/statistics', { params }),
 };

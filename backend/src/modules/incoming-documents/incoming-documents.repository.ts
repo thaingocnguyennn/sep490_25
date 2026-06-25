@@ -23,8 +23,17 @@ export interface IncomingDocumentWithRelations {
     name: string;
     description: string | null;
   } | null;
+  confidentialityId: number | null;
+  confidentiality: {
+    id: number;
+    code: string | null;
+    name: string;
+    description: string | null;
+  } | null;
   notes: string | null;
   processingInstructions: string | null;
+  createdByClerkId: number | null;
+  createdByClerk: { id: number; fullName: string } | null;
   document: {
     id: number;
     documentNumber: string;
@@ -52,6 +61,7 @@ export interface IncomingDocumentWithRelations {
     createdAt: Date;
     updatedAt: Date;
     createdByUser: { id: number; fullName: string } | null;
+    createdBy?: number;
     updatedByUser: { id: number; fullName: string } | null;
     processors: {
       id: number;
@@ -85,8 +95,12 @@ export class IncomingDocumentsRepository {
     priority?: string;
     /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
+    /** Filter by documentId for users with XLC/PHXL/XDB assignments */
+    assignedToUserId?: number;
+    /** Restrict to documents where the user has at least one XLC/PHXL/XDB processor record */
+    assignedProcessorTypes?: string[];
   }) {
-    const { page, limit, search, status, priority, urgency } = params;
+    const { page, limit, search, status, priority, urgency, assignedToUserId, assignedProcessorTypes } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.IncomingDocumentWhereInput = {};
@@ -112,6 +126,18 @@ export class IncomingDocumentsRepository {
       }
     }
 
+    if (assignedToUserId !== undefined && assignedProcessorTypes && assignedProcessorTypes.length > 0) {
+      where.document = {
+        ...((where.document as object) || {}),
+        processors: {
+          some: {
+            userId: assignedToUserId,
+            processorType: { in: assignedProcessorTypes as any },
+          },
+        },
+      };
+    }
+
     const [items, total] = await Promise.all([
       prisma.incomingDocument.findMany({
         where,
@@ -120,6 +146,8 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           urgency: { select: { id: true, name: true, description: true } },
+          confidentiality: { select: { id: true, code: true, name: true, description: true } },
+          createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
@@ -150,11 +178,14 @@ export class IncomingDocumentsRepository {
       where: { id },
       include: {
         urgency: { select: { id: true, name: true, description: true } },
+        confidentiality: { select: { id: true, code: true, name: true, description: true } },
+        createdByClerk: { select: { id: true, fullName: true } },
         document: {
           include: {
             createdByUser: { select: { id: true, fullName: true } },
             updatedByUser: { select: { id: true, fullName: true } },
             urgency: { select: { id: true, name: true, description: true } },
+            confidentiality: { select: { id: true, code: true, name: true, description: true } },
             processors: {
               include: { user: { select: { id: true, fullName: true, email: true } } },
             },
@@ -208,6 +239,69 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           urgency: { select: { id: true, name: true, description: true } },
+          confidentiality: { select: { id: true, code: true, name: true, description: true } },
+          createdByClerk: { select: { id: true, fullName: true } },
+          document: {
+            include: {
+              createdByUser: { select: { id: true, fullName: true } },
+              urgency: { select: { id: true, name: true, description: true } },
+              processors: {
+                include: { user: { select: { id: true, fullName: true, email: true } } },
+              },
+              workflows: {
+                include: {
+                  workflowStep: { select: { id: true, name: true, stepOrder: true, roleName: true } },
+                  user: { select: { id: true, fullName: true } },
+                },
+                orderBy: { workflowStep: { stepOrder: 'asc' } },
+              },
+              attachments: true,
+            },
+          },
+        },
+      }),
+      prisma.incomingDocument.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async findAllPendingForSpecialist(params: { page: number; limit: number; search?: string; userId: number }) {
+    const { page, limit, search, userId } = params;
+    const skip = (page - 1) * limit;
+
+    const documentWhere: Prisma.DocumentWhereInput = {
+      status: DocumentStatus.IN_PROGRESS,
+      processors: {
+        some: {
+          userId,
+          processorType: 'XLC',
+        },
+      },
+    };
+
+    if (search) {
+      documentWhere.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
+
+    const where: Prisma.IncomingDocumentWhereInput = { document: documentWhere };
+
+    const [items, total] = await Promise.all([
+      prisma.incomingDocument.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { document: { createdAt: 'desc' } },
+        include: {
+          urgency: { select: { id: true, name: true, description: true } },
+          confidentiality: { select: { id: true, code: true, name: true, description: true } },
+          createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },

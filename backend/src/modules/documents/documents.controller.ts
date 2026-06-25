@@ -26,7 +26,16 @@ export class DocumentsController {
   async getDashboardStats(req: Request, res: Response, next: NextFunction) {
     try {
       const year = req.query.year ? Number(req.query.year) : undefined;
-      const stats = await documentsService.getDashboardStats({ year });
+      
+      let departmentId: number | undefined;
+      if (req.user!.roles.includes('SPECIALIST') && 
+          !req.user!.roles.includes('ADMIN') && 
+          !req.user!.roles.includes('DEPARTMENT_HEAD') && 
+          !req.user!.roles.includes('DOCUMENT_CLERK')) {
+        departmentId = req.user!.departmentId || -1;
+      }
+
+      const stats = await documentsService.getDashboardStats({ year, departmentId });
       res.status(200).json(successResponse(stats, 'Dashboard stats retrieved'));
     } catch (error) {
       next(error);

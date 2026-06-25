@@ -10,8 +10,10 @@ import {
 import { useProcessors } from '../../../shared/hooks';
 import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
+import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import DocumentViewer from '../components/DocumentViewer';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
+import type { ConfidentialityCodeOrName } from '../../../types';
 
 interface ProcessorAssignment {
   userId: number;
@@ -92,6 +94,7 @@ export default function AddIncomingDocumentPage() {
   const [arrivalNumber, setArrivalNumber] = useState('');
   const [dateReceived, setDateReceived] = useState(new Date().toISOString().split('T')[0]);
   const [urgency, setUrgency] = useState<Urgency>('THUONG');
+  const [confidentiality, setConfidentiality] = useState<ConfidentialityCodeOrName>('THUONG');
   const [notes, setNotes] = useState('');
   const [processingInstructions, setProcessingInstructions] = useState('');
 
@@ -266,6 +269,7 @@ export default function AddIncomingDocumentPage() {
         summary: form.summary || undefined,
         pageCount: form.pageCount ? Number(form.pageCount) : undefined,
         urgency,
+        confidentialityLevel: confidentiality,
         notes: notes || undefined,
         processingInstructions: processingInstructions || undefined,
         processorIds: processorsList,
@@ -633,6 +637,23 @@ export default function AddIncomingDocumentPage() {
                       </div>
 
                       <div className="form-group">
+                        <label htmlFor="confidentiality">Độ mật</label>
+                        <select
+                          id="confidentiality"
+                          value={confidentiality}
+                          onChange={(e) =>
+                            setConfidentiality(e.target.value as ConfidentialityCodeOrName)
+                          }
+                        >
+                          {CONFIDENTIALITY_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
                         <label htmlFor="notes">Ghi chú</label>
                         <textarea
                           id="notes"
@@ -857,6 +878,12 @@ export default function AddIncomingDocumentPage() {
                 <div className="summary-item">
                   <span className="summary-label">Độ khẩn</span>
                   <span className="summary-value">{URGENCY_LABELS[urgency]}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Độ mật</span>
+                  <span className="summary-value">
+                    {CONFIDENTIALITY_OPTIONS.find((o) => o.value === confidentiality)?.label ?? confidentiality}
+                  </span>
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Tệp đính kèm</span>

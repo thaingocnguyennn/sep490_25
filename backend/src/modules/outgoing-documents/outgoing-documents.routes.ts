@@ -42,6 +42,16 @@ router.get(
   outgoingDocumentsController.getStatistics.bind(outgoingDocumentsController),
 );
 
+// GET /outgoing-documents/export — Xuất danh sách ra Excel/PDF
+// Đặt TRƯỚC /:id
+router.get(
+  '/export',
+  authenticate,
+  listOutgoingDocumentsValidation,
+  validateRequest,
+  outgoingDocumentsController.exportList.bind(outgoingDocumentsController),
+);
+
 // GET /outgoing-documents/:id — Chi tiết văn bản đi
 router.get(
   '/:id',

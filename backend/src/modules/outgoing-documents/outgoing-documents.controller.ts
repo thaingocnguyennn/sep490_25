@@ -43,6 +43,50 @@ export class OutgoingDocumentsController {
   }
 
   /**
+   * GET /outgoing-documents/export?format=excel|pdf
+   * Xuất danh sách văn bản đi ra Excel/PDF.
+   */
+  async exportList(req: Request, res: Response, next: NextFunction) {
+    try {
+      const format = (req.query.format as string) || 'excel';
+      const search = req.query.search as string | undefined;
+      const status = req.query.status as string | undefined;
+      const urgency = (req.query.urgencyId ?? req.query.urgency) as string | undefined;
+      const documentType = req.query.documentType as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
+      const confidentialityLevel = req.query.confidentialityLevel as string | undefined;
+      let departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined;
+
+      if (req.user!.roles.includes('SPECIALIST') && 
+          !req.user!.roles.includes('ADMIN') && 
+          !req.user!.roles.includes('DEPARTMENT_HEAD') && 
+          !req.user!.roles.includes('DOCUMENT_CLERK')) {
+        departmentId = req.user!.departmentId || -1;
+      }
+
+      const params = { search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId };
+
+      if (format === 'pdf') {
+        const buffer = await outgoingDocumentsService.exportToPdf(params);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename="outgoing_documents.pdf"');
+        res.send(buffer);
+      } else {
+        const buffer = await outgoingDocumentsService.exportToExcel(params);
+        res.setHeader(
+          'Content-Type',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+        res.setHeader('Content-Disposition', 'attachment; filename="outgoing_documents.xlsx"');
+        res.send(buffer);
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /outgoing-documents/trash
    * Lấy danh sách văn bản đi trong thùng rác.
    */
@@ -224,9 +268,16 @@ export class OutgoingDocumentsController {
     try {
       const dateFrom    = req.query.dateFrom    as string | undefined;
       const dateTo      = req.query.dateTo      as string | undefined;
-      const departmentId = req.query.departmentId
+      let departmentId = req.query.departmentId
         ? parseInt(req.query.departmentId as string)
         : undefined;
+
+      if (req.user!.roles.includes('SPECIALIST') && 
+          !req.user!.roles.includes('ADMIN') && 
+          !req.user!.roles.includes('DEPARTMENT_HEAD') && 
+          !req.user!.roles.includes('DOCUMENT_CLERK')) {
+        departmentId = req.user!.departmentId || -1;
+      }
 
       const data = await outgoingDocumentsService.getStatistics({
         dateFrom,

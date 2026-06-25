@@ -7,6 +7,7 @@ import { ROLES } from '../../shared/constants/roles';
 import {
   createIncomingDocumentValidation,
   processIncomingDocumentValidation,
+  processSpecialistDocumentValidation,
 } from './incoming-documents.validation';
 
 const router = Router();
@@ -28,9 +29,23 @@ router.get(
 );
 
 router.get(
+  '/pending-for-specialist',
+  authenticate,
+  requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
+  incomingDocumentsController.listPendingForSpecialist.bind(incomingDocumentsController)
+);
+
+router.get(
   '/',
   authenticate,
   incomingDocumentsController.list.bind(incomingDocumentsController)
+);
+
+// Thống kê Văn bản đến (thêm mới, phải đặt trước /:id)
+router.get(
+  '/statistics',
+  authenticate,
+  incomingDocumentsController.getStatistics.bind(incomingDocumentsController)
 );
 
 router.get(
@@ -58,6 +73,15 @@ router.post(
   processIncomingDocumentValidation,
   validateRequest,
   incomingDocumentsController.processByHead.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/process-specialist',
+  authenticate,
+  requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
+  processSpecialistDocumentValidation,
+  validateRequest,
+  incomingDocumentsController.processBySpecialist.bind(incomingDocumentsController)
 );
 
 export default router;

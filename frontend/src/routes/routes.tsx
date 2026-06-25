@@ -17,23 +17,20 @@ import RoleFormPage from '../features/roles/pages/RoleFormPage';
 import DepartmentsPage from '../features/departments/pages/DepartmentsPage';
 import DepartmentFormPage from '../features/departments/pages/DepartmentFormPage';
 import DepartmentDetailPage from '../features/departments/pages/DepartmentDetailPage';
-// Document management pages
-import DocumentsPage from '../features/documents/pages/DocumentsPage';
-import ArchivedDocumentsPage from '../features/documents/pages/ArchivedDocumentsPage';
-import DocumentUploadPage from '../features/documents/pages/DocumentUploadPage';
-import DocumentDetailPage from '../features/documents/pages/DocumentDetailPage';
-import DocumentEditPage from '../features/documents/pages/DocumentEditPage';
+
 // Incoming document pages (from dev branch)
 import IncomingDocumentsPage from '../features/documents/pages/IncomingDocumentsPage';
 import AddIncomingDocumentPage from '../features/documents/pages/AddIncomingDocumentPage';
 import IncomingDocumentDetailPage from '../features/documents/pages/IncomingDocumentDetailPage';
 import PendingIncomingDocumentsPage from '../features/documents/pages/PendingIncomingDocumentsPage';
+import IncomingStatisticsPage from '../features/documents/pages/IncomingStatisticsPage'; // giữ lại cho backward compat
 // Outgoing document pages
 import OutgoingDocumentsPage from '../features/documents/pages/OutgoingDocumentsPage';
 import CreateOutgoingDocumentPage from '../features/documents/pages/CreateOutgoingDocumentPage';
 import OutgoingDocumentDetailPage from '../features/documents/pages/OutgoingDocumentDetailPage';
 import OutgoingDocumentEditPage from '../features/documents/pages/OutgoingDocumentEditPage';
-import OutgoingStatisticsPage from '../features/documents/pages/OutgoingStatisticsPage';
+import OutgoingStatisticsPage from '../features/documents/pages/OutgoingStatisticsPage'; // giữ lại cho backward compat
+import DocumentStatisticsPage from '../features/documents/pages/DocumentStatisticsPage';
 
 
 export const routes: RouteObject[] = [
@@ -50,24 +47,22 @@ export const routes: RouteObject[] = [
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/edit', element: <ProfileEditPage /> },
       { path: 'change-password', element: <ChangePasswordPage /> },
-      // Document management routes
-      { path: 'documents', element: <DocumentsPage /> },
-      { path: 'documents/upload', element: <DocumentUploadPage /> },
-      { path: 'documents/archived', element: <ArchivedDocumentsPage /> },
-      { path: 'documents/:id', element: <DocumentDetailPage /> },
-      { path: 'documents/:id/edit', element: <DocumentEditPage /> },
+
       // Incoming document routes (from dev branch)
       { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
       { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
-      { path: 'incoming-documents/pending', element: <PendingIncomingDocumentsPage /> },
-      { path: 'incoming-documents/:id', element: <IncomingDocumentDetailPage /> },
+      { path: 'incoming-documents/pending',    element: <PendingIncomingDocumentsPage /> },
+      { path: 'incoming-documents/statistics',  element: <IncomingStatisticsPage /> }, // backward compat
+      { path: 'incoming-documents/:id',         element: <IncomingDocumentDetailPage /> },
       // Outgoing document routes
       { path: 'outgoing-documents',             element: <OutgoingDocumentsPage /> },
       { path: 'outgoing-documents/new',         element: <CreateOutgoingDocumentPage /> },
-      { path: 'outgoing-documents/statistics',  element: <OutgoingStatisticsPage /> },
+      { path: 'outgoing-documents/statistics',  element: <OutgoingStatisticsPage /> }, // backward compat
       { path: 'outgoing-documents/trash',       element: <OutgoingDocumentsPage /> },
       { path: 'outgoing-documents/:id',         element: <OutgoingDocumentDetailPage /> },
       { path: 'outgoing-documents/:id/edit',    element: <OutgoingDocumentEditPage /> },
+      // Trang thống kê gộp
+      { path: 'documents/statistics', element: <DocumentStatisticsPage /> },
     ],
   },
   {
