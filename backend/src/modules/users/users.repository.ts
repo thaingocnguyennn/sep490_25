@@ -8,6 +8,7 @@ export interface UserListParams {
   search?: string;
   status?: UserStatus;
   role?: string;
+  departmentId?: number;
 }
 
 export interface UserListResult {
@@ -72,6 +73,10 @@ export class UsersRepository {
           },
         },
       };
+    }
+
+    if (params.departmentId !== undefined) {
+      where.departmentId = params.departmentId;
     }
 
     if (params.search) {

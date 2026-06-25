@@ -9,7 +9,9 @@ import type {
   OutgoingDocument,
   UpdateOutgoingStatusRequest,
   OcrResult,
+  User,
 } from '../../../types';
+import { usersApi } from '../../../api/modules/users';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -55,7 +57,7 @@ export default function OutgoingDocumentDetailPage() {
   // Modal trạng thái
   const [statusModal, setStatusModal] = useState<{
     open: boolean;
-    action: 'submit' | 'approve' | 'return' | 'forward' | 'issue' | 'recall' | 'trash' | 'restore' | null;
+    action: 'submit' | 'approve' | 'return' | 'register' | 'issue' | 'recall' | 'trash' | 'restore' | null;
   }>({ open: false, action: null });
   const [returnReason, setReturnReason] = useState('');
   const [recallReason, setRecallReason] = useState('');
@@ -64,6 +66,10 @@ export default function OutgoingDocumentDetailPage() {
   const [sentDate, setSentDate] = useState('');
   const [issueUrgency, setIssueUrgency] = useState<string>('');
   const [issueConfidentiality, setIssueConfidentiality] = useState<string>('');
+  const [assignedApproverId, setAssignedApproverId] = useState<string>('');
+  const [assignedClerkId, setAssignedClerkId] = useState<string>('');
+  const [approvers, setApprovers] = useState<User[]>([]);
+  const [clerks, setClerks] = useState<User[]>([]);
 
   // Drag & Drop upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +96,7 @@ export default function OutgoingDocumentDetailPage() {
   const canSubmit = isSpecialist && doc?.document.status === 'DRAFT';
   const canApprove = isDeptHead && doc?.document.status === 'SUBMITTED';
   const canReturn = isDeptHead && doc?.document.status === 'SUBMITTED';
-  const canForward = isDeptHead && doc?.document.status === 'APPROVED';
+  const canRegister = isClerk && doc?.document.status === 'APPROVED' && doc.assignedClerkId === user?.id;
   const canIssue = isClerk && doc?.document.status === 'WAITING_FOR_ISSUE';
   const canRecall = isClerk && doc?.document.status === 'ISSUED';
   const canSendEmail = (isSpecialist || isClerk || isDeptHead || isAdmin) && doc?.document.status === 'ISSUED';
@@ -162,7 +168,7 @@ export default function OutgoingDocumentDetailPage() {
       submit: 'SUBMITTED',
       approve: 'APPROVED',
       return: 'RETURNED',
-      forward: 'WAITING_FOR_ISSUE',
+      register: 'WAITING_FOR_ISSUE',
       issue: 'ISSUED',
       recall: 'RECALLED',
       restore: 'DRAFT',
@@ -177,6 +183,8 @@ export default function OutgoingDocumentDetailPage() {
       sentDate: sentDate || undefined,
       urgency: (issueUrgency || undefined) as any,
       confidentialityLevel: (issueConfidentiality || undefined) as any,
+      assignedApproverId: assignedApproverId ? parseInt(assignedApproverId) : undefined,
+      assignedClerkId: assignedClerkId ? parseInt(assignedClerkId) : undefined,
     };
 
     const result = await updateStatus(doc.id, payload);
@@ -190,6 +198,28 @@ export default function OutgoingDocumentDetailPage() {
       setSentDate('');
       setIssueUrgency('');
       setIssueConfidentiality('');
+      setAssignedApproverId('');
+      setAssignedClerkId('');
+    }
+  };
+
+  const handleOpenStatusModal = async (action: 'submit' | 'approve' | 'return' | 'register' | 'issue' | 'recall' | 'trash' | 'restore') => {
+    setStatusModal({ open: true, action });
+    if (action === 'submit') {
+      try {
+        const res = await usersApi.getApprovers();
+        setApprovers(res.data.data || []);
+      } catch (err) {
+        console.error('Failed to load approvers', err);
+      }
+    }
+    if (action === 'approve') {
+      try {
+        const res = await usersApi.getClerks();
+        setClerks(res.data.data || []);
+      } catch (err) {
+        console.error('Failed to load clerks', err);
+      }
     }
   };
 
@@ -237,35 +267,36 @@ export default function OutgoingDocumentDetailPage() {
             </button>
           )}
           {canSubmit && (
-            <button id="btn-submit-doc" className="btn btn-primary" onClick={() => setStatusModal({ open: true, action: 'submit' })}>
+            <button id="btn-submit-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('submit')}>
               📤 Trình duyệt
             </button>
           )}
           {canApprove && (
-            <button id="btn-approve-doc" className="btn btn-primary" onClick={() => setStatusModal({ open: true, action: 'approve' })}
+            <button id="btn-approve-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('approve')}
               style={{ background: '#27ae60' }}>
               ✅ Phê duyệt
             </button>
           )}
           {canReturn && (
-            <button id="btn-return-doc" className="btn btn-secondary" onClick={() => setStatusModal({ open: true, action: 'return' })}
+            <button id="btn-return-doc" className="btn btn-secondary" onClick={() => handleOpenStatusModal('return')}
               style={{ borderColor: '#e67e22', color: '#e67e22' }}>
               ↩️ Trả lại
             </button>
           )}
-          {canForward && (
-            <button id="btn-forward-doc" className="btn btn-primary" onClick={() => setStatusModal({ open: true, action: 'forward' })}>
-              📨 Chuyển văn thư
+          {canRegister && (
+            <button id="btn-register-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('register')}
+              style={{ background: '#f39c12' }}>
+              📝 Vào sổ
             </button>
           )}
           {canIssue && (
-            <button id="btn-issue-doc" className="btn btn-primary" onClick={() => setStatusModal({ open: true, action: 'issue' })}
+            <button id="btn-issue-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('issue')}
               style={{ background: '#8e44ad' }}>
               🚀 Phát hành
             </button>
           )}
           {canRecall && (
-            <button id="btn-recall-doc" className="btn btn-secondary" onClick={() => setStatusModal({ open: true, action: 'recall' })}
+            <button id="btn-recall-doc" className="btn btn-secondary" onClick={() => handleOpenStatusModal('recall')}
               style={{ borderColor: '#c0392b', color: '#c0392b' }}>
               🔙 Thu hồi
             </button>
@@ -594,12 +625,50 @@ export default function OutgoingDocumentDetailPage() {
               {statusModal.action === 'submit' && '📤 Trình văn bản để duyệt'}
               {statusModal.action === 'approve' && '✅ Phê duyệt văn bản'}
               {statusModal.action === 'return' && '↩️ Trả lại văn bản'}
-              {statusModal.action === 'forward' && '📨 Chuyển cho văn thư phát hành'}
+              {statusModal.action === 'register' && '📝 Vào sổ văn bản'}
               {statusModal.action === 'issue' && '🚀 Phát hành văn bản'}
               {statusModal.action === 'recall' && '🔙 Thu hồi văn bản đã phát hành'}
               {statusModal.action === 'trash' && '🗑️ Chuyển vào thùng rác'}
               {statusModal.action === 'restore' && '♻️ Khôi phục từ thùng rác'}
             </h3>
+
+            {/* Trình duyệt: chọn người duyệt */}
+            {statusModal.action === 'submit' && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                  Chọn Lãnh đạo phê duyệt <span style={{ color: '#e74c3c' }}>*</span>
+                </label>
+                <select
+                  value={assignedApproverId}
+                  onChange={(e) => setAssignedApproverId(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
+                >
+                  <option value="">— Chọn Lãnh đạo —</option>
+                  {approvers.map(a => (
+                    <option key={a.id} value={a.id}>{a.fullName} ({a.email})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Phê duyệt: chọn văn thư */}
+            {statusModal.action === 'approve' && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                  Chọn Văn thư tiếp nhận <span style={{ color: '#e74c3c' }}>*</span>
+                </label>
+                <select
+                  value={assignedClerkId}
+                  onChange={(e) => setAssignedClerkId(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
+                >
+                  <option value="">— Chọn Văn thư —</option>
+                  {clerks.map(c => (
+                    <option key={c.id} value={c.id}>{c.fullName} ({c.email})</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Trả lại: bắt buộc nhập lý do */}
             {statusModal.action === 'return' && (
@@ -635,11 +704,11 @@ export default function OutgoingDocumentDetailPage() {
               </div>
             )}
 
-            {/* Phát hành: nhập số phát hành */}
-            {statusModal.action === 'issue' && (
+            {/* Vào sổ: nhập số phát hành, ngày ban hành */}
+            {statusModal.action === 'register' && (
               <>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Số phát hành chính thức</label>
+                  <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Số phát hành chính thức <span style={{ color: '#e74c3c' }}>*</span></label>
                   <input
                     id="dispatch-number-input"
                     type="text"
@@ -649,17 +718,23 @@ export default function OutgoingDocumentDetailPage() {
                     style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
                   />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  <div>
-                    <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ngày ban hành</label>
-                    <input
-                      id="issuance-date-input"
-                      type="date"
-                      value={issuanceDate}
-                      onChange={(e) => setIssuanceDate(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                    />
-                  </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ngày ban hành <span style={{ color: '#e74c3c' }}>*</span></label>
+                  <input
+                    id="issuance-date-input"
+                    type="date"
+                    value={issuanceDate}
+                    onChange={(e) => setIssuanceDate(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Phát hành: nhập thông tin gửi */}
+            {statusModal.action === 'issue' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 12 }}>
                   <div>
                     <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ngày gửi</label>
                     <input
@@ -708,11 +783,12 @@ export default function OutgoingDocumentDetailPage() {
             )}
 
             {/* Xác nhận chung */}
-            {!['return', 'recall', 'issue'].includes(statusModal.action || '') && (
+            {!['return', 'recall'].includes(statusModal.action || '') && (
               <p style={{ color: '#636e72', marginBottom: 20 }}>
-                {statusModal.action === 'submit' && 'Xác nhận trình văn bản lên Trưởng phòng để duyệt?'}
-                {statusModal.action === 'approve' && 'Xác nhận phê duyệt văn bản này?'}
-                {statusModal.action === 'forward' && 'Xác nhận chuyển văn bản cho Văn thư để cấp số và phát hành?'}
+                {statusModal.action === 'submit' && 'Xác nhận trình văn bản lên Lãnh đạo để duyệt?'}
+                {statusModal.action === 'approve' && 'Xác nhận phê duyệt văn bản và chuyển cho Văn thư?'}
+                {statusModal.action === 'register' && 'Xác nhận vào sổ văn bản này?'}
+                {statusModal.action === 'issue' && 'Xác nhận phát hành văn bản chính thức?'}
                 {statusModal.action === 'trash' && 'Văn bản sẽ được chuyển vào thùng rác. Có thể khôi phục sau.'}
                 {statusModal.action === 'restore' && 'Khôi phục văn bản này từ thùng rác về trạng thái Bản nháp?'}
               </p>

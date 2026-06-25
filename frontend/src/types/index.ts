@@ -290,6 +290,8 @@ export interface OutgoingDocument {
   trashedAt: string | null;
   trashedBy: number | null;
   notes: string | null;
+  assignedApproverId: number | null;
+  assignedClerkId: number | null;
   createdAt: string;
   updatedAt: string;
   // Relations
@@ -382,6 +384,8 @@ export interface UpdateOutgoingStatusRequest {
   urgency?: UrgencyCodeOrName;
   /** Độ mật tùy chọn khi phát hành (THUONG, MAT, TOI_MAT, TUYET_MAT) */
   confidentialityLevel?: ConfidentialityCodeOrName;
+  assignedApproverId?: number;
+  assignedClerkId?: number;
 }
 
 export interface OutgoingDocumentFilterParams {
@@ -411,5 +415,6 @@ export interface OcrResult {
     pageCount?: string;
     signerName?: string;
     signerTitle?: string;
+    recipientName?: string;
   };
 }

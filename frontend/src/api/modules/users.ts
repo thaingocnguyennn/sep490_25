@@ -36,10 +36,15 @@ export const usersApi = {
   getRoles: () =>
     api.get<ApiResponse<Role[]>>('/admin/roles'),
 
-  // Any authenticated user: own profile
   getMe: () =>
     api.get<ApiResponse<User>>('/users/me'),
 
   updateMe: (data: { fullName?: string; phone?: string }) =>
     api.put<ApiResponse<User>>('/users/me', data),
+
+  getApprovers: () =>
+    api.get<ApiResponse<User[]>>('/users/approvers'),
+
+  getClerks: () =>
+    api.get<ApiResponse<User[]>>('/users/clerks'),
 };

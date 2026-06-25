@@ -155,6 +155,9 @@ model User {
   outgoingRecalled  OutgoingDocument[] @relation("OutgoingRecalledBy")
   outgoingTrashed   OutgoingDocument[] @relation("OutgoingTrashedBy")
 
+  outgoingAssignedApprover OutgoingDocument[] @relation("OutgoingAssignedApprover")
+  outgoingAssignedClerk    OutgoingDocument[] @relation("OutgoingAssignedClerk")
+
   incomingDocumentsCreated IncomingDocument[] @relation("IncomingDocumentClerk")
 }
 
@@ -355,6 +358,11 @@ model OutgoingDocument {
   recalledByUser  User?    @relation("OutgoingRecalledBy", fields: [recalledBy], references: [id])
   trashedByUser   User?    @relation("OutgoingTrashedBy", fields: [trashedBy], references: [id])
   urgency         Urgency? @relation(fields: [urgencyId], references: [id])
+
+  assignedApproverId Int?
+  assignedApprover   User? @relation("OutgoingAssignedApprover", fields: [assignedApproverId], references: [id])
+  assignedClerkId    Int?
+  assignedClerk      User? @relation("OutgoingAssignedClerk", fields: [assignedClerkId], references: [id])
 
   @@index([urgencyId])
 }

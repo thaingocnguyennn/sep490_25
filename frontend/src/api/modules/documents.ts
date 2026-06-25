@@ -1,5 +1,5 @@
 import api from '../axios';
-import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest, ConfidentialityCodeOrName } from '../../types';
+import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest, ConfidentialityCodeOrName, OcrResult } from '../../types';
 
 export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
@@ -93,11 +93,7 @@ export interface IncomingDocumentListItem {
   document: Document;
 }
 
-export interface OcrResult {
-  text: string;
-  confidence: number;
-  extractedFields: Record<string, string>;
-}
+
 
 export interface CreateIncomingDocumentRequest {
   issuer?: string;
