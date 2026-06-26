@@ -58,7 +58,6 @@ export const routes: RouteObject[] = [
       { path: 'outgoing-documents',             element: <OutgoingDocumentsPage /> },
       { path: 'outgoing-documents/new',         element: <CreateOutgoingDocumentPage /> },
       { path: 'outgoing-documents/statistics',  element: <OutgoingStatisticsPage /> }, // backward compat
-      { path: 'outgoing-documents/trash',       element: <OutgoingDocumentsPage /> },
       { path: 'outgoing-documents/:id',         element: <OutgoingDocumentDetailPage /> },
       { path: 'outgoing-documents/:id/edit',    element: <OutgoingDocumentEditPage /> },
       // Trang thống kê gộp

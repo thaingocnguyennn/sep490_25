@@ -22,7 +22,7 @@ export default function CreateOutgoingDocumentPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromIncomingId = searchParams.get('fromIncomingId');
-  
+
   const { create, uploadFile, loading: creating } = useOutgoingDocumentActions();
   const { departments } = useDepartments();
   const layout = useOutletContext<LayoutContextValue>();
@@ -172,7 +172,7 @@ export default function CreateOutgoingDocumentPage() {
         <h1>Tạo Văn bản đi mới</h1>
         <div className="ocr-status-pill">
           <span className="ocr-status-dot" />
-          Dự thảo
+          OCR
         </div>
         <button className="btn btn-secondary" onClick={() => navigate('/outgoing-documents')}>
           Quay lại
@@ -189,7 +189,7 @@ export default function CreateOutgoingDocumentPage() {
         {/* LEFT: Viewer & OCR */}
         <div className="ocr-workspace-viewer-col">
           <DocumentViewer file={selectedFile} fileUrl={documentPreviewUrl} />
-          
+
           <div className="ocr-upload-toolbar">
             <input
               ref={fileInputRef}
@@ -207,7 +207,7 @@ export default function CreateOutgoingDocumentPage() {
               {selectedFile ? 'Đổi tệp' : 'Tải tệp lên *'}
             </button>
             {selectedFile && <span className="file-name-display">{selectedFile.name}</span>}
-            
+
             <button
               type="button"
               className="btn btn-primary"

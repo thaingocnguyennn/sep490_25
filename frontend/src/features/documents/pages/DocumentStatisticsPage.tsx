@@ -116,8 +116,8 @@ function TrendChart({ data, color, gradId }: {
   gradId: string;
 }) {
   if (!data.length) return null;
-  const W = 600, H = 160;
-  const PAD = { top: 16, right: 16, bottom: 32, left: 32 };
+  const W = 800, H = 250;
+  const PAD = { top: 20, right: 20, bottom: 40, left: 40 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
   const maxVal = Math.max(...data.map((d) => d.count), 1);
@@ -133,8 +133,8 @@ function TrendChart({ data, color, gradId }: {
     `L ${pts[pts.length - 1].x} ${H - PAD.bottom}`, 'Z',
   ].join(' ');
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 300 }}>
+    <div style={{ width: '100%', height: 300 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', overflow: 'visible' }} preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.25" />
@@ -146,7 +146,7 @@ function TrendChart({ data, color, gradId }: {
           return (
             <g key={f}>
               <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="#f1f2f6" strokeWidth="1" />
-              <text x={PAD.left - 4} y={y + 4} fontSize="10" fill="#b2bec3" textAnchor="end">{Math.round(f * maxVal)}</text>
+              <text x={PAD.left - 6} y={y + 4} fontSize="12" fill="#b2bec3" textAnchor="end">{Math.round(f * maxVal)}</text>
             </g>
           );
         })}
@@ -154,9 +154,9 @@ function TrendChart({ data, color, gradId }: {
         <polyline points={polyline} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" />
         {pts.map((p, i) => (
           <g key={i}>
-            <circle cx={p.x} cy={p.y} r="4" fill={color} stroke="#fff" strokeWidth="2" />
-            {p.count > 0 && <text x={p.x} y={p.y - 8} fontSize="10" fill={color} textAnchor="middle" fontWeight="600">{p.count}</text>}
-            <text x={p.x} y={H - PAD.bottom + 14} fontSize="10" fill="#636e72" textAnchor="middle"
+            <circle cx={p.x} cy={p.y} r="4.5" fill={color} stroke="#fff" strokeWidth="2" />
+            {p.count > 0 && <text x={p.x} y={p.y - 10} fontSize="12" fill={color} textAnchor="middle" fontWeight="600">{p.count}</text>}
+            <text x={p.x} y={H - PAD.bottom + 18} fontSize="12" fill="#636e72" textAnchor="middle"
               transform={data.length > 6 ? `rotate(-30 ${p.x} ${H - PAD.bottom + 14})` : undefined}>
               {formatMonth(p.month)}
             </text>

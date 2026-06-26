@@ -18,6 +18,7 @@ const OUTGOING_STATUSES: { value: OutgoingDocumentStatus | ''; label: string }[]
   { value: 'ISSUED',           label: 'Đã phát hành' },
   { value: 'COMPLETED',        label: 'Hoàn tất' },
   { value: 'RECALLED',         label: 'Thu hồi' },
+  { value: 'TRASHED',          label: 'Đã xóa' },
 ];
 
 const URGENCY_OPTIONS: { value: UrgencyName | ''; label: string }[] = [
@@ -137,12 +138,6 @@ export default function OutgoingDocumentsPage() {
             onClick={() => handleExport('pdf')}
           >
             📑 Xuất PDF
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => navigate('/outgoing-documents/trash')}
-          >
-            🗑️ Thùng rác
           </button>
           {canCreate && (
             <button

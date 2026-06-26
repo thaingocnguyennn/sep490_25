@@ -53,9 +53,9 @@ const STATUS_COLORS: Record<string, string> = {
 // ─── Component biểu đồ đường/cột Trend ─────────────────────────────────────
 function TrendChart({ trend }: { trend: DashboardStats['trend'] }) {
   const maxVal = Math.max(...trend.incoming, ...trend.outgoing, 1);
-  const W = 100; // viewBox width %
-  const H = 120; // viewBox height
-  const PAD = { top: 10, bottom: 30, left: 8, right: 8 };
+  const W = 800; // viewBox width
+  const H = 250; // viewBox height
+  const PAD = { top: 20, bottom: 30, left: 30, right: 20 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
 
@@ -82,39 +82,41 @@ function TrendChart({ trend }: { trend: DashboardStats['trend'] }) {
   const outArea = areaPath(trend.outgoing, COLORS.outgoing);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 200, overflow: 'visible' }}>
-      {/* Lưới ngang */}
-      {[0, 0.25, 0.5, 0.75, 1].map((r) => {
-        const y = PAD.top + innerH * (1 - r);
-        return (
-          <g key={r}>
-            <line x1={PAD.left} y1={y} x2={PAD.left + innerW} y2={y} stroke={COLORS.grid} strokeWidth="0.3" />
-            <text x={PAD.left - 1} y={y + 1} fontSize="3" fill={COLORS.text} textAnchor="end">
-              {Math.round(maxVal * r)}
-            </text>
+    <div style={{ width: '100%', height: 300 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', overflow: 'visible' }} preserveAspectRatio="xMidYMid meet">
+        {/* Lưới ngang */}
+        {[0, 0.25, 0.5, 0.75, 1].map((r) => {
+          const y = PAD.top + innerH * (1 - r);
+          return (
+            <g key={r}>
+              <line x1={PAD.left} y1={y} x2={PAD.left + innerW} y2={y} stroke={COLORS.grid} strokeWidth="1" />
+              <text x={PAD.left - 5} y={y + 4} fontSize="12" fill={COLORS.text} textAnchor="end">
+                {Math.round(maxVal * r)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Area đến */}
+        <path d={inArea.d} fill={COLORS.incoming} fillOpacity="0.12" />
+        {/* Area đi */}
+        <path d={outArea.d} fill={COLORS.outgoing} fillOpacity="0.12" />
+
+        {/* Line đến */}
+        <path d={linePath(trend.incoming)} fill="none" stroke={COLORS.incoming} strokeWidth="2.5" strokeLinejoin="round" />
+        {/* Line đi */}
+        <path d={linePath(trend.outgoing)} fill="none" stroke={COLORS.outgoing} strokeWidth="2.5" strokeLinejoin="round" />
+
+        {/* Chấm và nhãn tháng */}
+        {trend.months.map((m, i) => (
+          <g key={m}>
+            <circle cx={pointX(i)} cy={pointY(trend.incoming[i])} r="3.5" fill={COLORS.incoming} />
+            <circle cx={pointX(i)} cy={pointY(trend.outgoing[i])} r="3.5" fill={COLORS.outgoing} />
+            <text x={pointX(i)} y={H - 5} fontSize="12" fill={COLORS.text} textAnchor="middle">{m}</text>
           </g>
-        );
-      })}
-
-      {/* Area đến */}
-      <path d={inArea.d} fill={COLORS.incoming} fillOpacity="0.12" />
-      {/* Area đi */}
-      <path d={outArea.d} fill={COLORS.outgoing} fillOpacity="0.12" />
-
-      {/* Line đến */}
-      <path d={linePath(trend.incoming)} fill="none" stroke={COLORS.incoming} strokeWidth="0.8" strokeLinejoin="round" />
-      {/* Line đi */}
-      <path d={linePath(trend.outgoing)} fill="none" stroke={COLORS.outgoing} strokeWidth="0.8" strokeLinejoin="round" />
-
-      {/* Chấm và nhãn tháng */}
-      {trend.months.map((m, i) => (
-        <g key={m}>
-          <circle cx={pointX(i)} cy={pointY(trend.incoming[i])} r="1" fill={COLORS.incoming} />
-          <circle cx={pointX(i)} cy={pointY(trend.outgoing[i])} r="1" fill={COLORS.outgoing} />
-          <text x={pointX(i)} y={H - 5} fontSize="3" fill={COLORS.text} textAnchor="middle">{m}</text>
-        </g>
-      ))}
-    </svg>
+        ))}
+      </svg>
+    </div>
   );
 }
 
