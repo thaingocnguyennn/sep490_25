@@ -864,7 +864,14 @@ export default function OutgoingDocumentDetailPage() {
                 id="btn-confirm-action"
                 className="btn btn-primary"
                 onClick={handleStatusUpdate}
-                disabled={actionLoading || (statusModal.action === 'return' && !returnReason.trim()) || (statusModal.action === 'recall' && !recallReason.trim())}
+                disabled={
+                  actionLoading || 
+                  (statusModal.action === 'return' && !returnReason.trim()) || 
+                  (statusModal.action === 'recall' && !recallReason.trim()) ||
+                  (statusModal.action === 'submit' && !assignedApproverId) ||
+                  (statusModal.action === 'approve' && !assignedClerkId) ||
+                  (statusModal.action === 'register' && (!dispatchNumber.trim() || !issuanceDate))
+                }
                 style={{
                   background: statusModal.action === 'trash' ? '#e74c3c' :
                     statusModal.action === 'recall' ? '#c0392b' :
