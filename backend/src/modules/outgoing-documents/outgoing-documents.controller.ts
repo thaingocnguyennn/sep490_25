@@ -179,11 +179,26 @@ export class OutgoingDocumentsController {
     try {
       const id = parseInt(req.params.id as string);
       const result = await outgoingDocumentsService.runOcr(id);
-      res.status(200).json(successResponse(result, 'OCR hoàn tất'));
+      res.status(200).json(successResponse(result, 'Trích xuất OCR thành công'));
     } catch (error) {
       next(error);
     }
   }
+
+  /**
+   * GET /outgoing-documents/:id/verify-signature
+   * Kiểm tra chữ ký số của tệp đính kèm.
+   */
+  async verifySignature(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const result = await outgoingDocumentsService.verifySignature(id);
+      res.status(200).json(successResponse(result, 'Kiểm tra chữ ký số thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
 
   /**
    * PATCH /outgoing-documents/:id/metadata

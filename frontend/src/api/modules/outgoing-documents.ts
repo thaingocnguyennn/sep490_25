@@ -8,6 +8,7 @@ import type {
   PaginatedResponse,
   ApiResponse,
   OcrResult,
+  SignatureVerificationResult,
 } from '../../types';
 
 const BASE = '/outgoing-documents';
@@ -167,6 +168,13 @@ export const sendOutgoingEmail = async (
   recipients: string[],
 ): Promise<SendEmailResult> => {
   const res = await api.post<ApiResponse<SendEmailResult>>(`${BASE}/${id}/send-email`, { recipients });
+};
+
+/**
+ * Kiểm tra chữ ký số của file đính kèm.
+ */
+export const verifyOutgoingDocumentSignature = async (id: number): Promise<SignatureVerificationResult> => {
+  const res = await api.get<ApiResponse<SignatureVerificationResult>>(`${BASE}/${id}/verify-signature`);
   return res.data.data!;
 };
 

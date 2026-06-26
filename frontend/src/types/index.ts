@@ -418,3 +418,12 @@ export interface OcrResult {
     recipientName?: string;
   };
 }
+
+export interface SignatureVerificationResult {
+  hasSignature: boolean;
+  signatureCount: number;
+  isModifiedAfterSigning: boolean | null;
+  integrityStatus: 'NO_SIGNATURE' | 'VALID_OR_NOT_MODIFIED' | 'MODIFIED_AFTER_SIGNING' | 'UNKNOWN';
+  checkedBy: 'BYTE_RANGE_BASIC';
+  message: string;
+}
