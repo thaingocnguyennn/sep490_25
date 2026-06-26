@@ -16,7 +16,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   WAITING_FOR_ISSUE: { label: 'Chờ phát hành',       className: 'status-waiting' },
   ISSUED:            { label: 'Đã phát hành',        className: 'status-issued' },
   RECALLED:          { label: 'Thu hồi',             className: 'status-recalled' },
-  TRASHED:           { label: 'Thùng rác',           className: 'status-trashed' },
+  TRASHED:           { label: 'Đã xóa',           className: 'status-trashed' },
 };
 
 export function DocumentStatusBadge({ status }: { status: string }) {
