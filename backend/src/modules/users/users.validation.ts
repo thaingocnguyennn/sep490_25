@@ -7,8 +7,8 @@ export const createUserValidation = [
     .withMessage('Username is required')
     .isLength({ min: 3, max: 50 })
     .withMessage('Username must be 3-50 characters')
-    .matches(/^[a-zA-Z0-9_]+$/)
-    .withMessage('Username can only contain letters, numbers, and underscores'),
+    .matches(/^[a-zA-Z0-9_.-]+$/)
+    .withMessage('Username can only contain letters, numbers, underscores, dots, and dashes'),
   body('email')
     .trim()
     .notEmpty()
@@ -53,8 +53,8 @@ export const updateUserValidation = [
     .trim()
     .isLength({ min: 3, max: 50 })
     .withMessage('Username must be 3-50 characters')
-    .matches(/^[a-zA-Z0-9_]+$/)
-    .withMessage('Username can only contain letters, numbers, and underscores'),
+    .matches(/^[a-zA-Z0-9_.-]+$/)
+    .withMessage('Username can only contain letters, numbers, underscores, dots, and dashes'),
   body('email')
     .optional()
     .trim()
