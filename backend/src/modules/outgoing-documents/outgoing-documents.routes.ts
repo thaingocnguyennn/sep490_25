@@ -95,6 +95,15 @@ router.post(
   outgoingDocumentsController.runOcr.bind(outgoingDocumentsController),
 );
 
+// GET /outgoing-documents/:id/verify-signature — Kiểm tra chữ ký số
+router.get(
+  '/:id/verify-signature',
+  authenticate,
+  outgoingIdParamValidation,
+  validateRequest,
+  outgoingDocumentsController.verifySignature.bind(outgoingDocumentsController),
+);
+
 // PATCH /outgoing-documents/:id/metadata — Cập nhật metadata (#4)
 router.patch(
   '/:id/metadata',

@@ -4,6 +4,7 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
+import { checkPdfSignature } from '../../shared/utils/pdf-signature.util';
 import { DocumentStatus } from '@prisma/client';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
@@ -274,6 +275,26 @@ export class OutgoingDocumentsService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Kiểm tra xem văn bản đã đính kèm có chứa chữ ký số hay không và tính toàn vẹn của nó.
+   */
+  async verifySignature(id: number) {
+    const outgoing = await outgoingDocumentsRepository.findById(id);
+
+    if (!outgoing.document.fileUrl) {
+      throw new BadRequestError('Văn bản chưa có file đính kèm để kiểm tra chữ ký số.');
+    }
+
+    const filename = path.basename(outgoing.document.fileUrl);
+    const filePath = path.join(config.uploadDir, filename);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundError('File không tồn tại trên server.');
+    }
+
+    return checkPdfSignature(filePath);
   }
 
   /**
