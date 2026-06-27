@@ -143,8 +143,14 @@ export class OutgoingDocumentsRepository {
     confidentialityLevel?: string | number;
     departmentId?: number;
     includeTrashed?: boolean;
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    };
   }) {
-    const { page, limit, search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed } = params;
+    const { page, limit, search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed, currentUser } = params;
     const skip = (page - 1) * limit;
 
     // Mặc định chỉ hiện văn bản ACTIVE (không ở thùng rác)
@@ -153,16 +159,89 @@ export class OutgoingDocumentsRepository {
         documentStatus: 'ACTIVE',
         ...(includeTrashed ? {} : { status: { not: 'TRASHED' as any } }),
       },
+      AND: [],
     };
 
+    if (currentUser) {
+      const isSpecialist = currentUser.roles.includes('SPECIALIST');
+      const isDeptHead = currentUser.roles.includes('DEPARTMENT_HEAD');
+      const isClerk = currentUser.roles.includes('DOCUMENT_CLERK');
+      const isAdmin = currentUser.roles.includes('ADMIN');
+
+      if (isAdmin && !isSpecialist && !isDeptHead && !isClerk) {
+        // ADMIN chỉ quản lý user, không tham gia nghiệp vụ
+        (where.document as Record<string, unknown>).id = -1;
+      } else {
+        const authOr: Prisma.OutgoingDocumentWhereInput[] = [];
+
+        if (isSpecialist) {
+          authOr.push(
+            { document: { createdBy: currentUser.id } },
+            { document: { departmentId: currentUser.departmentId || -1 } },
+            { document: { processors: { some: { userId: currentUser.id } } } }
+          );
+          if (currentUser.departmentName) {
+            authOr.push({
+              document: { status: 'ISSUED' },
+              recipientName: { contains: currentUser.departmentName, mode: 'insensitive' },
+            });
+          }
+        }
+
+        if (isDeptHead) {
+          authOr.push(
+            { document: { departmentId: currentUser.departmentId || -1 } },
+            { assignedApproverId: currentUser.id },
+            { document: { processors: { some: { userId: currentUser.id } } } }
+          );
+          if (currentUser.departmentName) {
+            authOr.push({
+              document: { status: 'ISSUED' },
+              recipientName: { contains: currentUser.departmentName, mode: 'insensitive' },
+            });
+          }
+        }
+
+        if (isClerk) {
+          authOr.push(
+            { document: { createdBy: currentUser.id } },
+            { assignedClerkId: currentUser.id }
+          );
+          if (currentUser.departmentId) {
+            authOr.push({ document: { departmentId: currentUser.departmentId } });
+          }
+          if (currentUser.departmentName) {
+            authOr.push({
+              document: { status: 'ISSUED' },
+              recipientName: { contains: currentUser.departmentName, mode: 'insensitive' },
+            });
+          }
+        }
+
+        if (authOr.length > 0) {
+          (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({ OR: authOr });
+        } else if (!isAdmin) {
+          // Có role nhưng chưa định nghĩa nghiệp vụ
+          (where.document as Record<string, unknown>).id = -1;
+        }
+      }
+    }
+
     if (search) {
-      where.OR = [
-        { document: { title: { contains: search, mode: 'insensitive' } } },
-        { document: { documentNumber: { contains: search, mode: 'insensitive' } } },
-        { document: { ocrText: { contains: search, mode: 'insensitive' } } },
-        { signerName: { contains: search, mode: 'insensitive' } },
-        { recipientName: { contains: search, mode: 'insensitive' } },
-      ];
+      (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({
+        OR: [
+          { document: { title: { contains: search, mode: 'insensitive' } } },
+          { document: { documentNumber: { contains: search, mode: 'insensitive' } } },
+          { document: { ocrText: { contains: search, mode: 'insensitive' } } },
+          { signerName: { contains: search, mode: 'insensitive' } },
+          { recipientName: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    // Clean up empty AND to avoid Prisma errors
+    if (Array.isArray(where.AND) && where.AND.length === 0) {
+      delete where.AND;
     }
 
     if (status) {
@@ -227,22 +306,80 @@ export class OutgoingDocumentsRepository {
   /**
    * Lấy danh sách văn bản đi trong thùng rác.
    */
-  async findTrashed(params: { page: number; limit: number; search?: string }) {
-    const { page, limit, search } = params;
+  async findTrashed(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    };
+  }) {
+    const { page, limit, search, currentUser } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.OutgoingDocumentWhereInput = {
       document: { status: 'TRASHED' as any, documentStatus: 'ACTIVE' },
+      AND: [],
     };
 
+    if (currentUser) {
+      const isSpecialist = currentUser.roles.includes('SPECIALIST');
+      const isDeptHead = currentUser.roles.includes('DEPARTMENT_HEAD');
+      const isClerk = currentUser.roles.includes('DOCUMENT_CLERK');
+      const isAdmin = currentUser.roles.includes('ADMIN');
+
+      if (isAdmin && !isSpecialist && !isDeptHead && !isClerk) {
+        (where.document as Record<string, unknown>).id = -1;
+      } else {
+        const authOr: Prisma.OutgoingDocumentWhereInput[] = [];
+
+        if (isSpecialist) {
+          authOr.push(
+            { document: { createdBy: currentUser.id } },
+            { document: { departmentId: currentUser.departmentId || -1 } }
+          );
+        }
+
+        if (isDeptHead) {
+          authOr.push(
+            { document: { departmentId: currentUser.departmentId || -1 } }
+          );
+        }
+
+        if (isClerk) {
+          authOr.push(
+            { document: { createdBy: currentUser.id } },
+            { assignedClerkId: currentUser.id }
+          );
+          if (currentUser.departmentId) {
+            authOr.push({ document: { departmentId: currentUser.departmentId } });
+          }
+        }
+
+        if (authOr.length > 0) {
+          (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({ OR: authOr });
+        } else if (!isAdmin) {
+          (where.document as Record<string, unknown>).id = -1;
+        }
+      }
+    }
+
     if (search) {
-      where.document = {
-        ...(where.document as object),
-        OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { documentNumber: { contains: search, mode: 'insensitive' } },
-        ],
-      };
+      (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({
+        document: {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { documentNumber: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    if (Array.isArray(where.AND) && where.AND.length === 0) {
+      delete where.AND;
     }
 
     const [items, total] = await Promise.all([

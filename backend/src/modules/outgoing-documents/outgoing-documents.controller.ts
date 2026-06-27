@@ -1,6 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
 import { outgoingDocumentsService } from './outgoing-documents.service';
 import { successResponse } from '../../shared/utils/response.util';
+import prisma from '../../config/database';
+
+async function buildCurrentUserContext(user: any) {
+  if (!user) return undefined;
+  let departmentName = null;
+  if (user.departmentId) {
+    const dept = await prisma.department.findUnique({ where: { id: user.departmentId } });
+    departmentName = dept?.name;
+  }
+  return {
+    id: user.userId,
+    roles: user.roles,
+    departmentId: user.departmentId,
+    departmentName,
+  };
+}
 
 export class OutgoingDocumentsController {
   /**
@@ -20,9 +36,11 @@ export class OutgoingDocumentsController {
       const confidentialityLevel = req.query.confidentialityLevel as string | undefined;
       const departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined;
 
+      const currentUser = await buildCurrentUserContext(req.user);
+
       const result = await outgoingDocumentsService.list({ 
         page, limit, search, status, urgency, 
-        documentType, dateFrom, dateTo, confidentialityLevel, departmentId 
+        documentType, dateFrom, dateTo, confidentialityLevel, departmentId, currentUser 
       });
 
       res.status(200).json(
@@ -58,14 +76,8 @@ export class OutgoingDocumentsController {
       const confidentialityLevel = req.query.confidentialityLevel as string | undefined;
       let departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined;
 
-      if (req.user!.roles.includes('SPECIALIST') && 
-          !req.user!.roles.includes('ADMIN') && 
-          !req.user!.roles.includes('DEPARTMENT_HEAD') && 
-          !req.user!.roles.includes('DOCUMENT_CLERK')) {
-        departmentId = req.user!.departmentId || -1;
-      }
-
-      const params = { search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId };
+      const currentUser = await buildCurrentUserContext(req.user);
+      const params = { search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId, currentUser };
 
       if (format === 'pdf') {
         const buffer = await outgoingDocumentsService.exportToPdf(params);
@@ -96,7 +108,9 @@ export class OutgoingDocumentsController {
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string | undefined;
 
-      const result = await outgoingDocumentsService.listTrashed({ page, limit, search });
+      const currentUser = await buildCurrentUserContext(req.user);
+
+      const result = await outgoingDocumentsService.listTrashed({ page, limit, search, currentUser });
 
       res.status(200).json(
         successResponse(
@@ -287,17 +301,13 @@ export class OutgoingDocumentsController {
         ? parseInt(req.query.departmentId as string)
         : undefined;
 
-      if (req.user!.roles.includes('SPECIALIST') && 
-          !req.user!.roles.includes('ADMIN') && 
-          !req.user!.roles.includes('DEPARTMENT_HEAD') && 
-          !req.user!.roles.includes('DOCUMENT_CLERK')) {
-        departmentId = req.user!.departmentId || -1;
-      }
+      const currentUser = await buildCurrentUserContext(req.user);
 
       const data = await outgoingDocumentsService.getStatistics({
         dateFrom,
         dateTo,
         departmentId,
+        currentUser,
       });
 
       res.status(200).json(successResponse(data, 'Lấy thống kê văn bản đi thành công'));

@@ -96,6 +96,12 @@ export class OutgoingDocumentsService {
     dateTo?: string;
     confidentialityLevel?: string;
     departmentId?: number;
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    };
   }) {
     return outgoingDocumentsRepository.findAll(params);
   }
@@ -103,7 +109,17 @@ export class OutgoingDocumentsService {
   /**
    * Lấy danh sách văn bản đi trong thùng rác.
    */
-  async listTrashed(params: { page: number; limit: number; search?: string }) {
+  async listTrashed(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    };
+  }) {
     return outgoingDocumentsRepository.findTrashed(params);
   }
 
@@ -717,8 +733,25 @@ export class OutgoingDocumentsService {
     dateFrom?: string;
     dateTo?: string;
     departmentId?: number;
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    };
   } = {}) {
-    const { dateFrom, dateTo, departmentId } = params;
+    const { dateFrom, dateTo, departmentId, currentUser } = params;
+
+    if (currentUser) {
+      const isSpecialist = currentUser.roles.includes('SPECIALIST');
+      const isDeptHead = currentUser.roles.includes('DEPARTMENT_HEAD');
+      const isClerk = currentUser.roles.includes('DOCUMENT_CLERK');
+      const isAdmin = currentUser.roles.includes('ADMIN');
+
+      if (isAdmin && !isSpecialist && !isDeptHead && !isClerk) {
+        return { totalCount: 0, issuedCount: 0, byStatus: [], byDocumentType: [], byDepartment: [], byMonth: [] };
+      }
+    }
 
     // ── Điều kiện chung áp dụng cho mọi truy vấn ───────────────────────────
     const baseDocumentFilter: Record<string, unknown> = {
@@ -878,6 +911,12 @@ export class OutgoingDocumentsService {
     dateTo?: string;
     confidentialityLevel?: string;
     departmentId?: number;
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    };
   }): Promise<Buffer> {
     const listParams = { ...params, page: 1, limit: 10000 };
     const { items } = await outgoingDocumentsRepository.findAll(listParams as any);
@@ -940,6 +979,12 @@ export class OutgoingDocumentsService {
     dateTo?: string;
     confidentialityLevel?: string;
     departmentId?: number;
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    };
   }): Promise<Buffer> {
     const listParams = { ...params, page: 1, limit: 10000 };
     const { items } = await outgoingDocumentsRepository.findAll(listParams as any);
