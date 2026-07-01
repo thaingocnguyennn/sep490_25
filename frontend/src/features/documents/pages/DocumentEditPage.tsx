@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { documentsApi } from '../../../api';
 import { LoadingSpinner } from '../../../shared/components';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
-import type { Document, UpdateDocumentRequest, ConfidentialityName } from '../../../types';
+import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
+import type { Document, UpdateDocumentRequest, ConfidentialityName, UrgencyName } from '../../../types';
 
 /**
  * DocumentEditPage – Edit document metadata (file is not changed).
@@ -25,7 +26,7 @@ export default function DocumentEditPage() {
   const [type, setType] = useState('INCOMING');
   const [issuanceDate, setIssuanceDate] = useState('');
   const [sendingAgency, setSendingAgency] = useState('');
-  const [urgencyLevel, setUrgencyLevel] = useState('NORMAL');
+  const [urgency, setUrgency] = useState<UrgencyName>('THUONG');
   const [confidentialityLevel, setConfidentialityLevel] = useState<ConfidentialityName>('THUONG');
   const [category, setCategory] = useState('');
 
@@ -44,7 +45,7 @@ export default function DocumentEditPage() {
         setType(d.type);
         setIssuanceDate(d.issuanceDate ? d.issuanceDate.split('T')[0] : '');
         setSendingAgency(d.sendingAgency || '');
-        setUrgencyLevel(d.urgencyLevel);
+        setUrgency((d.urgency?.name as UrgencyName) ?? 'THUONG');
         // The old server returned a ConfidentialityLevel enum; map the legacy
         // labels back onto the new seeded names so the dropdown stays accurate.
         setConfidentialityLevel(
@@ -76,7 +77,7 @@ export default function DocumentEditPage() {
       type: type as any,
       issuanceDate: issuanceDate ? new Date(issuanceDate).toISOString() : null,
       sendingAgency: sendingAgency.trim() || undefined,
-      urgencyLevel: urgencyLevel as any,
+      urgency: urgency,
       confidentialityLevel: confidentialityLevel as ConfidentialityName,
       category: category.trim() || undefined,
     };
@@ -170,11 +171,10 @@ export default function DocumentEditPage() {
                 </div>
                 <div className="form-group">
                   <label>Độ khẩn</label>
-                  <select value={urgencyLevel} onChange={(e) => setUrgencyLevel(e.target.value)}>
-                    <option value="LOW">Thấp</option>
-                    <option value="NORMAL">Bình thường</option>
-                    <option value="HIGH">Cao</option>
-                    <option value="URGENT">Khẩn cấp</option>
+                  <select value={urgency} onChange={(e) => setUrgency(e.target.value as UrgencyName)}>
+                    {URGENCY_OPTIONS.map((opt) => (
+                      <option key={opt.name} value={opt.name}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="form-group">

@@ -321,7 +321,7 @@ export default function IncomingDocumentDetailPage() {
                 </div>
                 <div className="detail-item">
                   <label>Độ khẩn</label>
-                  <span>{doc.urgency ? formatUrgency(doc.urgency) : '—'}</span>
+                  <span>{doc.document.urgency ? formatUrgency(doc.document.urgency) : '—'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Phòng ban tiếp nhận</label>

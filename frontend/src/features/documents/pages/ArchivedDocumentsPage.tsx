@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDocuments, useDocumentActions } from '../../../shared/hooks';
 import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
-import type { DocumentType, DocumentStatus, PriorityLevel, ConfidentialityCodeOrName } from '../../../types';
+import type { DocumentType, DocumentStatus, UrgencyCodeOrName, ConfidentialityCodeOrName } from '../../../types';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
+import { URGENCY_OPTIONS, formatUrgency } from '../../../shared/constants/urgency';
 import { useAuth } from '../../../contexts/AuthContext';
 
 /**
@@ -20,7 +21,7 @@ export default function ArchivedDocumentsPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<DocumentType | ''>('');
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | ''>('');
-  const [urgencyFilter, setUrgencyFilter] = useState<PriorityLevel | ''>('');
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyCodeOrName | ''>('');
   const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityCodeOrName | ''>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -42,7 +43,7 @@ export default function ArchivedDocumentsPage() {
       search: search || undefined,
       type: typeFilter || undefined,
       status: statusFilter || undefined,
-      urgencyLevel: urgencyFilter || undefined,
+      urgency: urgencyFilter || undefined,
       confidentialityLevel: confidentialityFilter || undefined,
       departmentId: departmentFilter ? Number(departmentFilter) : undefined,
       processorId: processorFilter ? Number(processorFilter) : undefined,
@@ -85,7 +86,7 @@ export default function ArchivedDocumentsPage() {
     search: search || undefined,
     type: typeFilter || undefined,
     status: statusFilter || undefined,
-    urgencyLevel: urgencyFilter || undefined,
+    urgency: urgencyFilter || undefined,
     confidentialityLevel: confidentialityFilter || undefined,
     departmentId: departmentFilter ? Number(departmentFilter) : undefined,
     processorId: processorFilter ? Number(processorFilter) : undefined,
@@ -105,12 +106,14 @@ export default function ArchivedDocumentsPage() {
   };
 
   // ─── Helper: urgency badge color ──────────────────────────────────────
-  const getUrgencyClass = (level: PriorityLevel) => {
-    switch (level) {
-      case 'URGENT': return 'doc-badge urgent';
-      case 'HIGH': return 'doc-badge high';
-      case 'LOW': return 'doc-badge low';
-      default: return 'doc-badge normal';
+  const getUrgencyClass = (name?: string | null) => {
+    switch (name) {
+      case 'HOA_TOC':
+      case 'THUONG_KHAN':
+      case 'THUONG_KHAU': return 'doc-badge urgent';
+      case 'KHAN':         return 'doc-badge high';
+      case 'THUONG':       return 'doc-badge normal';
+      default:             return 'doc-badge low';
     }
   };
 
@@ -204,14 +207,13 @@ export default function ArchivedDocumentsPage() {
               </select>
               <select
                 value={urgencyFilter}
-                onChange={(e) => setUrgencyFilter(e.target.value as PriorityLevel | '')}
+                onChange={(e) => setUrgencyFilter(e.target.value as UrgencyCodeOrName | '')}
                 className="filter-select"
               >
                 <option value="">Tất cả độ khẩn</option>
-                <option value="LOW">Thấp</option>
-                <option value="NORMAL">Bình thường</option>
-                <option value="HIGH">Cao</option>
-                <option value="URGENT">Khẩn cấp</option>
+                {URGENCY_OPTIONS.map((opt) => (
+                  <option key={opt.name} value={opt.name}>{opt.label}</option>
+                ))}
               </select>
               <select
                 value={confidentialityFilter}
@@ -283,7 +285,9 @@ export default function ArchivedDocumentsPage() {
                         <span className={getTypeClass(doc.type)}>{doc.type}</span>
                       </td>
                       <td>
-                        <span className={getUrgencyClass(doc.urgencyLevel)}>{doc.urgencyLevel}</span>
+                        <span className={getUrgencyClass(doc.urgency?.name)}>
+                          {doc.urgency?.name ? formatUrgency(doc.urgency) : '—'}
+                        </span>
                       </td>
                       <td>{doc.sendingAgency || '—'}</td>
                       <td>

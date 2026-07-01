@@ -109,8 +109,8 @@ export default function DocumentDetailPage() {
               </div>
               <div className="detail-item">
                 <label>Độ khẩn</label>
-                <span className={`doc-badge ${(doc.urgency?.name ?? doc.urgencyLevel).toString().toLowerCase()}`}>
-                  {doc.urgency ? formatUrgency(doc.urgency) : doc.urgencyLevel}
+                <span className={`doc-badge ${(doc.urgency?.name ?? 'thuong').toString().toLowerCase()}`}>
+                  {doc.urgency ? formatUrgency(doc.urgency) : '—'}
                 </span>
               </div>
               <div className="detail-item">

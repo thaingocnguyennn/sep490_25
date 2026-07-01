@@ -176,8 +176,8 @@ export default function PendingIncomingDocumentsPage() {
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>
                       <td>
-                        {item.urgency && item.urgency.name !== 'THUONG'
-                          ? formatUrgency(item.urgency)
+                        {item.document.urgency && item.document.urgency.name !== 'THUONG'
+                          ? formatUrgency(item.document.urgency)
                           : '—'}
                       </td>
                       <td><DocumentStatusBadge status={item.document.status} /></td>

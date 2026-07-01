@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DocumentStatus, Priority } from '../../api';
+import type { DocumentStatus } from '../../api';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   // Trạng thái chung
@@ -22,18 +22,6 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 export function DocumentStatusBadge({ status }: { status: string }) {
   const config = STATUS_CONFIG[status] ?? { label: status, className: 'status-draft' };
   return <span className={`doc-status-badge ${config.className}`}>{config.label}</span>;
-}
-
-const PRIORITY_CONFIG: Record<Priority, { label: string; className: string }> = {
-  LOW:    { label: 'Thấp',   className: 'priority-low' },
-  NORMAL: { label: 'Bình thường', className: 'priority-normal' },
-  HIGH:   { label: 'Cao',    className: 'priority-high' },
-  URGENT: { label: 'Khẩn cấp', className: 'priority-urgent' },
-};
-
-export function PriorityBadge({ priority }: { priority: string }) {
-  const config = PRIORITY_CONFIG[priority as Priority] ?? { label: priority, className: 'priority-normal' };
-  return <span className={`priority-badge ${config.className}`}>{config.label}</span>;
 }
 
 // Badge độ khẩn cho văn bản đi

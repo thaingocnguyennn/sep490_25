@@ -1,7 +1,7 @@
 import prisma from '../../config/database';
-import { DocumentType, DocumentLifecycleStatus, Priority, Prisma } from '@prisma/client';
+import { DocumentType, DocumentLifecycleStatus, Prisma } from '@prisma/client';
 import { resolveConfidentialityId, resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
-import { resolveUrgencyId, resolveUrgencyIdWithDefault, resolveUrgencyFromPriority } from '../../shared/utils/urgency';
+import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -12,8 +12,6 @@ export interface DocumentListParams {
   search?: string;
   type?: DocumentType;
   status?: DocumentLifecycleStatus;
-  /** Legacy priority filter (LOW / NORMAL / HIGH / URGENT) — still honored */
-  urgencyLevel?: Priority;
   /** Accepts a seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
   urgencyId?: number | string;
   /** Accepts a code ('A'/'B'/'C'), seeded name ('THUONG', 'MAT', ...), or numeric id */
@@ -56,7 +54,6 @@ export interface DocumentSummary {
   type: DocumentType;
   status: string;               // Workflow status: DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
   documentStatus: DocumentLifecycleStatus;  // Lifecycle: ACTIVE or DELETED (soft-delete)
-  urgencyLevel: Priority;
   urgencyId: number | null;
   urgency: DocumentUrgency | null;
   confidentialityId: number | null;
@@ -127,17 +124,9 @@ export class DocumentsRepository {
     if (params.type) {
       where.type = params.type;
     }
-    if (params.urgencyLevel) {
-      where.urgencyLevel = params.urgencyLevel;
-    }
     if (params.urgencyId !== undefined && params.urgencyId !== null && params.urgencyId !== '') {
-      const urgencyId = await resolveUrgencyId(params.urgencyId);
-      if (urgencyId === null) {
-        // Filter references an unknown urgency name → return no rows.
-        where.id = -1;
-      } else {
-        where.urgencyId = urgencyId;
-      }
+      const urgencyId = await resolveUrgencyIdWithDefault(params.urgencyId);
+      where.urgencyId = urgencyId;
     }
     if (params.confidentialityId !== undefined && params.confidentialityId !== null && params.confidentialityId !== '') {
       const confidentialityId = await resolveConfidentialityId(params.confidentialityId);
@@ -214,7 +203,6 @@ export class DocumentsRepository {
     fileUrl?: string;
     issuanceDate?: Date;
     sendingAgency?: string;
-    urgencyLevel?: Priority;
     /** Accepts a seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgencyId?: number | string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, or numeric id */
@@ -231,11 +219,7 @@ export class DocumentsRepository {
       ? await resolveConfidentialityIdWithDefault(data.confidentialityId)
       : await resolveConfidentialityIdWithDefault(null);
 
-    // Resolve urgencyId from explicit input, or fall back to mapping the
-    // legacy urgencyLevel (Priority) → Urgency row, or finally to THUONG.
-    const urgencyId = data.urgencyId !== undefined && data.urgencyId !== null && data.urgencyId !== ''
-      ? await resolveUrgencyIdWithDefault(data.urgencyId)
-      : await resolveUrgencyFromPriority(data.urgencyLevel);
+    const urgencyId = await resolveUrgencyIdWithDefault(data.urgencyId);
 
     const doc = await prisma.document.create({
       data: {
@@ -246,7 +230,6 @@ export class DocumentsRepository {
         fileUrl: data.fileUrl,
         issuanceDate: data.issuanceDate,
         sendingAgency: data.sendingAgency,
-        urgencyLevel: data.urgencyLevel || 'NORMAL',
         urgencyId,
         confidentialityId,
         category: data.category,
@@ -272,7 +255,6 @@ export class DocumentsRepository {
       type?: DocumentType;
       issuanceDate?: Date | null;
       sendingAgency?: string;
-      urgencyLevel?: Priority;
       /** Accepts a seeded name, legacy alias, numeric id, or null to clear */
       urgencyId?: number | string | null;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or null to clear */
@@ -360,14 +342,9 @@ export class DocumentsRepository {
     where.documentStatus = params.status || 'ACTIVE';
 
     if (params.type) where.type = params.type;
-    if (params.urgencyLevel) where.urgencyLevel = params.urgencyLevel;
     if (params.urgencyId !== undefined && params.urgencyId !== null && params.urgencyId !== '') {
-      const urgencyId = await resolveUrgencyId(params.urgencyId);
-      if (urgencyId === null) {
-        where.id = -1;
-      } else {
-        where.urgencyId = urgencyId;
-      }
+      const urgencyId = await resolveUrgencyIdWithDefault(params.urgencyId);
+      where.urgencyId = urgencyId;
     }
     if (params.confidentialityId !== undefined && params.confidentialityId !== null && params.confidentialityId !== '') {
       const confidentialityId = await resolveConfidentialityId(params.confidentialityId);
@@ -425,7 +402,6 @@ export class DocumentsRepository {
     title: string;
     type: DocumentType;
     documentStatus: DocumentLifecycleStatus;
-    urgencyLevel: Priority;
     urgencyId: number | null;
     urgency: DocumentUrgency | null;
     confidentialityId: number | null;
@@ -449,7 +425,6 @@ export class DocumentsRepository {
       type: doc.type,
       status: (doc as any).status ?? 'DRAFT',  // Workflow status from Document model
       documentStatus: doc.documentStatus,
-      urgencyLevel: doc.urgencyLevel,
       urgencyId: doc.urgencyId,
       urgency: doc.urgency,
       confidentialityId: doc.confidentialityId,
@@ -476,7 +451,6 @@ export class DocumentsRepository {
     type: DocumentType;
     fileUrl: string | null;
     documentStatus: DocumentLifecycleStatus;
-    urgencyLevel: Priority;
     urgencyId: number | null;
     urgency: DocumentUrgency | null;
     confidentialityId: number | null;

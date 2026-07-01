@@ -50,7 +50,7 @@ export class DocumentsController {
     try {
       const {
         page, limit, search, type, status,
-        urgencyLevel, urgency, urgencyId,
+        urgency, urgencyId,
         confidentialityLevel, confidentialityId,
         departmentId, processorId,
         dateFrom, dateTo,
@@ -62,7 +62,6 @@ export class DocumentsController {
         search: search as string,
         type: type as any,
         status: status as any,
-        urgencyLevel: urgencyLevel as any,
         urgencyId: (urgencyId ?? urgency) as any,
         confidentialityId: (confidentialityId ?? confidentialityLevel) as any,
         departmentId: departmentId ? Number(departmentId) : undefined,
@@ -294,7 +293,6 @@ export class DocumentsController {
         search: req.query.search as string,
         type: req.query.type as any,
         status: req.query.status as any,
-        urgencyLevel: req.query.urgencyLevel as any,
         urgencyId: (req.query.urgencyId ?? req.query.urgency) as any,
         confidentialityId: (req.query.confidentialityId ?? req.query.confidentialityLevel) as any,
         departmentId: req.query.departmentId ? Number(req.query.departmentId) : undefined,

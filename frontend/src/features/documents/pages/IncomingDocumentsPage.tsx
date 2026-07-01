@@ -168,9 +168,9 @@ export default function IncomingDocumentsPage() {
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>
                       <td>
-                        {item.urgency ? (
-                          <span className={`urgency-badge urgency-${item.urgency.name.toLowerCase()}`}>
-                            {formatUrgency(item.urgency)}
+                        {item.document.urgency ? (
+                          <span className={`urgency-badge urgency-${item.document.urgency.name.toLowerCase()}`}>
+                            {formatUrgency(item.document.urgency)}
                           </span>
                         ) : '—'}
                       </td>

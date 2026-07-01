@@ -1,5 +1,5 @@
 import { body, query, param } from 'express-validator';
-import { DocumentType, Priority, DocumentLifecycleStatus } from '@prisma/client';
+import { DocumentType, DocumentLifecycleStatus } from '@prisma/client';
 
 // Allowed urgency lookup values (seeded names, legacy aliases, numeric ids)
 const URGENCY_ALLOWED = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
@@ -33,10 +33,6 @@ export const uploadDocumentValidation = [
     .trim()
     .isLength({ max: 200 })
     .withMessage('Sending agency must be at most 200 characters'),
-  body('urgencyLevel')
-    .optional()
-    .isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])
-    .withMessage('Urgency level must be LOW, NORMAL, HIGH, or URGENT'),
   body('urgency')
     .optional()
     .custom((value) => {
@@ -138,10 +134,6 @@ export const updateDocumentValidation = [
     .trim()
     .isLength({ max: 200 })
     .withMessage('Sending agency must be at most 200 characters'),
-  body('urgencyLevel')
-    .optional()
-    .isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])
-    .withMessage('Urgency level must be LOW, NORMAL, HIGH, or URGENT'),
   body('urgency')
     .optional({ nullable: true })
     .custom((value) => {
@@ -236,10 +228,6 @@ export const getDocumentsValidation = [
     .optional()
     .isIn(['ACTIVE', 'DELETED'])
     .withMessage('Invalid status filter'),
-  query('urgencyLevel')
-    .optional()
-    .isIn(['LOW', 'NORMAL', 'HIGH', 'URGENT'])
-    .withMessage('Invalid urgency filter'),
   query('urgency')
     .optional()
     .custom((value) => {

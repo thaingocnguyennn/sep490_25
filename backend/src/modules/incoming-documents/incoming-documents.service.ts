@@ -46,7 +46,6 @@ export class IncomingDocumentsService {
     limit: number;
     search?: string;
     status?: string;
-    priority?: string;
     urgency?: string;
     userId?: number;
     userRoles?: string[];
@@ -322,8 +321,6 @@ export class IncomingDocumentsService {
           dateReceived: new Date(data.dateReceived),
           summary: data.summary,
           pageCount: data.pageCount,
-          urgencyId,
-          confidentialityId,
           notes: data.notes,
           processingInstructions: data.processingInstructions,
           createdByClerkId: data.createdBy,

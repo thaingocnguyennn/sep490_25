@@ -2,7 +2,7 @@ import { default as prisma } from '../../config/database';
 import { NotFoundError } from '../../shared/exceptions/app-error';
 import { Prisma } from '@prisma/client';
 import { resolveConfidentialityId } from '../../shared/utils/confidentiality';
-import { resolveUrgencyId } from '../../shared/utils/urgency';
+import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 
 // ─── Kiểu dữ liệu trả về ─────────────────────────────────────────────────────
 
@@ -15,12 +15,6 @@ export interface OutgoingDocumentWithRelations {
   issuanceDate: Date | null;
   signerName: string | null;
   signerTitle: string | null;
-  urgencyId: number | null;
-  urgency: {
-    id: number;
-    name: string;
-    description: string | null;
-  } | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -57,8 +51,12 @@ export interface OutgoingDocumentWithRelations {
     ocrText: string | null;
     ocrStatus: string;
     status: string;
-    priority: string;
-    urgencyLevel: string;
+    urgencyId: number | null;
+    urgency: {
+      id: number;
+      name: string;
+      description: string | null;
+    } | null;
     confidentialityId: number | null;
     confidentiality: {
       id: number;
@@ -114,7 +112,6 @@ const OUTGOING_INCLUDE = {
       },
     },
   },
-  urgency: { select: { id: true, name: true, description: true } },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },
@@ -252,12 +249,11 @@ export class OutgoingDocumentsRepository {
     }
 
     if (urgency) {
-      const urgencyId = await resolveUrgencyId(urgency);
-      if (urgencyId === null) {
-        (where.document as Record<string, unknown>).id = -1;
-      } else {
-        where.urgencyId = urgencyId;
-      }
+      const urgencyId = await resolveUrgencyIdWithDefault(urgency);
+      where.document = {
+        ...(where.document as object),
+        urgencyId,
+      };
     }
 
     if (documentType) {
