@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentActions } from '../../../shared/hooks';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
-import type { ConfidentialityName } from '../../../types';
+import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
+import type { ConfidentialityName, UrgencyName } from '../../../types';
 
 /**
  * DocumentUploadPage – Upload a new document with file + metadata.
@@ -21,7 +22,7 @@ export default function DocumentUploadPage() {
   const [type, setType] = useState('INCOMING');
   const [issuanceDate, setIssuanceDate] = useState('');
   const [sendingAgency, setSendingAgency] = useState('');
-  const [urgencyLevel, setUrgencyLevel] = useState('NORMAL');
+  const [urgency, setUrgency] = useState<UrgencyName>('THUONG');
   const [confidentialityLevel, setConfidentialityLevel] = useState<ConfidentialityName>('THUONG');
   const [category, setCategory] = useState('');
   
@@ -125,7 +126,7 @@ export default function DocumentUploadPage() {
     formData.append('type', type);
     if (issuanceDate) formData.append('issuanceDate', new Date(issuanceDate).toISOString());
     if (sendingAgency.trim()) formData.append('sendingAgency', sendingAgency.trim());
-    formData.append('urgencyLevel', urgencyLevel);
+    formData.append('urgency', urgency);
     formData.append('confidentialityLevel', confidentialityLevel);
     if (category.trim()) formData.append('category', category.trim());
 
@@ -259,11 +260,10 @@ export default function DocumentUploadPage() {
                 </div>
                 <div className="form-group">
                   <label>Độ khẩn</label>
-                  <select value={urgencyLevel} onChange={(e) => setUrgencyLevel(e.target.value)}>
-                    <option value="LOW">Thấp</option>
-                    <option value="NORMAL">Bình thường</option>
-                    <option value="HIGH">Cao</option>
-                    <option value="URGENT">Khẩn cấp</option>
+                  <select value={urgency} onChange={(e) => setUrgency(e.target.value as UrgencyName)}>
+                    {URGENCY_OPTIONS.map((opt) => (
+                      <option key={opt.name} value={opt.name}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="form-group">

@@ -3,7 +3,6 @@ import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, Up
 
 export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
-export type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 export type ProcessorType = 'XLC' | 'PHXL' | 'XDB';
 export type Urgency = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
 
@@ -62,8 +61,6 @@ export interface IncomingDocumentDetail {
   dateReceived: string;
   summary: string | null;
   pageCount: number | null;
-  urgency: UrgencyRecord | null;
-  confidentiality: { id: number; code: string | null; name: string; description: string | null } | null;
   notes: string | null;
   processingInstructions: string | null;
   createdByClerkId: number | null;
@@ -84,8 +81,6 @@ export interface IncomingDocumentListItem {
   dateReceived: string;
   summary: string | null;
   pageCount: number | null;
-  urgency: UrgencyRecord | null;
-  confidentiality: { id: number; code: string | null; name: string; description: string | null } | null;
   notes: string | null;
   processingInstructions: string | null;
   createdByClerkId: number | null;
@@ -270,7 +265,6 @@ export const incomingDocumentsApi = {
     limit?: number;
     search?: string;
     status?: string;
-    priority?: string;
   }) =>
     api.get<ApiResponse<PaginatedResponse<IncomingDocumentListItem>>>('/incoming-documents', { params }),
 

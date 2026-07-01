@@ -17,19 +17,6 @@ export interface IncomingDocumentWithRelations {
   receivedDate: Date;
   summary: string | null;
   pageCount: number | null;
-  urgencyId: number | null;
-  urgency: {
-    id: number;
-    name: string;
-    description: string | null;
-  } | null;
-  confidentialityId: number | null;
-  confidentiality: {
-    id: number;
-    code: string | null;
-    name: string;
-    description: string | null;
-  } | null;
   notes: string | null;
   processingInstructions: string | null;
   createdByClerkId: number | null;
@@ -42,7 +29,6 @@ export interface IncomingDocumentWithRelations {
     type: string;
     fileUrl: string | null;
     status: string;
-    priority: string;
     urgencyId: number | null;
     urgency: {
       id: number;
@@ -92,7 +78,6 @@ export class IncomingDocumentsRepository {
     limit: number;
     search?: string;
     status?: string;
-    priority?: string;
     /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
     /** Filter by documentId for users with XLC/PHXL/XDB assignments */
@@ -100,42 +85,41 @@ export class IncomingDocumentsRepository {
     /** Restrict to documents where the user has at least one XLC/PHXL/XDB processor record */
     assignedProcessorTypes?: string[];
   }) {
-    const { page, limit, search, status, priority, urgency, assignedToUserId, assignedProcessorTypes } = params;
+    const { page, limit, search, status, urgency, assignedToUserId, assignedProcessorTypes } = params;
     const skip = (page - 1) * limit;
 
+    const documentWhere: Prisma.DocumentWhereInput = {};
     const where: Prisma.IncomingDocumentWhereInput = {};
     if (search) {
-      where.document = {
-        OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { documentNumber: { contains: search, mode: 'insensitive' } },
-          { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
-          { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
-          { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
-        ],
-      };
+      documentWhere.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
+      ];
     }
-    if (status) where.document = { ...((where.document as object) || {}), status: status as any };
-    if (priority) where.document = { ...((where.document as object) || {}), priority: priority as any };
+    if (status) documentWhere.status = status as any;
     if (urgency) {
       const urgencyId = await resolveUrgencyId(urgency);
       if (urgencyId === null) {
-        where.document = { ...((where.document as object) || {}), id: -1 };
+        documentWhere.id = -1;
       } else {
-        where.urgencyId = urgencyId;
+        documentWhere.urgencyId = urgencyId;
       }
     }
 
     if (assignedToUserId !== undefined && assignedProcessorTypes && assignedProcessorTypes.length > 0) {
-      where.document = {
-        ...((where.document as object) || {}),
-        processors: {
-          some: {
-            userId: assignedToUserId,
-            processorType: { in: assignedProcessorTypes as any },
-          },
+      documentWhere.processors = {
+        some: {
+          userId: assignedToUserId,
+          processorType: { in: assignedProcessorTypes as any },
         },
       };
+    }
+
+    if (Object.keys(documentWhere).length > 0) {
+      where.document = documentWhere;
     }
 
     const [items, total] = await Promise.all([
@@ -145,13 +129,12 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
-          urgency: { select: { id: true, name: true, description: true } },
-          confidentiality: { select: { id: true, code: true, name: true, description: true } },
           createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
               urgency: { select: { id: true, name: true, description: true } },
+              confidentiality: { select: { id: true, code: true, name: true, description: true } },
               processors: {
                 include: { user: { select: { id: true, fullName: true, email: true } } },
               },
@@ -177,8 +160,6 @@ export class IncomingDocumentsRepository {
     const incoming = await prisma.incomingDocument.findUnique({
       where: { id },
       include: {
-        urgency: { select: { id: true, name: true, description: true } },
-        confidentiality: { select: { id: true, code: true, name: true, description: true } },
         createdByClerk: { select: { id: true, fullName: true } },
         document: {
           include: {
@@ -238,13 +219,12 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
-          urgency: { select: { id: true, name: true, description: true } },
-          confidentiality: { select: { id: true, code: true, name: true, description: true } },
           createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
               urgency: { select: { id: true, name: true, description: true } },
+              confidentiality: { select: { id: true, code: true, name: true, description: true } },
               processors: {
                 include: { user: { select: { id: true, fullName: true, email: true } } },
               },
@@ -299,13 +279,12 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
-          urgency: { select: { id: true, name: true, description: true } },
-          confidentiality: { select: { id: true, code: true, name: true, description: true } },
           createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
               urgency: { select: { id: true, name: true, description: true } },
+              confidentiality: { select: { id: true, code: true, name: true, description: true } },
               processors: {
                 include: { user: { select: { id: true, fullName: true, email: true } } },
               },

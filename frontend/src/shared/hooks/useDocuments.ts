@@ -5,7 +5,6 @@ import type {
   DocumentFilterParams,
   DocumentType,
   DocumentStatus,
-  PriorityLevel,
 } from '../../types';
 
 interface UseDocumentsOptions {

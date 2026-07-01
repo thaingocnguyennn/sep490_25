@@ -14,32 +14,12 @@ import { config } from '../../config';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
-// ─── Helper: Map Urgency → Priority (legacy derivation) ──────────────────────
+// ─── Status-transition table ─────────────────────────────────────────────────
 
 /**
- * Chuyển đổi giá trị Urgency (THUONG, KHAN, THUONG_KHAN, HOA_TOC)
- * thành Priority (NORMAL, HIGH, URGENT) để lưu vào bảng Document.
- * The Priority enum is retained as a denormalized hint for filtering and
- * the urgencyId is the new canonical source of truth.
- */
-function mapUrgencyToPriority(urgency?: string | null): string | undefined {
-  if (!urgency) return undefined;
-  switch (urgency) {
-    case 'KHAN':        return 'HIGH';
-    case 'THUONG_KHAN': return 'URGENT';
-    case 'THUONG_KHAU': return 'URGENT'; // legacy alias
-    case 'HOA_TOC':     return 'URGENT';
-    default:            return 'NORMAL'; // THUONG → NORMAL
-  }
-}
-
-// ─── Kiểu chuyển đổi trạng thái hợp lệ ─────────────────────────────────────
-
-/**
- * Định nghĩa các trạng thái kế tiếp hợp lệ từ mỗi trạng thái hiện tại.
+ * Valid status transitions for outgoing documents.
  * Dùng để kiểm soát workflow nghiêm ngặt.
- */
-/**
+ *
  * DESIGN NOTE – Register vs Issue (pending supervisor confirmation)
  * ----------------------------------------------------------------
  * Current: APPROVED → WAITING_FOR_ISSUE → ISSUED  (1 combined step)
@@ -76,7 +56,6 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   REJECTED: ['DRAFT'],
   CANCELLED: [],
 };
-
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
@@ -167,10 +146,7 @@ export class OutgoingDocumentsService {
           description: data.description,
           type: 'OUTGOING',
           status: DocumentStatus.DRAFT,
-          // urgencyId is the new canonical source. urgencyLevel is kept as a
-          // denormalized hint derived from the urgency for legacy filter code.
           urgencyId,
-          urgencyLevel: mapUrgencyToPriority(data.urgency) as any || 'NORMAL',
           confidentialityId: await resolveConfidentialityIdWithDefault(data.confidentialityLevel),
           departmentId: data.departmentId,
           createdBy: data.createdBy,
@@ -185,7 +161,6 @@ export class OutgoingDocumentsService {
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
-          urgencyId,
           notes: data.notes,
           relatedIncomingDocumentId: data.relatedIncomingDocumentId,
         },
@@ -350,8 +325,6 @@ export class OutgoingDocumentsService {
     const documentUpdate: Record<string, unknown> = {
       title: data.title,
       description: data.description,
-      // Map Urgency → Priority trước khi lưu vào bảng Document
-      ...(data.urgency !== undefined && { urgencyLevel: mapUrgencyToPriority(data.urgency) as any }),
       departmentId: data.departmentId,
       updatedBy,
     };
@@ -362,14 +335,12 @@ export class OutgoingDocumentsService {
           : await resolveConfidentialityIdWithDefault(data.confidentialityLevel);
     }
 
-    // Resolve urgencyId once if it was provided so we can set it on both
-    // the parent Document and the child OutgoingDocument consistently.
-    let outgoingUrgencyId: number | null | undefined = undefined;
+    // Resolve urgencyId once if it was provided so we can set it on the
+    // parent Document consistently.
     if (data.urgency !== undefined) {
       documentUpdate.urgencyId = data.urgency === null
         ? null
         : await resolveUrgencyIdWithDefault(data.urgency);
-      outgoingUrgencyId = documentUpdate.urgencyId as number | null;
     }
 
     await prisma.$transaction(async (tx) => {
@@ -392,7 +363,6 @@ export class OutgoingDocumentsService {
           recipientEmail: data.recipientEmail,
           pageCount: data.pageCount,
           notes: data.notes,
-          ...(outgoingUrgencyId !== undefined && { urgencyId: outgoingUrgencyId }),
         },
       });
     });
@@ -474,7 +444,6 @@ export class OutgoingDocumentsService {
         }
         if (options?.dispatchNumber) outgoingUpdateData.dispatchNumber = options.dispatchNumber;
         if (options?.issuanceDate) outgoingUpdateData.issuanceDate = new Date(options.issuanceDate);
-        if (options?.urgency) outgoingUpdateData.urgencyId = await resolveUrgencyIdWithDefault(options.urgency);
         outgoingUpdateData.forwardedAt = now;
         outgoingUpdateData.forwardedBy = userId;
         break;
@@ -526,10 +495,7 @@ export class OutgoingDocumentsService {
           status: newStatus as any,
           updatedBy: userId,
           ...(newConfidentialityId !== undefined && { confidentialityId: newConfidentialityId }),
-          ...(newUrgencyId !== undefined && {
-            urgencyId: newUrgencyId,
-            urgencyLevel: mapUrgencyToPriority(options?.urgency) as any,
-          }),
+          ...(newUrgencyId !== undefined && { urgencyId: newUrgencyId }),
         },
       });
 

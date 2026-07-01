@@ -27,7 +27,6 @@ export class DocumentsService {
       search: params.search,
       type: params.type,
       status: params.status,
-      urgencyLevel: params.urgencyLevel,
       urgencyId: params.urgencyId,
       confidentialityId: params.confidentialityId,
       departmentId: params.departmentId,
@@ -62,9 +61,7 @@ export class DocumentsService {
       type: string;
       issuanceDate?: string;
       sendingAgency?: string;
-      /** Legacy priority (LOW / NORMAL / HIGH / URGENT) — still honored for back-compat */
-      urgencyLevel?: string;
-      /** New canonical urgency: seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
+      /** Canonical urgency: seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
       urgency?: string;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
       confidentialityLevel?: string;
@@ -103,7 +100,6 @@ export class DocumentsService {
       fileUrl,
       issuanceDate: data.issuanceDate ? new Date(data.issuanceDate) : undefined,
       sendingAgency: data.sendingAgency,
-      urgencyLevel: (data.urgencyLevel as any) || 'NORMAL',
       urgencyId: data.urgency ?? undefined,
       confidentialityId: data.confidentialityId ?? data.confidentialityLevel,
       category: data.category,
@@ -128,7 +124,6 @@ export class DocumentsService {
           signerTitle: data.signerTitle,
           pageCount: data.pageCount ? Number(data.pageCount) : undefined,
           arrivalNumber: data.arrivalNumber ? Number(data.arrivalNumber) : undefined,
-          urgencyId: doc.urgencyId,
           notes: data.notes,
         },
       });
@@ -138,7 +133,6 @@ export class DocumentsService {
           documentId: doc.id,
           recipientName: 'Chưa cập nhật',
           sentDate: new Date(),
-          urgencyId: doc.urgencyId,
         },
       });
     }
@@ -159,8 +153,6 @@ export class DocumentsService {
       type?: string;
       issuanceDate?: string | null;
       sendingAgency?: string;
-      /** Legacy priority (LOW / NORMAL / HIGH / URGENT) — still honored for back-compat */
-      urgencyLevel?: string;
       /** New canonical urgency: seeded name, legacy alias, numeric id, or null to clear */
       urgency?: string | null;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
@@ -202,7 +194,6 @@ export class DocumentsService {
       type: data.type as any,
       issuanceDate: data.issuanceDate === null ? null : data.issuanceDate ? new Date(data.issuanceDate) : undefined,
       sendingAgency: data.sendingAgency,
-      urgencyLevel: data.urgencyLevel as any,
       urgencyId: data.urgency !== undefined ? data.urgency : undefined,
       confidentialityId:
         data.confidentialityId !== undefined
@@ -215,22 +206,6 @@ export class DocumentsService {
       processorId: data.processorId,
       updatedBy,
     });
-
-    // Propagate urgencyId to IncomingDocument/OutgoingDocument when
-    // explicitly updated, so the relation is kept in sync.
-    if (data.urgency !== undefined) {
-      if (existing.type === 'INCOMING' || data.type === 'INCOMING') {
-        await prisma.incomingDocument.updateMany({
-          where: { documentId: id },
-          data: { urgencyId: data.urgency === null ? null : updatedDoc.urgencyId },
-        });
-      } else if (existing.type === 'OUTGOING' || data.type === 'OUTGOING') {
-        await prisma.outgoingDocument.updateMany({
-          where: { documentId: id },
-          data: { urgencyId: data.urgency === null ? null : updatedDoc.urgencyId },
-        });
-      }
-    }
 
     // Handle type change sync
     if (data.type && data.type !== existing.type) {

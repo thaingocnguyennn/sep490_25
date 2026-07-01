@@ -49,13 +49,6 @@ enum DocumentType {
   ARCHIVAL
 }
 
-enum Priority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
-
 // Document lifecycle status (ACTIVE or soft-deleted)
 enum DocumentLifecycleStatus {
   ACTIVE
@@ -85,8 +78,11 @@ model Department {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  primaryUserId Int?
+
   parent   Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children Department[] @relation("DepartmentHierarchy")
+  primaryUser User?     @relation("DepartmentPrimaryUser", fields: [primaryUserId], references: [id])
 
   // Many-to-many: a user can belong to multiple departments, and a department can have multiple users
   members           DepartmentMember[]
@@ -96,6 +92,7 @@ model Department {
 
   @@unique([name, parentId])
   @@index([parentId])
+  @@index([primaryUserId])
 }
 
 model DepartmentMember {
@@ -132,6 +129,7 @@ model User {
   department   Department? @relation(fields: [departmentId], references: [id])
 
   departmentMemberships DepartmentMember[]
+  primaryDepartments    Department[]  @relation("DepartmentPrimaryUser")
 
   userRoles     UserRole[]
   createdByUser User?      @relation("CreatedBy", fields: [createdBy], references: [id])
@@ -159,6 +157,8 @@ model User {
   outgoingAssignedClerk    OutgoingDocument[] @relation("OutgoingAssignedClerk")
 
   incomingDocumentsCreated IncomingDocument[] @relation("IncomingDocumentClerk")
+
+  @@index([departmentId])
 }
 
 model Role {
@@ -182,7 +182,6 @@ model Confidentiality {
   updatedAt   DateTime @updatedAt
 
   documents Document[]
-  incomingDocuments IncomingDocument[]
 }
 
 // Lookup table for document urgency levels
@@ -195,8 +194,6 @@ model Urgency {
   updatedAt   DateTime @updatedAt
 
   documents         Document[]
-  incomingDocuments IncomingDocument[]
-  outgoingDocuments OutgoingDocument[]
 }
 
 model UserRole {
@@ -220,14 +217,13 @@ model Document {
   ocrText        String?
   ocrStatus      OcrStatus      @default(PENDING)
   status         DocumentStatus @default(DRAFT)
-  priority       Priority       @default(NORMAL)
   deadline       DateTime?
+  searchVector   Unsupported("tsvector")? // Full-text search: title + description + ocrText
 
   // --- Level 2 fields: basic document management ---
   issuanceDate      DateTime? // Ngày ban hành
   sendingAgency     String? // Cơ quan gửi
-  urgencyLevel      Priority                @default(NORMAL) // Mức độ khẩn (derived from urgency)
-  urgencyId         Int? // FK -> Urgency (canonical urgency)
+  urgencyId         Int? // FK -> Urgency (mức độ khẩn)
   confidentialityId Int? // FK -> Confidentiality (mức độ mật)
   documentStatus    DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
   category          String? // Phân loại phụ (tuỳ chọn)
@@ -265,6 +261,12 @@ model Document {
   @@index([processorId])
   @@index([confidentialityId])
   @@index([urgencyId])
+  @@index([createdBy])
+  @@index([updatedBy])
+  @@index([ocrStatus])
+  @@index([deadline])
+  @@index([isArchived])
+  @@index([searchVector], type: Gin)
 }
 
 model IncomingDocument {
@@ -280,7 +282,6 @@ model IncomingDocument {
   dateReceived           DateTime // Ngày đến
   summary                String?   @db.Text // Trích yếu nội dung
   pageCount              Int? // Số trang văn bản
-  urgencyId              Int? // FK -> Urgency (Độ khẩn: Thường / Khẩn / Thượng khẩn / Hỏa tốc)
   notes                  String?
   processingInstructions String?
   createdAt              DateTime  @default(now())
@@ -289,18 +290,16 @@ model IncomingDocument {
   document     Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
   department   Department? @relation(fields: [departmentId], references: [id])
   departmentId Int?
-  urgency      Urgency?    @relation(fields: [urgencyId], references: [id])
-  confidentiality Confidentiality? @relation(fields: [confidentialityId], references: [id])
-  confidentialityId Int?
 
   createdByClerk   User? @relation("IncomingDocumentClerk", fields: [createdByClerkId], references: [id])
   createdByClerkId Int?
 
   outgoingResponses OutgoingDocument[]
 
-  @@index([urgencyId])
-  @@index([confidentialityId])
   @@index([createdByClerkId])
+  @@index([departmentId])
+  @@index([dateReceived])
+  @@index([arrivalNumber])
 }
 
 model OutgoingDocument {
@@ -314,7 +313,6 @@ model OutgoingDocument {
   issuanceDate   DateTime? // Ngày ban hành chính thức
   signerName     String? // Họ tên người ký
   signerTitle    String? // Chức vụ người ký
-  urgencyId      Int? // FK -> Urgency (Độ khẩn)
 
   // Thông tin phát hành
   recipientName    String? // Tên người/cơ quan nhận
@@ -357,14 +355,16 @@ model OutgoingDocument {
   issuedByUser    User?    @relation("OutgoingIssuedBy", fields: [issuedBy], references: [id])
   recalledByUser  User?    @relation("OutgoingRecalledBy", fields: [recalledBy], references: [id])
   trashedByUser   User?    @relation("OutgoingTrashedBy", fields: [trashedBy], references: [id])
-  urgency         Urgency? @relation(fields: [urgencyId], references: [id])
 
   assignedApproverId Int?
   assignedApprover   User? @relation("OutgoingAssignedApprover", fields: [assignedApproverId], references: [id])
   assignedClerkId    Int?
   assignedClerk      User? @relation("OutgoingAssignedClerk", fields: [assignedClerkId], references: [id])
 
-  @@index([urgencyId])
+  @@index([relatedIncomingDocumentId])
+  @@index([dispatchNumber])
+  @@index([assignedApproverId])
+  @@index([assignedClerkId])
 }
 
 model DocumentProcessor {
@@ -378,6 +378,7 @@ model DocumentProcessor {
   user     User     @relation(fields: [userId], references: [id])
 
   @@unique([documentId, userId, processorType])
+  @@index([userId])
 }
 
 model DocumentAttachment {
@@ -390,6 +391,8 @@ model DocumentAttachment {
   createdAt  DateTime @default(now())
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
 }
 
 model WorkflowStep {
@@ -418,6 +421,9 @@ model DocumentWorkflow {
   document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
   workflowStep WorkflowStep @relation(fields: [workflowStepId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@index([documentId, createdAt])
 }
 
 model Notification {
@@ -429,6 +435,8 @@ model Notification {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
 }
 
 model SystemLog {
@@ -444,4 +452,5 @@ model SystemLog {
 
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([createdAt])
 }

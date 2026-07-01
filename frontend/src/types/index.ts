@@ -112,7 +112,6 @@ export interface ApiResponse<T = unknown> {
 
 export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'ACTIVE' | 'DELETED';
-export type PriorityLevel = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
 /**
  * Confidentiality classifications seeded into the Confidentiality lookup
@@ -160,7 +159,6 @@ export interface Document {
   fileUrl: string | null;
   documentStatus: DocumentStatus;
   isArchived: boolean;
-  urgencyLevel: PriorityLevel;
   urgencyId: number | null;
   urgency: Urgency | null;
   confidentialityId: number | null;
@@ -209,7 +207,6 @@ export interface DocumentFilterParams {
   type?: DocumentType;
   status?: DocumentStatus;
   isArchived?: boolean;
-  urgencyLevel?: PriorityLevel;
   /** Seeded urgency name, legacy alias, or numeric id */
   urgency?: UrgencyCodeOrName;
   urgencyId?: UrgencyCodeOrName;
@@ -228,7 +225,6 @@ export interface UpdateDocumentRequest {
   type?: DocumentType;
   issuanceDate?: string | null;
   sendingAgency?: string;
-  urgencyLevel?: PriorityLevel;
   /** Seeded urgency name, legacy alias, or numeric id; null to clear */
   urgency?: UrgencyCodeOrName | null;
   urgencyId?: UrgencyCodeOrName | null;
@@ -254,8 +250,6 @@ export type OutgoingDocumentStatus =
   | 'REJECTED'
   | 'CANCELLED';
 
-export type UrgencyLevel = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'HOA_TOC' | 'THUONG_KHAU';
-
 export interface OutgoingDocument {
   id: number;
   documentId: number;
@@ -265,8 +259,6 @@ export interface OutgoingDocument {
   issuanceDate: string | null;
   signerName: string | null;
   signerTitle: string | null;
-  urgencyId: number | null;
-  urgency: Urgency | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -305,7 +297,6 @@ export interface OutgoingDocument {
     ocrText: string | null;
     ocrStatus: string;
     status: OutgoingDocumentStatus;
-    urgencyLevel: PriorityLevel;
     urgencyId: number | null;
     urgency: Urgency | null;
     confidentialityId: number | null;
