@@ -297,7 +297,7 @@ export default function OutgoingDocumentsPage() {
                         {item.recipientName || '—'}
                       </td>
                       <td>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</td>
-                      <td><UrgencyBadge urgency={item.urgency} /></td>
+                      <td><UrgencyBadge urgency={item.document.urgency} /></td>
                       <td>
                         <DocumentStatusBadge status={item.document.status} />
                       </td>

@@ -85,11 +85,6 @@ export class DocumentsController {
     }
   }
 
-  // Alias for list (used by dev branch routes)
-  async list(req: Request, res: Response, next: NextFunction) {
-    return this.getAll(req, res, next);
-  }
-
   /**
    * GET /documents/:id
    * Get full details of a single document.

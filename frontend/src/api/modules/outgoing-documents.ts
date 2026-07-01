@@ -168,6 +168,7 @@ export const sendOutgoingEmail = async (
   recipients: string[],
 ): Promise<SendEmailResult> => {
   const res = await api.post<ApiResponse<SendEmailResult>>(`${BASE}/${id}/send-email`, { recipients });
+  return res.data.data!;
 };
 
 /**
@@ -180,35 +181,13 @@ export const verifyOutgoingDocumentSignature = async (id: number): Promise<Signa
 
 // ─── Thống kê ─────────────────────────────────────────────────────────────────
 
-
-export interface OutgoingStatsByStatus {
-  status: string;
-  count: number;
-}
-
-export interface OutgoingStatsByDocumentType {
-  documentType: string;
-  count: number;
-}
-
-export interface OutgoingStatsByDepartment {
-  departmentId: number | null;
-  departmentName: string;
-  count: number;
-}
-
-export interface OutgoingStatsByMonth {
-  month: string; // format: "YYYY-MM"
-  count: number;
-}
-
 export interface OutgoingStatisticsData {
   totalCount: number;
   issuedCount: number;
-  byStatus: OutgoingStatsByStatus[];
-  byDocumentType: OutgoingStatsByDocumentType[];
-  byDepartment: OutgoingStatsByDepartment[];
-  byMonth: OutgoingStatsByMonth[];
+  byStatus: Array<{ status: string; count: number }>;
+  byDocumentType: Array<{ documentType: string; count: number }>;
+  byDepartment: Array<{ departmentId: number | null; departmentName: string; count: number }>;
+  byMonth: Array<{ month: string; count: number }>;
 }
 
 export interface OutgoingStatisticsParams {

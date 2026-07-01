@@ -392,7 +392,7 @@ export default function OutgoingDocumentDetailPage() {
                         return (
                           <tr key={label as string}>
                             <td style={{ padding: '8px 0', color: '#636e72', width: 220, fontWeight: 500 }}>{label}</td>
-                            <td style={{ padding: '8px 0' }}><UrgencyBadge urgency={doc.urgency} /></td>
+                            <td style={{ padding: '8px 0' }}><UrgencyBadge urgency={doc.document.urgency} /></td>
                           </tr>
                         );
                       }

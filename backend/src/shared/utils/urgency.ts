@@ -55,21 +55,3 @@ export async function resolveUrgencyIdWithDefault(
   }
   return fallback.id;
 }
-
-/**
- * Map a priority (the legacy `Document.urgencyLevel` enum) to a
- * canonical Urgency record. Used when backfilling or defaulting the
- * urgencyId on the parent Document row.
- */
-export async function resolveUrgencyFromPriority(
-  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' | null | undefined,
-): Promise<number> {
-  let name = 'THUONG';
-  switch (priority) {
-    case 'LOW':
-    case 'NORMAL': name = 'THUONG';      break;
-    case 'HIGH':   name = 'KHAN';        break;
-    case 'URGENT': name = 'THUONG_KHAN'; break;
-  }
-  return resolveUrgencyIdWithDefault(name);
-}
