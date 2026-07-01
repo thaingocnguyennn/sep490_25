@@ -7,7 +7,3 @@ export function generateToken(payload: JwtPayload): string {
     expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'],
   });
 }
-
-export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, config.jwt.secret) as JwtPayload;
-}

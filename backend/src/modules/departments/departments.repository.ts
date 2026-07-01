@@ -80,30 +80,6 @@ export class DepartmentsRepository {
   }
 
   /**
-   * Returns the ancestor chain (parent, grandparent, ...) for the given
-   * department id, ordered from closest to root. Excludes the department itself.
-   */
-  async findAncestry(id: number): Promise<number[]> {
-    const ancestry: number[] = [];
-    const visited = new Set<number>([id]);
-    let currentId: number | null = id;
-
-    while (currentId !== null) {
-      const dept: { parentId: number | null } | null = await prisma.department.findUnique({
-        where: { id: currentId },
-        select: { parentId: true },
-      });
-      if (!dept || dept.parentId === null) break;
-      if (visited.has(dept.parentId)) break;
-      visited.add(dept.parentId);
-      ancestry.push(dept.parentId);
-      currentId = dept.parentId;
-    }
-
-    return ancestry;
-  }
-
-  /**
    * Returns the set of all descendant department ids of the given root id
    * (transitive closure of the children relation). The root id itself is
    * included in the returned set.
@@ -290,30 +266,6 @@ export class DepartmentsRepository {
       }
       throw err;
     }
-  }
-
-  async isMember(departmentId: number, userId: number): Promise<boolean> {
-    const count = await prisma.departmentMember.count({
-      where: { departmentId, userId },
-    });
-    return count > 0;
-  }
-
-  async findUserDepartmentIds(userId: number): Promise<number[]> {
-    const rows = await prisma.departmentMember.findMany({
-      where: { userId },
-      select: { departmentId: true },
-    });
-    return rows.map((r) => r.departmentId);
-  }
-
-  async findUserDepartments(userId: number): Promise<{ id: number; name: string }[]> {
-    const memberships = await prisma.departmentMember.findMany({
-      where: { userId },
-      orderBy: { assignedAt: 'desc' },
-      include: { department: { select: { id: true, name: true } } },
-    });
-    return memberships.map((m) => m.department);
   }
 
   private toListItem(d: any): DepartmentListItem {

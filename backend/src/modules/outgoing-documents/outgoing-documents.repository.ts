@@ -405,19 +405,6 @@ export class OutgoingDocumentsRepository {
     if (!outgoing) throw new NotFoundError('Không tìm thấy văn bản đi');
     return outgoing as unknown as OutgoingDocumentWithRelations;
   }
-
-  /**
-   * Lấy chi tiết một văn bản đi theo Document ID.
-   */
-  async findByDocumentId(documentId: number): Promise<OutgoingDocumentWithRelations> {
-    const outgoing = await prisma.outgoingDocument.findUnique({
-      where: { documentId },
-      include: OUTGOING_INCLUDE,
-    });
-
-    if (!outgoing) throw new NotFoundError('Không tìm thấy văn bản đi');
-    return outgoing as unknown as OutgoingDocumentWithRelations;
-  }
 }
 
 export const outgoingDocumentsRepository = new OutgoingDocumentsRepository();

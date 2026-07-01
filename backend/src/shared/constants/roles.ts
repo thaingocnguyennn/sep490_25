@@ -6,10 +6,3 @@ export const ROLES = {
 } as const;
 
 export type RoleName = (typeof ROLES)[keyof typeof ROLES];
-
-export const ROLE_IDS: Record<RoleName, number> = {
-  ADMIN: 1,
-  DEPARTMENT_HEAD: 2,
-  SPECIALIST: 3,
-  DOCUMENT_CLERK: 4,
-};

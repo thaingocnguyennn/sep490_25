@@ -11,13 +11,8 @@ export type {
   ProcessIncomingDocumentRequest,
   HeadAction,
   DocumentStatus,
-  Priority,
   ProcessorType,
   Urgency,
-  UrgencyRecord,
-  DocumentProcessor,
-  DocumentAttachment,
-  DocumentWorkflow,
   WorkflowStatus,
 } from './modules/documents';
 export type {

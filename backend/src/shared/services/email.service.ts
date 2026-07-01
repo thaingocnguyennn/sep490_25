@@ -40,15 +40,3 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     attachments: options.attachments,
   });
 }
-
-/**
- * Kiểm tra kết nối SMTP.
- */
-export async function verifyEmailConnection(): Promise<boolean> {
-  try {
-    await transporter.verify();
-    return true;
-  } catch {
-    return false;
-  }
-}

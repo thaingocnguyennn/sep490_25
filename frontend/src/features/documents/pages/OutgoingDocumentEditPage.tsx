@@ -63,7 +63,7 @@ export default function OutgoingDocumentEditPage() {
         setForm({
           title: data.document.title,
           description: data.document.description || '',
-          urgency: (normalizeUrgencyName(data.urgency?.name) || 'THUONG') as UrgencyName,
+          urgency: (normalizeUrgencyName(data.document.urgency?.name) || 'THUONG') as UrgencyName,
           confidentialityLevel:
             (data.document.confidentiality?.name as ConfidentialityName) ??
             (data.document.confidentiality?.code === 'A' ? 'TUYET_MAT'
