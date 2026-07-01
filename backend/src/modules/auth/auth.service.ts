@@ -12,7 +12,7 @@ export class AuthService {
     const user = await authRepository.findByUsername(username);
 
     if (!user) {
-      throw new UnauthorizedError('Invalid username or password');
+      throw new UnauthorizedError('Sai tên đăng nhập hoặc mật khẩu');
     }
 
     if (user.status === UserStatus.LOCKED) {
@@ -25,7 +25,7 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedError('Invalid username or password');
+      throw new UnauthorizedError('Sai tên đăng nhập hoặc mật khẩu');
     }
 
     await authRepository.updateLastLogin(user.id);

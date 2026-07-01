@@ -19,7 +19,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.username || !form.password) {
-      setError('Please fill in all fields');
+      setError('Vui lòng nhập tên đăng nhập và mật khẩu');
       return;
     }
 
@@ -43,6 +43,12 @@ export default function LoginPage() {
 
   return (
     <div className="login-container">
+    <img
+      src="/logo-fptu.png"
+      alt="Logo"
+      className="login-logo"
+      style={{ display: 'block', margin: '0 auto 1.5rem', maxWidth: '120px', height: 'auto' }}
+    />
       <h1 className="login-title">Đăng nhập DMS</h1>
       <p className="subtitle">Đăng nhập vào hệ thống quản lý tài liệu</p>
 
@@ -86,7 +92,7 @@ export default function LoginPage() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? 'Signing in...' : 'Sign In'}
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </div>
