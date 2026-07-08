@@ -62,6 +62,15 @@ router.get(
   outgoingDocumentsController.getSignatures.bind(outgoingDocumentsController),
 );
 
+// GET /outgoing-documents/:id/signatures/:signatureIndex — Chi tiết chữ ký (UC-72)
+router.get(
+  '/:id/signatures/:signatureIndex',
+  authenticate,
+  outgoingIdParamValidation,
+  validateRequest,
+  outgoingDocumentsController.getSignatureDetail.bind(outgoingDocumentsController),
+);
+
 // GET /outgoing-documents/:id — Chi tiết văn bản đi
 router.get(
   '/:id',
