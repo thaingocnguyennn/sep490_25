@@ -4,7 +4,7 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
-import { checkPdfSignature } from '../../shared/utils/pdf-signature.util';
+import { checkPdfSignature, extractSignaturesFromFile, isSupportedSignatureFile } from '../../shared/utils/pdf-signature.util';
 import { DocumentStatus } from '@prisma/client';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
@@ -286,6 +286,79 @@ export class OutgoingDocumentsService {
     }
 
     return checkPdfSignature(filePath);
+  }
+
+  /**
+   * UC-70: Lấy danh sách tất cả chữ ký số trong file PDF của văn bản đi.
+   * Kiểm tra quyền truy cập, file tồn tại và định dạng PDF.
+   */
+  async getSignatures(
+    id: number,
+    currentUser: { id: number; roles: string[]; departmentId?: number | null },
+  ) {
+    // 1. Kiểm tra document tồn tại
+    const outgoing = await outgoingDocumentsRepository.findById(id);
+
+    // 2. Kiểm tra quyền truy cập
+    const { roles } = currentUser;
+    const isAdmin = roles.includes('ADMIN');
+    const isClerk = roles.includes('DOCUMENT_CLERK');
+    const isDeptHead = roles.includes('DEPARTMENT_HEAD');
+    const isSpecialist = roles.includes('SPECIALIST');
+
+    // Chuyên viên chỉ xem được văn bản của phòng mình
+    if (!isAdmin && !isClerk && !isDeptHead && isSpecialist) {
+      const docDeptId = outgoing.document.department?.id;
+      if (
+        docDeptId !== undefined &&
+        currentUser.departmentId !== null &&
+        currentUser.departmentId !== undefined &&
+        docDeptId !== currentUser.departmentId
+      ) {
+        throw new ForbiddenError('FORBIDDEN_ACCESS: Bạn không có quyền xem chữ ký của văn bản này.');
+      }
+    }
+
+    // 3. Kiểm tra file đính kèm
+    if (!outgoing.document.fileUrl) {
+      throw new BadRequestError('FILE_NOT_FOUND: Văn bản chưa có file đính kèm.');
+    }
+
+    const filename = path.basename(outgoing.document.fileUrl);
+    const filePath = path.join(config.uploadDir, filename);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundError('FILE_NOT_FOUND: File không tồn tại trên server.');
+    }
+
+    // 4. Kiểm tra định dạng hỗ trợ
+    const mimeType = outgoing.document.mimeType || '';
+    if (!isSupportedSignatureFile(filePath, mimeType)) {
+      throw new BadRequestError(
+        'FILE_NOT_SUPPORTED: Chỉ hỗ trợ kiểm tra chữ ký số cho file PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx).',
+      );
+    }
+
+    // 5. Đọc và parse chữ ký
+    let buffer: Buffer;
+    try {
+      buffer = fs.readFileSync(filePath);
+    } catch {
+      throw new BadRequestError('CANNOT_READ_FILE: Không thể đọc file.');
+    }
+
+    let signatures;
+    try {
+      signatures = extractSignaturesFromFile(buffer, filePath, mimeType);
+    } catch {
+      throw new BadRequestError('PDF_PARSE_FAILED: Không thể phân tích cấu trúc chữ ký.');
+    }
+
+    if (signatures.length === 0) {
+      return { signatures: [], message: 'No digital signatures were found in this PDF.' };
+    }
+
+    return { signatures, message: `Tìm thấy ${signatures.length} chữ ký số trong file PDF.` };
   }
 
   /**

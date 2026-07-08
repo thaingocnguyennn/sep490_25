@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getOutgoingDocumentById, deleteOutgoingDocument, sendOutgoingEmail, SendEmailResult, verifyOutgoingDocumentSignature } from '../../../api/modules/outgoing-documents';
+import SignaturePanel from '../components/SignaturePanel';
 import { useOutgoingDocumentActions } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
@@ -543,46 +544,7 @@ export default function OutgoingDocumentDetailPage() {
                         {showOcrResult ? '🙈 Ẩn kết quả OCR' : '📋 Xem kết quả OCR'}
                       </button>
                     )}
-                    
-                    <button
-                      className="btn btn-secondary"
-                      style={{ fontSize: 13, marginLeft: 'auto' }}
-                      onClick={handleVerifySignature}
-                      disabled={checkingSignature}
-                    >
-                      {checkingSignature ? '⏳ Đang kiểm tra...' : '🔍 Kiểm tra chữ ký số'}
-                    </button>
                   </div>
-
-                  {/* Signature Verification Result */}
-                  {signatureResult && (
-                    <div style={{
-                      marginTop: 16, padding: 16, borderRadius: 8,
-                      background: signatureResult.integrityStatus === 'VALID_OR_NOT_MODIFIED' ? '#e6f4ea' :
-                                  signatureResult.integrityStatus === 'NO_SIGNATURE' ? '#f8f9fa' : '#fce8e6',
-                      border: `1px solid ${
-                        signatureResult.integrityStatus === 'VALID_OR_NOT_MODIFIED' ? '#ceead6' :
-                        signatureResult.integrityStatus === 'NO_SIGNATURE' ? '#dadce0' : '#fad2cf'
-                      }`
-                    }}>
-                      <h4 style={{ margin: '0 0 8px', color: '#202124' }}>Kết quả kiểm tra chữ ký số PDF</h4>
-                      {signatureResult.integrityStatus === 'NO_SIGNATURE' ? (
-                        <p style={{ margin: 0, fontSize: 14, color: '#5f6368' }}>Tài liệu không có chữ ký số.</p>
-                      ) : (
-                        <div style={{ fontSize: 14 }}>
-                          <p style={{ margin: '0 0 4px', fontWeight: 600, color: signatureResult.integrityStatus === 'VALID_OR_NOT_MODIFIED' ? '#188038' : '#c5221f' }}>
-                            {signatureResult.integrityStatus === 'VALID_OR_NOT_MODIFIED' 
-                              ? '✅ PDF có chữ ký số. Chưa phát hiện chỉnh sửa sau khi ký.' 
-                              : '❌ Phát hiện dấu hiệu chỉnh sửa sau khi ký chữ ký cuối cùng.'}
-                          </p>
-                          <p style={{ margin: '0 0 4px', color: '#3c4043' }}>Số lượng chữ ký phát hiện: <strong>{signatureResult.signatureCount}</strong></p>
-                        </div>
-                      )}
-                      <p style={{ margin: '12px 0 0', fontSize: 12, color: '#80868b', fontStyle: 'italic' }}>
-                        * Kết quả này chỉ kiểm tra cấu trúc chữ ký PDF ở mức cơ bản, chưa xác thực chứng thư số với nhà cung cấp CA/SmartCA.
-                      </p>
-                    </div>
-                  )}
 
                   {/* OCR result */}
                   {(showOcrResult && (ocrResult || doc.document.ocrText)) && (
@@ -611,6 +573,16 @@ export default function OutgoingDocumentDetailPage() {
                       )}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* UC-70: Chữ ký số */}
+            {doc.document.fileUrl && (
+              <div className="card">
+                <div className="card-header"><h2>🔐 Chữ ký số</h2></div>
+                <div className="card-body">
+                  <SignaturePanel documentId={doc.id} />
                 </div>
               </div>
             )}
