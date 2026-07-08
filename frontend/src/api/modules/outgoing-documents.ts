@@ -10,6 +10,7 @@ import type {
   OcrResult,
   SignatureVerificationResult,
   PdfSignatureItem,
+  PdfSignatureDetail,
 } from '../../types';
 
 const BASE = '/outgoing-documents';
@@ -188,6 +189,19 @@ export const getOutgoingSignatures = async (
 ): Promise<{ signatures: PdfSignatureItem[]; message: string }> => {
   const res = await api.get<ApiResponse<{ signatures: PdfSignatureItem[]; message: string }>>(
     `${BASE}/${id}/signatures`,
+  );
+  return res.data.data!;
+};
+
+/**
+ * UC-72: Lấy thông tin chi tiết của một chữ ký theo index.
+ */
+export const getOutgoingSignatureDetail = async (
+  id: number,
+  signatureIndex: number,
+): Promise<PdfSignatureDetail> => {
+  const res = await api.get<ApiResponse<PdfSignatureDetail>>(
+    `${BASE}/${id}/signatures/${signatureIndex}`,
   );
   return res.data.data!;
 };

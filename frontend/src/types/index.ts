@@ -438,3 +438,13 @@ export interface PdfSignatureItem {
   validityStatus: 'VALID' | 'INVALID' | 'MODIFIED_AFTER_SIGNING' | 'UNKNOWN';
   signatureOrder: number;
 }
+
+// ─── UC-72: PDF Signature Detail ──────────────────────────────────────────────
+
+export interface PdfSignatureDetail extends PdfSignatureItem {
+  certificateSerialNumber: string | null;
+  certificateSubject: string | null;
+  signatureAlgorithm: string | null;
+  byteRange: [number, number, number, number] | null;
+  message: string;
+}

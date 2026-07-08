@@ -35,6 +35,19 @@ export interface PdfSignatureItem {
   signatureOrder: number;
 }
 
+// ─── UC-72: Chi tiết chữ ký ────────────────────────────────────────────────
+
+/**
+ * Thông tin chi tiết của một chữ ký số (mở rộng từ PdfSignatureItem).
+ */
+export interface PdfSignatureDetail extends PdfSignatureItem {
+  certificateSerialNumber: string | null;
+  certificateSubject: string | null;
+  signatureAlgorithm: string | null;
+  byteRange: [number, number, number, number] | null;
+  message: string;
+}
+
 // ─── Helpers trích xuất metadata từ nội dung PDF ─────────────────────────────
 
 function extractStringField(
@@ -130,7 +143,53 @@ export function extractPdfSignatures(buffer: Buffer): PdfSignatureItem[] {
   });
 }
 
-// ─── Legacy: giữ lại để không break code cũ ──────────────────────────────────
+/**
+ * UC-72: Lấy thông tin chi tiết của một chữ ký theo index.
+ * Trả về thêm: byteRange, certificateSerialNumber, certificateSubject, signatureAlgorithm.
+ */
+export function getPdfSignatureDetail(buffer: Buffer, signatureIndex: number): PdfSignatureDetail {
+  const signatures = extractPdfSignatures(buffer);
+
+  if (signatureIndex < 0 || signatureIndex >= signatures.length) {
+    throw new Error(
+      `INVALID_SIGNATURE_INDEX: Index ${signatureIndex} không hợp lệ. File có ${signatures.length} chữ ký.`,
+    );
+  }
+
+  const content = buffer.toString('latin1');
+  const byteRangeRegex = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/g;
+  const matches = [...content.matchAll(byteRangeRegex)];
+  const match = matches[signatureIndex];
+
+  const byteRange: [number, number, number, number] | null = match
+    ? [Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4])]
+    : null;
+
+  const contextPos = match?.index ?? 0;
+  const base = signatures[signatureIndex];
+
+  const serialMatch = extractStringField(content, /\/SerialNumber\s*\(([^)]{1,100})\)/, contextPos);
+  const subjectMatch = extractStringField(content, /\/Subject\s*\(([^)]{1,200})\)/, contextPos);
+  const algorithmMatch = extractStringField(content, /\/SubFilter\s*\/([^\s/\]>]{1,50})/, contextPos);
+
+  const isModified = base.isModifiedAfterSigning;
+  const message =
+    isModified === true
+      ? 'The document appears to have been modified after this signature was applied.'
+      : isModified === false
+        ? 'No obvious modification was detected after this signature (based on ByteRange structure).'
+        : 'This is not the last signature; modification status cannot be determined from structure alone.';
+
+  return {
+    ...base,
+    certificateSerialNumber: serialMatch,
+    certificateSubject: subjectMatch,
+    signatureAlgorithm: algorithmMatch,
+    byteRange,
+    message,
+  };
+}
+
 
 /**
  * Kiểm tra xem tệp PDF có chứa chữ ký số và có dấu hiệu bị sửa đổi hay không.

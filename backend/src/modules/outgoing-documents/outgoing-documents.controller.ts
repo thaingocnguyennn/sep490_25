@@ -229,6 +229,35 @@ export class OutgoingDocumentsController {
   }
 
   /**
+   * GET /outgoing-documents/:id/signatures/:signatureIndex
+   * UC-72: Lấy chi tiết một chữ ký theo index.
+   */
+  async getSignatureDetail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const signatureIndex = parseInt(req.params.signatureIndex as string);
+
+      if (isNaN(signatureIndex) || signatureIndex < 0) {
+        res.status(400).json({
+          success: false,
+          message: 'INVALID_SIGNATURE_INDEX: signatureIndex phải là số nguyên không âm.',
+        });
+        return;
+      }
+
+      const currentUser = await buildCurrentUserContext(req.user);
+      const result = await outgoingDocumentsService.getSignatureDetail(
+        id,
+        signatureIndex,
+        currentUser!,
+      );
+      res.status(200).json(successResponse(result, 'Chi tiết chữ ký số'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * PATCH /outgoing-documents/:id/metadata
    * Cập nhật metadata văn bản đi (chức năng #4).
    */
