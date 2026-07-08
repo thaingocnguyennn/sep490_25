@@ -418,3 +418,23 @@ export interface SignatureVerificationResult {
   checkedBy: 'BYTE_RANGE_BASIC';
   message: string;
 }
+
+// ─── UC-70: PDF Signature List ───────────────────────────────────────────────
+
+export interface PdfSignatureItem {
+  index: number;
+  signerName: string | null;
+  organization: string | null;
+  certificateIssuer: string | null;
+  signingTime: string | null;
+  certificateValidFrom: string | null;
+  certificateValidTo: string | null;
+  isModifiedAfterSigning: boolean | null;
+  integrityStatus:
+    | 'VALID_OR_NOT_MODIFIED'
+    | 'MODIFIED_AFTER_SIGNING'
+    | 'NO_SIGNATURE'
+    | 'UNKNOWN';
+  validityStatus: 'VALID' | 'INVALID' | 'MODIFIED_AFTER_SIGNING' | 'UNKNOWN';
+  signatureOrder: number;
+}

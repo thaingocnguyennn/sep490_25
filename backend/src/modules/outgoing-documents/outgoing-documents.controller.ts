@@ -213,6 +213,20 @@ export class OutgoingDocumentsController {
     }
   }
 
+  /**
+   * GET /outgoing-documents/:id/signatures
+   * UC-70: Lấy danh sách chữ ký số trong file PDF.
+   */
+  async getSignatures(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id as string);
+      const currentUser = await buildCurrentUserContext(req.user);
+      const result = await outgoingDocumentsService.getSignatures(id, currentUser!);
+      res.status(200).json(successResponse(result, result.message));
+    } catch (error) {
+      next(error);
+    }
+  }
 
   /**
    * PATCH /outgoing-documents/:id/metadata

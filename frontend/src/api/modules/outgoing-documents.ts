@@ -9,6 +9,7 @@ import type {
   ApiResponse,
   OcrResult,
   SignatureVerificationResult,
+  PdfSignatureItem,
 } from '../../types';
 
 const BASE = '/outgoing-documents';
@@ -176,6 +177,18 @@ export const sendOutgoingEmail = async (
  */
 export const verifyOutgoingDocumentSignature = async (id: number): Promise<SignatureVerificationResult> => {
   const res = await api.get<ApiResponse<SignatureVerificationResult>>(`${BASE}/${id}/verify-signature`);
+  return res.data.data!;
+};
+
+/**
+ * UC-70: Lấy danh sách tất cả chữ ký số trong file PDF.
+ */
+export const getOutgoingSignatures = async (
+  id: number,
+): Promise<{ signatures: PdfSignatureItem[]; message: string }> => {
+  const res = await api.get<ApiResponse<{ signatures: PdfSignatureItem[]; message: string }>>(
+    `${BASE}/${id}/signatures`,
+  );
   return res.data.data!;
 };
 

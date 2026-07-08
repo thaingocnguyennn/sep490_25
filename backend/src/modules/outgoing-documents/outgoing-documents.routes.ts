@@ -52,6 +52,16 @@ router.get(
   outgoingDocumentsController.exportList.bind(outgoingDocumentsController),
 );
 
+// GET /outgoing-documents/:id/signatures — Danh sách chữ ký số (UC-70)
+// PHẢI đặt TRƯỚC /:id để tránh Express nhầm "signatures" là một :id
+router.get(
+  '/:id/signatures',
+  authenticate,
+  outgoingIdParamValidation,
+  validateRequest,
+  outgoingDocumentsController.getSignatures.bind(outgoingDocumentsController),
+);
+
 // GET /outgoing-documents/:id — Chi tiết văn bản đi
 router.get(
   '/:id',
