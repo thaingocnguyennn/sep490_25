@@ -38,3 +38,4 @@ app.listen(config.port, () => {
 });
 
 export default app;
+// trigger ts-node-dev restart
