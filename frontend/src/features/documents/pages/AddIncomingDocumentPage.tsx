@@ -11,6 +11,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import DocumentViewer from '../components/DocumentViewer';
+import OrganizationAssignmentTree from '../components/OrganizationAssignmentTree';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
 import type { ConfidentialityCodeOrName, OcrResult } from '../../../types';
 
@@ -68,16 +69,9 @@ export default function AddIncomingDocumentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrSuccess, setOcrSuccess] = useState('');
-  const [ocrRawText, setOcrRawText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [sectionOcr, setSectionOcr] = useState(true);
-  const [sectionDoc, setSectionDoc] = useState(true);
-  const [sectionAttach, setSectionAttach] = useState(true);
-  type FormTab = 'ocr' | 'doc' | 'attach';
-  const [activeTab, setActiveTab] = useState<FormTab>('ocr');
 
   const [form, setForm] = useState({
     issuer: '',
@@ -141,7 +135,6 @@ export default function AddIncomingDocumentPage() {
       setDocumentPreviewUrl(URL.createObjectURL(file));
       setError('');
       setOcrSuccess('');
-      setOcrRawText('');
     }
   };
 
@@ -174,8 +167,6 @@ export default function AddIncomingDocumentPage() {
         signerName: fields.signerName || prev.signerName,
         signerTitle: fields.signerTitle || prev.signerTitle,
       }));
-
-      setOcrRawText(result.text || '');
 
       const extractedKeys = Object.keys(fields);
       if (extractedKeys.length === 0) {
@@ -287,14 +278,6 @@ export default function AddIncomingDocumentPage() {
     }
   };
 
-  const getProcessorRole = (userId: number) => {
-    return processors.find((p) => p.id === userId)?.roles.join(', ') || '';
-  };
-
-  const getUserProcessorType = (userId: number) => {
-    return processorsList.find((p) => p.userId === userId)?.processorType || null;
-  };
-
   if (!hasAccess) {
     return (
       <>
@@ -394,341 +377,254 @@ export default function AddIncomingDocumentPage() {
 
           {/* ── RIGHT: Form panel ────────────────────────────────────────── */}
           <div className="ocr-workspace-form-col">
-            {/* Tab bar */}
-            <div className="ocr-form-tabs">
-              {(['ocr', 'doc', 'attach'] as FormTab[]).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  className={`ocr-form-tab ${activeTab === tab ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab)}
-                >
-                  {tab === 'ocr' && 'Trích xuất OCR'}
-                  {tab === 'doc' && 'Thông tin văn bản'}
-                  {tab === 'attach' && 'Tệp đính kèm'}
-                </button>
-              ))}
-            </div>
-
-            {/* Scrollable form body */}
             <div className="ocr-form-scroll">
-              {/* Tab: OCR Fields */}
-              {activeTab === 'ocr' && (
-                <div className="form-section">
-                  <div
-                    className="form-section-header"
-                    onClick={() => setSectionOcr(!sectionOcr)}
-                  >
-                    <span className="form-section-title">Trích xuất OCR</span>
-                    <span className={`form-section-toggle ${sectionOcr ? 'open' : ''}`}>
-                      &#9654;
-                    </span>
+              <div className="card">
+                <div className="card-body">
+                  {/* OCR-extracted fields */}
+                  <div className="form-group">
+                    <label htmlFor="issuer">Cơ quan ban hành</label>
+                    <input
+                      id="issuer"
+                      name="issuer"
+                      type="text"
+                      value={form.issuer}
+                      onChange={handleChange}
+                      placeholder="VD: ỦY BAN NHÂN DÂN TỈNH NINH BÌNH"
+                    />
                   </div>
-                  {sectionOcr && (
-                    <div className="form-section-body">
-                      <div className="form-group">
-                        <label htmlFor="issuer">Cơ quan ban hành</label>
-                        <input
-                          id="issuer"
-                          name="issuer"
-                          type="text"
-                          value={form.issuer}
-                          onChange={handleChange}
-                          placeholder="VD: ỦY BAN NHÂN DÂN TỈNH NINH BÌNH"
-                        />
-                      </div>
 
-                      <div className="signer-row">
-                        <div className="form-group">
-                          <label htmlFor="documentNumber">Số ký hiệu</label>
-                          <input
-                            id="documentNumber"
-                            name="documentNumber"
-                            type="text"
-                            value={form.documentNumber}
-                            onChange={handleChange}
-                            placeholder="VD: 61/2026/QĐ-UBND"
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label htmlFor="dateLetter">Ngày văn bản</label>
-                          <input
-                            id="dateLetter"
-                            name="dateLetter"
-                            type="text"
-                            value={form.dateLetter}
-                            onChange={handleChange}
-                            placeholder="26/05/2026"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="signer-row">
-                        <div className="form-group">
-                          <label htmlFor="documentType">Loại văn bản</label>
-                          <input
-                            id="documentType"
-                            name="documentType"
-                            type="text"
-                            value={form.documentType}
-                            onChange={handleChange}
-                            placeholder="QUYẾT ĐỊNH, CÔNG VĂN..."
-                            list="docTypeSuggestions"
-                          />
-                          <datalist id="docTypeSuggestions">
-                            <option value="QUYẾT ĐỊNH" />
-                            <option value="CÔNG VĂN" />
-                            <option value="THÔNG BÁO" />
-                            <option value="TỜ TRÌNH" />
-                            <option value="BÁO CÁO" />
-                            <option value="KẾ HOẠCH" />
-                            <option value="HƯỚNG DẪN" />
-                            <option value="CHỈ THỊ" />
-                          </datalist>
-                        </div>
-                        <div className="form-group">
-                          <label htmlFor="pageCount">Số trang</label>
-                          <input
-                            id="pageCount"
-                            name="pageCount"
-                            type="number"
-                            min="1"
-                            value={form.pageCount}
-                            onChange={handleChange}
-                            placeholder="VD: 3"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Prominent summary */}
-                      <div className="form-group summary-field">
-                        <label htmlFor="summary">Trích yếu nội dung</label>
-                        <textarea
-                          id="summary"
-                          name="summary"
-                          value={form.summary}
-                          onChange={handleChange}
-                          placeholder="VD: Ban hành Quy chế đào tạo, bồi dưỡng cán bộ, công chức, viên chức trên địa bàn tỉnh..."
-                          rows={5}
-                        />
-                      </div>
-
-                      <div className="signer-row">
-                        <div className="form-group">
-                          <label htmlFor="signerName">Họ tên người ký</label>
-                          <input
-                            id="signerName"
-                            name="signerName"
-                            type="text"
-                            value={form.signerName}
-                            onChange={handleChange}
-                            placeholder="VD: Nguyễn Anh Chức"
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label htmlFor="signerTitle">Chức vụ người ký</label>
-                          <input
-                            id="signerTitle"
-                            name="signerTitle"
-                            type="text"
-                            value={form.signerTitle}
-                            onChange={handleChange}
-                            placeholder="VD: PHÓ CHỦ TỊCH"
-                            list="signerTitleSuggestions"
-                          />
-                          <datalist id="signerTitleSuggestions">
-                            <option value="CHỦ TỊCH" />
-                            <option value="PHÓ CHỦ TỊCH" />
-                            <option value="GIÁM ĐỐC" />
-                            <option value="TRƯỞNG PHÒNG" />
-                          </datalist>
-                        </div>
-                      </div>
-
-                      {ocrRawText && (
-                        <details style={{ marginTop: 8 }}>
-                          <summary
-                            style={{
-                              cursor: 'pointer',
-                              color: '#636e72',
-                              fontSize: 12,
-                            }}
-                          >
-                            Xem văn bản OCR thô ({ocrRawText.length} ký tự)
-                          </summary>
-                          <pre
-                            style={{
-                              background: '#f8f9fa',
-                              border: '1px solid #dee2e6',
-                              borderRadius: 6,
-                              padding: 10,
-                              fontSize: 11,
-                              maxHeight: 140,
-                              overflow: 'auto',
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word',
-                              marginTop: 6,
-                            }}
-                          >
-                            {ocrRawText}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab: Document Info */}
-              {activeTab === 'doc' && (
-                <div className="form-section">
-                  <div
-                    className="form-section-header"
-                    onClick={() => setSectionDoc(!sectionDoc)}
-                  >
-                    <span className="form-section-title">Thông tin văn bản</span>
-                    <span className={`form-section-toggle ${sectionDoc ? 'open' : ''}`}>
-                      &#9654;
-                    </span>
-                  </div>
-                  {sectionDoc && (
-                    <div className="form-section-body">
-                      <div className="signer-row">
-                        <div className="form-group">
-                          <label htmlFor="arrivalNumber">Số đến</label>
-                          <input
-                            id="arrivalNumber"
-                            type="number"
-                            min="1"
-                            value={arrivalNumber}
-                            onChange={(e) => setArrivalNumber(e.target.value)}
-                            placeholder="Tự động tăng"
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label htmlFor="dateReceived">
-                            Ngày đến <span className="required">*</span>
-                          </label>
-                          <input
-                            id="dateReceived"
-                            type="date"
-                            value={dateReceived}
-                            onChange={(e) => setDateReceived(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="urgency">Độ khẩn</label>
-                        <select
-                          id="urgency"
-                          value={urgency}
-                          onChange={(e) =>
-                            setUrgency(e.target.value as Urgency)
-                          }
-                        >
-                          {URGENCY_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="confidentiality">Độ mật</label>
-                        <select
-                          id="confidentiality"
-                          value={confidentiality}
-                          onChange={(e) =>
-                            setConfidentiality(e.target.value as ConfidentialityCodeOrName)
-                          }
-                        >
-                          {CONFIDENTIALITY_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="notes">Ghi chú</label>
-                        <textarea
-                          id="notes"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="Ghi chú bổ sung..."
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab: Attachments */}
-              {activeTab === 'attach' && (
-                <div className="form-section">
-                  <div
-                    className="form-section-header"
-                    onClick={() => setSectionAttach(!sectionAttach)}
-                  >
-                    <span className="form-section-title">Tệp đính kèm</span>
-                    <span
-                      className={`form-section-toggle ${sectionAttach ? 'open' : ''}`}
-                    >
-                      &#9654;
-                    </span>
-                  </div>
-                  {sectionAttach && (
-                    <div className="form-section-body">
+                  <div className="signer-row">
+                    <div className="form-group">
+                      <label htmlFor="documentNumber">Số ký hiệu</label>
                       <input
-                        type="file"
-                        multiple
-                        onChange={handleAddAttachment}
+                        id="documentNumber"
+                        name="documentNumber"
+                        type="text"
+                        value={form.documentNumber}
+                        onChange={handleChange}
+                        placeholder="VD: 61/2026/QĐ-UBND"
                       />
-                      {attachments.length > 0 && (
-                        <div className="attachment-list" style={{ marginTop: 10 }}>
-                          {attachments.map((att, idx) => (
-                            <div key={idx} className="attachment-item">
-                              <span>{att.name}</span>
-                              <button
-                                type="button"
-                                className="att-remove-btn"
-                                onClick={() => handleRemoveAttachment(idx)}
-                              >
-                                &times;
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
-                  )}
+                    <div className="form-group">
+                      <label htmlFor="dateLetter">Ngày văn bản</label>
+                      <input
+                        id="dateLetter"
+                        name="dateLetter"
+                        type="text"
+                        value={form.dateLetter}
+                        onChange={handleChange}
+                        placeholder="26/05/2026"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="signer-row">
+                    <div className="form-group">
+                      <label htmlFor="documentType">Loại văn bản</label>
+                      <input
+                        id="documentType"
+                        name="documentType"
+                        type="text"
+                        value={form.documentType}
+                        onChange={handleChange}
+                        placeholder="QUYẾT ĐỊNH, CÔNG VĂN..."
+                        list="docTypeSuggestions"
+                      />
+                      <datalist id="docTypeSuggestions">
+                        <option value="QUYẾT ĐỊNH" />
+                        <option value="CÔNG VĂN" />
+                        <option value="THÔNG BÁO" />
+                        <option value="TỜ TRÌNH" />
+                        <option value="BÁO CÁO" />
+                        <option value="KẾ HOẠCH" />
+                        <option value="HƯỚNG DẪN" />
+                        <option value="CHỈ THỊ" />
+                      </datalist>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="pageCount">Số trang</label>
+                      <input
+                        id="pageCount"
+                        name="pageCount"
+                        type="number"
+                        min="1"
+                        value={form.pageCount}
+                        onChange={handleChange}
+                        placeholder="VD: 3"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group summary-field">
+                    <label htmlFor="summary">Trích yếu nội dung</label>
+                    <textarea
+                      id="summary"
+                      name="summary"
+                      value={form.summary}
+                      onChange={handleChange}
+                      placeholder="VD: Ban hành Quy chế đào tạo, bồi dưỡng cán bộ, công chức, viên chức trên địa bàn tỉnh..."
+                      rows={5}
+                    />
+                  </div>
+
+                  <div className="signer-row">
+                    <div className="form-group">
+                      <label htmlFor="signerName">Họ tên người ký</label>
+                      <input
+                        id="signerName"
+                        name="signerName"
+                        type="text"
+                        value={form.signerName}
+                        onChange={handleChange}
+                        placeholder="VD: Nguyễn Anh Chức"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="signerTitle">Chức vụ người ký</label>
+                      <input
+                        id="signerTitle"
+                        name="signerTitle"
+                        type="text"
+                        value={form.signerTitle}
+                        onChange={handleChange}
+                        placeholder="VD: PHÓ CHỦ TỊCH"
+                        list="signerTitleSuggestions"
+                      />
+                      <datalist id="signerTitleSuggestions">
+                        <option value="CHỦ TỊCH" />
+                        <option value="PHÓ CHỦ TỊCH" />
+                        <option value="GIÁM ĐỐC" />
+                        <option value="TRƯỞNG PHÒNG" />
+                      </datalist>
+                    </div>
+                  </div>
+
+                  {/* Divider — phân tách nhẹ giữa OCR fields và metadata */}
+                  
+
+                  {/* Document metadata (incoming information) */}
+                  <div className="signer-row">
+                    <div className="form-group">
+                      <label htmlFor="arrivalNumber">Số đến</label>
+                      <input
+                        id="arrivalNumber"
+                        type="number"
+                        min="1"
+                        value={arrivalNumber}
+                        onChange={(e) => setArrivalNumber(e.target.value)}
+                        placeholder="Tự động tăng"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="dateReceived">
+                        Ngày đến <span className="required">*</span>
+                      </label>
+                      <input
+                        id="dateReceived"
+                        type="date"
+                        value={dateReceived}
+                        onChange={(e) => setDateReceived(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="urgency">Độ khẩn</label>
+                    <select
+                      id="urgency"
+                      value={urgency}
+                      onChange={(e) =>
+                        setUrgency(e.target.value as Urgency)
+                      }
+                    >
+                      {URGENCY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="confidentiality">Độ mật</label>
+                    <select
+                      id="confidentiality"
+                      value={confidentiality}
+                      onChange={(e) =>
+                        setConfidentiality(e.target.value as ConfidentialityCodeOrName)
+                      }
+                    >
+                      {CONFIDENTIALITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="notes">Ghi chú</label>
+                    <textarea
+                      id="notes"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Ghi chú bổ sung..."
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Divider — phân tách nhẹ trước phần tệp đính kèm */}
+                  <hr className="form-divider" />
+
+                  {/* Attachments */}
+                  <div className="form-group">
+                    <label htmlFor="attachments">Tệp đính kèm</label>
+                    <input
+                      id="attachments"
+                      type="file"
+                      multiple
+                      onChange={handleAddAttachment}
+                    />
+                    {attachments.length > 0 && (
+                      <div className="attachment-list" style={{ marginTop: 10 }}>
+                        {attachments.map((att, idx) => (
+                          <div key={idx} className="attachment-item">
+                            <span>{att.name}</span>
+                            <button
+                              type="button"
+                              className="att-remove-btn"
+                              onClick={() => handleRemoveAttachment(idx)}
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Action bar spanning full width */}
-          <div className="ocr-actions-bar">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => navigate('/incoming-documents')}
-            >
-              Hủy
-            </button>
-            <div style={{ flex: 1 }} />
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleContinue}
-            >
-              Tiếp tục &rarr;
-            </button>
-          </div>
+        {/* Action bar — full width below the workspace grid */}
+        <div className="ocr-actions-bar">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate('/incoming-documents')}
+          >
+            Hủy
+          </button>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleContinue}
+          >
+            Tiếp tục &rarr;
+          </button>
         </div>
       </div>
     );
@@ -789,37 +685,12 @@ export default function AddIncomingDocumentPage() {
               {loadingProcessors ? (
                 <div className="loading-spinner"><div className="spinner" /></div>
               ) : (
-                <div className="processor-grid">
-                  {processors.map((processor) => {
-                    const currentType = getUserProcessorType(processor.id);
-                    return (
-                      <div key={processor.id} className={`processor-card ${currentType ? 'selected' : ''}`}>
-                        <div className="processor-card-header">
-                          <div className="processor-avatar">
-                            {processor.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </div>
-                          <div className="processor-info">
-                            <div className="processor-name">{processor.fullName}</div>
-                            <div className="processor-roles">{getProcessorRole(processor.id)}</div>
-                          </div>
-                        </div>
-                        <div className="processor-type-buttons">
-                          {(['XLC', 'PHXL', 'XDB'] as ProcessorType[]).map((type) => (
-                            <button
-                              key={type}
-                              type="button"
-                              className={`processor-type-btn ${currentType === type ? 'active' : ''} type-${type.toLowerCase()}`}
-                              onClick={() => handleProcessorToggle(processor.id, type)}
-                              title={PROCESSOR_TYPE_LABELS[type]}
-                            >
-                              {type}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <OrganizationAssignmentTree
+                  users={processors}
+                  assignments={processorsList}
+                  roleLabels={PROCESSOR_TYPE_LABELS}
+                  onAssignmentChange={handleProcessorToggle}
+                />
               )}
             </div>
 

@@ -51,7 +51,7 @@ export function AddMembersModal({
           setUsers(data.data?.items ?? []);
           setTotal(data.data?.total ?? 0);
         })
-        .catch(() => setFetchError('Failed to load users'))
+        .catch(() => setFetchError('Tải danh sách người dùng thất bại'))
         .finally(() => setUsersLoading(false));
     },
     []
@@ -116,7 +116,7 @@ export function AddMembersModal({
         style={{ maxWidth: 720, width: '95%' }}
       >
         <div className="modal-header">
-          <h2>Add Members to {departmentName}</h2>
+          <h2>Thêm thành viên vào {departmentName}</h2>
           <button className="modal-close" onClick={onCancel} disabled={loading}>
             &times;
           </button>
@@ -134,7 +134,7 @@ export function AddMembersModal({
           >
             <input
               type="text"
-              placeholder="Search by name, username, email..."
+              placeholder="Tìm kiếm theo tên, tên đăng nhập, email..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -163,10 +163,10 @@ export function AddMembersModal({
                 background: 'white',
               }}
             >
-              <option value="">All Status</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="LOCKED">Locked</option>
+              <option value="">Tất cả trạng thái</option>
+              <option value="ACTIVE">Hoạt động</option>
+              <option value="INACTIVE">Không hoạt động</option>
+              <option value="LOCKED">Bị khóa</option>
             </select>
           </form>
 
@@ -180,8 +180,8 @@ export function AddMembersModal({
             <LoadingSpinner />
           ) : users.length === 0 ? (
             <div className="empty-state">
-              <h3>No users found</h3>
-              <p>Try adjusting your search or filter criteria.</p>
+              <h3>Không tìm thấy người dùng</h3>
+              <p>Hãy điều chỉnh tiêu chí tìm kiếm hoặc bộ lọc của bạn.</p>
             </div>
           ) : (
             <>
@@ -209,10 +209,10 @@ export function AddMembersModal({
                     disabled={selectableUsers.length === 0}
                     onChange={toggleSelectAll}
                   />
-                  Select all on this page ({selectableUsers.length} selectable)
+                  Chọn tất cả trong trang này ({selectableUsers.length} có thể chọn)
                 </label>
                 <span style={{ fontSize: 13, color: '#636e72' }}>
-                  {selected.size} selected
+                  Đã chọn {selected.size}
                 </span>
               </div>
 
@@ -228,10 +228,10 @@ export function AddMembersModal({
                   <thead>
                     <tr>
                       <th style={{ width: 36 }}></th>
-                      <th>Username</th>
-                      <th>Full Name</th>
+                      <th>Tên đăng nhập</th>
+                      <th>Họ và tên</th>
                       <th>Email</th>
-                      <th>Status</th>
+                      <th>Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -268,7 +268,7 @@ export function AddMembersModal({
                                   color: '#636e72',
                                 }}
                               >
-                                member
+                                thành viên
                               </span>
                             )}
                           </td>
@@ -285,16 +285,16 @@ export function AddMembersModal({
               {totalPages > 1 && (
                 <div className="pagination" style={{ marginTop: 12 }}>
                   <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-                    Previous
+                    Trước
                   </button>
                   <span style={{ padding: '6px 8px', fontSize: 13 }}>
-                    Page {page} of {totalPages} ({total} users)
+                    Trang {page} / {totalPages} ({total} người dùng)
                   </span>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
                   >
-                    Next
+                    Sau
                   </button>
                 </div>
               )}
@@ -304,14 +304,14 @@ export function AddMembersModal({
 
         <div className="modal-footer">
           <button className="btn btn-cancel" onClick={onCancel} disabled={loading}>
-            Cancel
+            Hủy
           </button>
           <button
             className="btn btn-primary"
             onClick={handleSubmit}
             disabled={loading || selected.size === 0}
           >
-            {loading ? 'Adding...' : `Add ${selected.size} member(s)`}
+            {loading ? 'Đang thêm...' : `Thêm ${selected.size} thành viên`}
           </button>
         </div>
       </div>

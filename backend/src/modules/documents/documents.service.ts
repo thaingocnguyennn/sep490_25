@@ -696,7 +696,6 @@ export class DocumentsService {
     const extractedFields = extractFields(result.pages, mode);
 
     return {
-      text: result.text,
       confidence: result.confidence,
       extractedFields,
     };

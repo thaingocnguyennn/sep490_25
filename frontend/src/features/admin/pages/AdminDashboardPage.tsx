@@ -11,27 +11,27 @@ export default function AdminDashboardPage() {
       .then(res => {
         if (res.data.data) setStats(res.data.data);
       })
-      .catch(err => console.error('Failed to load stats', err));
+      .catch(err => console.error('Tải thống kê thất bại', err));
   }, []);
 
   return (
     <>
       <div className="top-bar">
-        <h1>Admin Dashboard</h1>
+        <h1>Bảng điều khiển Quản trị</h1>
       </div>
       <div className="page-content">
         <div className="card">
           <div className="card-body">
-            <h2 style={{ marginBottom: 16 }}>Welcome, {user?.fullName}!</h2>
+            <h2 style={{ marginBottom: 16 }}>Chào mừng, {user?.fullName}!</h2>
             <p style={{ color: '#636e72' }}>
-              You are logged in as <strong>{user?.roles?.[0] || 'User'}</strong>.
-              This is the admin management console.
+              Bạn đang đăng nhập với vai trò <strong>{user?.roles?.[0] || 'Người dùng'}</strong>.
+              Đây là bảng điều khiển dành cho quản trị viên.
             </p>
             <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {[
-                { label: 'Documents', count: stats.total, icon: '📄' },
-                { label: 'Incoming', count: stats.incoming, icon: '📥' },
-                { label: 'Outgoing', count: stats.outgoing, icon: '📤' },
+                { label: 'Tài liệu', count: stats.total, icon: '📄' },
+                { label: 'Văn bản đến', count: stats.incoming, icon: '📥' },
+                { label: 'Văn bản đi', count: stats.outgoing, icon: '📤' },
               ].map((item) => (
                 <div
                   key={item.label}

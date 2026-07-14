@@ -44,11 +44,11 @@ export default function RoleFormPage() {
   };
 
   const validate = () => {
-    if (!form.name.trim()) return 'Role name is required';
-    if (form.name.length < 2) return 'Role name must be at least 2 characters';
+    if (!form.name.trim()) return 'Tên vai trò là bắt buộc';
+    if (form.name.length < 2) return 'Tên vai trò phải có ít nhất 2 ký tự';
     if (!/^[A-Z][A-Z0-9_]*$/.test(form.name))
-      return 'Role name must be uppercase letters, numbers and underscores only, starting with a letter';
-    if (form.description.length > 255) return 'Description must be at most 255 characters';
+      return 'Tên vai trò chỉ được chứa chữ in hoa, số và dấu gạch dưới, bắt đầu bằng chữ cái';
+    if (form.description.length > 255) return 'Mô tả phải có tối đa 255 ký tự';
     return null;
   };
 
@@ -69,20 +69,20 @@ export default function RoleFormPage() {
       navigate('/admin/roles');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Operation failed. Please try again.');
+      setError(error.response?.data?.message || 'Thao tác thất bại. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
   };
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   if (fetchingRole) {
     return (
       <>
-        <div className="top-bar"><h1>{isEdit ? 'Edit Role' : 'Create Role'}</h1></div>
+        <div className="top-bar"><h1>{isEdit ? 'Chỉnh sửa vai trò' : 'Tạo vai trò'}</h1></div>
         <div className="page-content"><LoadingSpinner /></div>
       </>
     );
@@ -91,8 +91,8 @@ export default function RoleFormPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>{isEdit ? 'Edit Role' : 'Create Role'}</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/admin/roles')}>Back</button>
+        <h1>{isEdit ? 'Chỉnh sửa vai trò' : 'Tạo vai trò'}</h1>
+        <button className="btn btn-secondary" onClick={() => navigate('/admin/roles')}>Quay lại</button>
       </div>
 
       <div className="page-content">
@@ -102,35 +102,35 @@ export default function RoleFormPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="name">Role Name *</label>
+                <label htmlFor="name">Tên vai trò *</label>
                 <input
                   id="name" name="name" type="text" value={form.name}
-                  onChange={handleChange} placeholder="e.g. DEPARTMENT_HEAD"
+                  onChange={handleChange} placeholder="VD: DEPARTMENT_HEAD"
                   disabled={isEdit} autoComplete="off"
                 />
                 <small style={{ color: '#636e72', fontSize: 12 }}>
-                  Uppercase letters, numbers and underscores only (e.g. ADMIN, DEPARTMENT_HEAD, SPECIALIST)
+                  Chỉ chứa chữ in hoa, số và dấu gạch dưới (VD: ADMIN, DEPARTMENT_HEAD, SPECIALIST)
                 </small>
               </div>
 
               <div className="form-group" style={{ marginTop: 16 }}>
-                <label htmlFor="description">Description</label>
+                <label htmlFor="description">Mô tả</label>
                 <textarea
                   id="description" name="description" value={form.description}
-                  onChange={handleChange} placeholder="Optional description for this role"
+                  onChange={handleChange} placeholder="Mô tả tùy chọn cho vai trò này"
                   rows={3} maxLength={255}
                   style={{ width: '100%', padding: '8px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, resize: 'vertical', fontFamily: 'inherit' }}
                 />
                 <small style={{ color: '#636e72', fontSize: 12 }}>
-                  {form.description.length}/255 characters
+                  {form.description.length}/255 ký tự
                 </small>
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
                 <button type="button" className="btn btn-secondary"
-                  onClick={() => navigate('/admin/roles')}>Cancel</button>
+                  onClick={() => navigate('/admin/roles')}>Hủy</button>
                 <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
-                  {loading ? 'Saving...' : isEdit ? 'Update Role' : 'Create Role'}
+                  {loading ? 'Đang lưu...' : isEdit ? 'Cập nhật vai trò' : 'Tạo vai trò'}
                 </button>
               </div>
             </form>

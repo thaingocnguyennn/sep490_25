@@ -560,7 +560,7 @@ export default function OutgoingDocumentDetailPage() {
                         </div>
                       )}
                       <div style={{ fontSize: 12, maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', color: '#4b5563', background: 'white', padding: 12, borderRadius: 6 }}>
-                        {ocrResult?.text || doc.document.ocrText}
+                        {doc.document.ocrText}
                       </div>
                       {canEdit && ocrResult && (
                         <button

@@ -395,7 +395,6 @@ export interface OutgoingDocumentFilterParams {
 }
 
 export interface OcrResult {
-  text: string;
   confidence: number;
   extractedFields: {
     issuer?: string;
