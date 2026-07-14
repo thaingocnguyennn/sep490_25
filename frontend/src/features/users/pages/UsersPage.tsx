@@ -48,26 +48,26 @@ export default function UsersPage() {
   const totalPages = Math.ceil(total / limit);
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   return (
     <>
       <div className="top-bar">
-        <h1>User Management</h1>
+        <h1>Quản lý người dùng</h1>
         <button className="btn btn-primary" onClick={() => navigate('/admin/users/new')}>
-          + Create User
+          + Tạo người dùng
         </button>
       </div>
 
       <div className="page-content">
         <div className="card">
           <div className="card-header">
-            <h2>All Users ({total})</h2>
+            <h2>Tất cả người dùng ({total})</h2>
             <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input
                 type="text"
-                placeholder="Search by name, username, email..."
+                placeholder="Tìm kiếm theo tên, tên đăng nhập, email..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, width: 260 }}
@@ -77,23 +77,23 @@ export default function UsersPage() {
                 onChange={(e) => { setStatusFilter(e.target.value as UserStatus | ''); setPage(1); }}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
-                <option value="">All Status</option>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-                <option value="LOCKED">Locked</option>
+                <option value="">Tất cả trạng thái</option>
+                <option value="ACTIVE">Hoạt động</option>
+                <option value="INACTIVE">Không hoạt động</option>
+                <option value="LOCKED">Bị khóa</option>
               </select>
               <select
                 value={roleFilter}
                 onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
-                <option value="">All Roles</option>
+                <option value="">Tất cả vai trò</option>
                 <option value="ADMIN">ADMIN</option>
                 <option value="DEPARTMENT_HEAD">DEPARTMENT_HEAD</option>
                 <option value="SPECIALIST">SPECIALIST</option>
                 <option value="DOCUMENT_CLERK">DOCUMENT_CLERK</option>
               </select>
-              <button type="submit" className="btn btn-secondary">Search</button>
+              <button type="submit" className="btn btn-secondary">Tìm kiếm</button>
             </form>
           </div>
 
@@ -102,21 +102,21 @@ export default function UsersPage() {
               <LoadingSpinner />
             ) : users.length === 0 ? (
               <div className="empty-state">
-                <h3>No users found</h3>
-                <p>Try adjusting your search or filter criteria.</p>
+                <h3>Không tìm thấy người dùng</h3>
+                <p>Hãy điều chỉnh tiêu chí tìm kiếm hoặc bộ lọc của bạn.</p>
               </div>
             ) : (
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Username</th>
-                    <th>Full Name</th>
+                    <th>Tên đăng nhập</th>
+                    <th>Họ và tên</th>
                     <th>Email</th>
-                    <th>Phone</th>
-                    <th>Roles</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th>Số điện thoại</th>
+                    <th>Vai trò</th>
+                    <th>Trạng thái</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -140,7 +140,7 @@ export default function UsersPage() {
                       <td>
                         <button
                           className="action-btn edit"
-                          title="Edit"
+                          title="Chỉnh sửa"
                           onClick={() => navigate(`/admin/users/${user.id}/edit`)}
                         >
                           &#9998;
@@ -148,7 +148,7 @@ export default function UsersPage() {
                         {user.status === 'LOCKED' ? (
                           <button
                             className="action-btn unlock"
-                            title="Unlock Account"
+                            title="Mở khóa tài khoản"
                             disabled={actionLoading}
                             onClick={() => setToggleTarget({ id: user.id, action: 'unlock' })}
                           >
@@ -157,7 +157,7 @@ export default function UsersPage() {
                         ) : (
                           <button
                             className="action-btn lock"
-                            title="Lock Account"
+                            title="Khóa tài khoản"
                             disabled={actionLoading}
                             onClick={() => setToggleTarget({ id: user.id, action: 'lock' })}
                           >
@@ -166,7 +166,7 @@ export default function UsersPage() {
                         )}
                         <button
                           className="action-btn delete"
-                          title="Delete"
+                          title="Xóa"
                           disabled={actionLoading}
                           onClick={() => setDeleteTarget({ id: user.id, username: user.username })}
                         >
@@ -182,7 +182,7 @@ export default function UsersPage() {
 
           {totalPages > 1 && (
             <div className="pagination">
-              <button onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</button>
+              <button onClick={() => setPage(page - 1)} disabled={page === 1}>Trước</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
                 .reduce<(number | string)[]>((acc, p, idx, arr) => {
@@ -199,7 +199,7 @@ export default function UsersPage() {
                     </button>
                   )
                 )}
-              <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>Next</button>
+              <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>Sau</button>
             </div>
           )}
         </div>
@@ -207,13 +207,13 @@ export default function UsersPage() {
 
       <ConfirmModal
         open={!!toggleTarget}
-        title={toggleTarget?.action === 'lock' ? 'Lock Account' : 'Unlock Account'}
+        title={toggleTarget?.action === 'lock' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
         message={
           toggleTarget?.action === 'lock'
-            ? 'Are you sure you want to lock this account? The user will not be able to log in until unlocked.'
-            : 'Are you sure you want to unlock this account? The user will be able to log in again.'
+            ? 'Bạn có chắc chắn muốn khóa tài khoản này? Người dùng sẽ không thể đăng nhập cho đến khi được mở khóa.'
+            : 'Bạn có chắc chắn muốn mở khóa tài khoản này? Người dùng sẽ có thể đăng nhập lại.'
         }
-        confirmLabel={toggleTarget?.action === 'lock' ? 'Yes, Lock' : 'Yes, Unlock'}
+        confirmLabel={toggleTarget?.action === 'lock' ? 'Đồng ý, Khóa' : 'Đồng ý, Mở khóa'}
         variant="warning"
         loading={actionLoading}
         onConfirm={handleToggleConfirm}
@@ -222,14 +222,14 @@ export default function UsersPage() {
 
       <ConfirmModal
         open={!!deleteTarget}
-        title="Confirm Delete"
+        title="Xác nhận xóa"
         message={
           <>
-            Are you sure you want to delete user <strong>{deleteTarget?.username}</strong>?
-            This action cannot be undone.
+            Bạn có chắc chắn muốn xóa người dùng <strong>{deleteTarget?.username}</strong>?
+            Hành động này không thể hoàn tác.
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel="Xóa"
         variant="danger"
         loading={actionLoading}
         onConfirm={handleDeleteConfirm}

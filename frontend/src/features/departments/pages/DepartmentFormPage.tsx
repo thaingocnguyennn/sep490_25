@@ -76,11 +76,11 @@ export default function DepartmentFormPage() {
 
   const validate = (): string | null => {
     const name = form.name.trim();
-    if (!name) return 'Department name is required';
-    if (name.length > 100) return 'Department name must be at most 100 characters';
-    if (form.description.length > 500) return 'Description must be at most 500 characters';
+    if (!name) return 'Tên phòng ban là bắt buộc';
+    if (name.length > 100) return 'Tên phòng ban phải có tối đa 100 ký tự';
+    if (form.description.length > 500) return 'Mô tả phải có tối đa 500 ký tự';
     if (form.parentId && !/^\d+$/.test(form.parentId)) {
-      return 'Invalid parent department';
+      return 'Phòng ban cấp trên không hợp lệ';
     }
     return null;
   };
@@ -112,14 +112,14 @@ export default function DepartmentFormPage() {
   };
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   if (fetching || listLoading) {
     return (
       <>
         <div className="top-bar">
-          <h1>{isEdit ? 'Edit Department' : 'Create Department'}</h1>
+          <h1>{isEdit ? 'Chỉnh sửa phòng ban' : 'Tạo phòng ban'}</h1>
         </div>
         <div className="page-content">
           <LoadingSpinner />
@@ -136,9 +136,9 @@ export default function DepartmentFormPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>{isEdit ? 'Edit Department' : 'Create Department'}</h1>
+        <h1>{isEdit ? 'Chỉnh sửa phòng ban' : 'Tạo phòng ban'}</h1>
         <button className="btn btn-secondary" onClick={() => navigate('/admin/departments')}>
-          Back
+          Quay lại
         </button>
       </div>
 
@@ -150,31 +150,31 @@ export default function DepartmentFormPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="name">Department Name *</label>
+                <label htmlFor="name">Tên phòng ban *</label>
                 <input
                   id="name"
                   name="name"
                   type="text"
                   value={form.name}
                   onChange={handleChange}
-                  placeholder="e.g. Human Resources"
+                  placeholder="VD: Phòng Nhân sự"
                   disabled={actionLoading}
                   autoComplete="off"
                   maxLength={100}
                 />
                 <small style={{ color: '#636e72', fontSize: 12 }}>
-                  1-100 characters. Must be unique within the same parent.
+                  Từ 1 đến 100 ký tự. Tên phải là duy nhất trong cùng phòng ban cấp trên.
                 </small>
               </div>
 
               <div className="form-group" style={{ marginTop: 16 }}>
-                <label htmlFor="description">Description</label>
+                <label htmlFor="description">Mô tả</label>
                 <textarea
                   id="description"
                   name="description"
                   value={form.description}
                   onChange={handleChange}
-                  placeholder="Optional description for this department"
+                  placeholder="Mô tả tùy chọn cho phòng ban này"
                   rows={3}
                   maxLength={500}
                   disabled={actionLoading}
@@ -189,12 +189,12 @@ export default function DepartmentFormPage() {
                   }}
                 />
                 <small style={{ color: '#636e72', fontSize: 12 }}>
-                  {form.description.length}/500 characters
+                  {form.description.length}/500 ký tự
                 </small>
               </div>
 
               <div className="form-group" style={{ marginTop: 16 }}>
-                <label htmlFor="parentId">Parent Department</label>
+                <label htmlFor="parentId">Phòng ban cấp trên</label>
                 <select
                   id="parentId"
                   name="parentId"
@@ -210,7 +210,7 @@ export default function DepartmentFormPage() {
                     background: 'white',
                   }}
                 >
-                  <option value="">-- None (root department) --</option>
+                  <option value="">-- Không có (phòng ban gốc) --</option>
                   {parentOptions.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
@@ -218,8 +218,8 @@ export default function DepartmentFormPage() {
                   ))}
                 </select>
                 <small style={{ color: '#636e72', fontSize: 12 }}>
-                  Optional. Leave empty to create a root department. The current department
-                  and its sub-departments are excluded to prevent circular references.
+                  Tùy chọn. Để trống để tạo phòng ban gốc. Phòng ban hiện tại và các phòng ban
+                  trực thuộc đã được loại trừ để tránh tham chiếu vòng tròn.
                 </small>
               </div>
 
@@ -230,7 +230,7 @@ export default function DepartmentFormPage() {
                   onClick={() => navigate('/admin/departments')}
                   disabled={actionLoading}
                 >
-                  Cancel
+                  Hủy
                 </button>
                 <button
                   type="submit"
@@ -239,10 +239,10 @@ export default function DepartmentFormPage() {
                   style={{ flex: 1 }}
                 >
                   {actionLoading
-                    ? 'Saving...'
+                    ? 'Đang lưu...'
                     : isEdit
-                    ? 'Update Department'
-                    : 'Create Department'}
+                    ? 'Cập nhật phòng ban'
+                    : 'Tạo phòng ban'}
                 </button>
               </div>
             </form>

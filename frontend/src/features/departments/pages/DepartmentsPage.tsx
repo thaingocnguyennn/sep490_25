@@ -62,7 +62,7 @@ function TreeRow({ node, depth, expanded, toggle, onEdit, onDelete, actionLoadin
                 fontSize: 12,
                 width: 16,
               }}
-              title={isOpen ? 'Collapse' : 'Expand'}
+              title={isOpen ? 'Thu gọn' : 'Mở rộng'}
             >
               {isOpen ? '▼' : '▶'}
             </button>
@@ -72,7 +72,7 @@ function TreeRow({ node, depth, expanded, toggle, onEdit, onDelete, actionLoadin
           <span
             onClick={() => onEdit(node.department.id)}
             style={{ cursor: 'pointer', color: '#2d3436', fontWeight: 500 }}
-            title="View details"
+            title="Xem chi tiết"
           >
             {node.department.name}
           </span>
@@ -91,14 +91,14 @@ function TreeRow({ node, depth, expanded, toggle, onEdit, onDelete, actionLoadin
         <td>
           <button
             className="action-btn edit"
-            title="Edit"
+            title="Chỉnh sửa"
             onClick={() => onEdit(node.department.id)}
           >
             &#9998;
           </button>
           <button
             className="action-btn delete"
-            title="Delete"
+            title="Xóa"
             disabled={actionLoading}
             onClick={() => onDelete(node.department)}
           >
@@ -176,13 +176,13 @@ export default function DepartmentsPage() {
   };
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   return (
     <>
       <div className="top-bar">
-        <h1>Department Management</h1>
+        <h1>Quản lý phòng ban</h1>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div
             style={{
@@ -204,7 +204,7 @@ export default function DepartmentsPage() {
                 fontSize: 13,
               }}
             >
-              Tree View
+              Dạng cây
             </button>
             <button
               type="button"
@@ -219,11 +219,11 @@ export default function DepartmentsPage() {
                 borderLeft: '1px solid #dfe6e9',
               }}
             >
-              Flat Table
+              Dạng bảng
             </button>
           </div>
           <button className="btn btn-primary" onClick={() => navigate('/admin/departments/new')}>
-            + Create Department
+            + Tạo phòng ban
           </button>
         </div>
       </div>
@@ -235,18 +235,18 @@ export default function DepartmentsPage() {
               <LoadingSpinner />
             ) : departments.length === 0 ? (
               <div className="empty-state">
-                <h3>No departments found</h3>
-                <p>Create your first department to get started.</p>
+                <h3>Chưa có phòng ban nào</h3>
+                <p>Hãy tạo phòng ban đầu tiên của bạn để bắt đầu.</p>
               </div>
             ) : viewMode === 'tree' ? (
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Parent</th>
-                    <th>Users</th>
-                    <th>Sub-departments</th>
-                    <th>Actions</th>
+                    <th>Tên phòng ban</th>
+                    <th>Phòng ban cấp trên</th>
+                    <th>Người dùng</th>
+                    <th>Phòng ban trực thuộc</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -272,11 +272,11 @@ export default function DepartmentsPage() {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Name</th>
-                    <th>Parent</th>
-                    <th>Users</th>
-                    <th>Sub-departments</th>
-                    <th>Actions</th>
+                    <th>Tên phòng ban</th>
+                    <th>Phòng ban cấp trên</th>
+                    <th>Người dùng</th>
+                    <th>Phòng ban trực thuộc</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -305,14 +305,14 @@ export default function DepartmentsPage() {
                       <td>
                         <button
                           className="action-btn edit"
-                          title="Edit"
+                          title="Chỉnh sửa"
                           onClick={() => handleEdit(d.id)}
                         >
                           &#9998;
                         </button>
                         <button
                           className="action-btn delete"
-                          title="Delete"
+                          title="Xóa"
                           disabled={actionLoading}
                           onClick={() => {
                             clearActionError();
@@ -333,16 +333,16 @@ export default function DepartmentsPage() {
 
       <ConfirmModal
         open={!!deleteTarget}
-        title="Confirm Delete"
+        title="Xác nhận xóa"
         message={
           <>
-            Are you sure you want to delete department <strong>{deleteTarget?.name}</strong>?
+            Bạn có chắc chắn muốn xóa phòng ban <strong>{deleteTarget?.name}</strong>?
             <br />
             {deleteTarget && (deleteTarget.userCount ?? 0) > 0 ? (
               <>
                 <br />
                 <span style={{ color: '#e74c3c' }}>
-                  Warning: This department has {deleteTarget.userCount} user(s) assigned.
+                  Cảnh báo: Phòng ban này hiện có {deleteTarget.userCount} người dùng được phân công.
                 </span>
               </>
             ) : null}
@@ -350,7 +350,7 @@ export default function DepartmentsPage() {
               <>
                 <br />
                 <span style={{ color: '#e74c3c' }}>
-                  Warning: This department has {deleteTarget.childCount} sub-department(s).
+                  Cảnh báo: Phòng ban này có {deleteTarget.childCount} phòng ban trực thuộc.
                 </span>
               </>
             ) : null}
@@ -362,10 +362,10 @@ export default function DepartmentsPage() {
               </>
             ) : null}
             <br />
-            This action cannot be undone.
+            Hành động này không thể hoàn tác.
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel="Xóa"
         variant="danger"
         loading={actionLoading}
         onConfirm={handleDeleteConfirm}

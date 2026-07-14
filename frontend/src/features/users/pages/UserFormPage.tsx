@@ -12,10 +12,10 @@ interface RoleOption {
 }
 
 const STATIC_ROLES: RoleOption[] = [
-  { id: 1, name: ROLES.ADMIN, description: 'System administrator with full access' },
-  { id: 2, name: ROLES.DEPARTMENT_HEAD, description: 'Department head with management permissions' },
-  { id: 3, name: ROLES.SPECIALIST, description: 'Specialist with document processing permissions' },
-  { id: 4, name: ROLES.DOCUMENT_CLERK, description: 'Document clerk with basic document access' },
+  { id: 1, name: ROLES.ADMIN, description: 'Quản trị viên hệ thống với toàn quyền truy cập' },
+  { id: 2, name: ROLES.DEPARTMENT_HEAD, description: 'Trưởng phòng ban với các quyền quản lý' },
+  { id: 3, name: ROLES.SPECIALIST, description: 'Chuyên viên với quyền xử lý văn bản' },
+  { id: 4, name: ROLES.DOCUMENT_CLERK, description: 'Văn thư với quyền truy cập cơ bản về văn bản' },
 ];
 
 type FormState = {
@@ -102,13 +102,13 @@ export default function UserFormPage() {
   };
 
   const validate = () => {
-    if (!form.username.trim()) return 'Username is required';
-    if (form.username.length < 3) return 'Username must be at least 3 characters';
-    if (!form.email.trim()) return 'Email is required';
-    if (!form.fullName.trim()) return 'Full name is required';
-    if (!isEdit && !form.password) return 'Password is required';
-    if (!isEdit && form.password.length < 8) return 'Password must be at least 8 characters';
-    if (form.roleIds.length === 0) return 'At least one role must be assigned';
+    if (!form.username.trim()) return 'Tên đăng nhập là bắt buộc';
+    if (form.username.length < 3) return 'Tên đăng nhập phải có ít nhất 3 ký tự';
+    if (!form.email.trim()) return 'Email là bắt buộc';
+    if (!form.fullName.trim()) return 'Họ và tên là bắt buộc';
+    if (!isEdit && !form.password) return 'Mật khẩu là bắt buộc';
+    if (!isEdit && form.password.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
+    if (form.roleIds.length === 0) return 'Phải chỉ định ít nhất một vai trò';
     return null;
   };
 
@@ -148,20 +148,20 @@ export default function UserFormPage() {
       navigate('/admin/users');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Operation failed. Please try again.');
+      setError(error.response?.data?.message || 'Thao tác thất bại. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
   };
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   if (fetchingUser) {
     return (
       <>
-        <div className="top-bar"><h1>{isEdit ? 'Edit User' : 'Create User'}</h1></div>
+        <div className="top-bar"><h1>{isEdit ? 'Chỉnh sửa người dùng' : 'Tạo người dùng'}</h1></div>
         <div className="page-content"><div className="loading-spinner"><div className="spinner" /></div></div>
       </>
     );
@@ -170,8 +170,8 @@ export default function UserFormPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>{isEdit ? 'Edit User' : 'Create User'}</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>Back</button>
+        <h1>{isEdit ? 'Chỉnh sửa người dùng' : 'Tạo người dùng'}</h1>
+        <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>Quay lại</button>
       </div>
 
       <div className="page-content">
@@ -182,49 +182,49 @@ export default function UserFormPage() {
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label htmlFor="username">Username *</label>
+                  <label htmlFor="username">Tên đăng nhập *</label>
                   <input id="username" name="username" type="text" value={form.username}
-                    onChange={handleChange} placeholder="e.g. john_doe" disabled={isEdit} />
+                    onChange={handleChange} placeholder="VD: nguyen_van_a" disabled={isEdit} />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="email">Email *</label>
                   <input id="email" name="email" type="email" value={form.email}
-                    onChange={handleChange} placeholder="e.g. john@example.com" />
+                    onChange={handleChange} placeholder="VD: nguyenvana@example.com" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="fullName">Full Name *</label>
+                  <label htmlFor="fullName">Họ và tên *</label>
                   <input id="fullName" name="fullName" type="text" value={form.fullName}
-                    onChange={handleChange} placeholder="e.g. John Doe" />
+                    onChange={handleChange} placeholder="VD: Nguyễn Văn A" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="phone">Phone</label>
+                  <label htmlFor="phone">Số điện thoại</label>
                   <input id="phone" name="phone" type="tel" value={form.phone}
-                    onChange={handleChange} placeholder="e.g. 0901234567" />
+                    onChange={handleChange} placeholder="VD: 0901234567" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="password">Password {isEdit ? '(leave blank to keep current)' : '*'}</label>
+                  <label htmlFor="password">Mật khẩu {isEdit ? '(để trống nếu giữ nguyên)' : '*'}</label>
                   <input id="password" name="password" type="password" value={form.password}
-                    onChange={handleChange} placeholder={isEdit ? '••••••••' : 'Min. 8 characters'}
+                    onChange={handleChange} placeholder={isEdit ? '••••••••' : 'Tối thiểu 8 ký tự'}
                     autoComplete={isEdit ? 'new-password' : 'current-password'} />
                 </div>
 
                 {isEdit && (
                   <div className="form-group">
-                    <label htmlFor="status">Status</label>
+                    <label htmlFor="status">Trạng thái</label>
                     <select id="status" name="status" value={form.status} onChange={handleChange}>
-                      <option value="ACTIVE">Active</option>
-                      <option value="INACTIVE">Inactive</option>
-                      <option value="LOCKED">Locked</option>
+                      <option value="ACTIVE">Hoạt động</option>
+                      <option value="INACTIVE">Không hoạt động</option>
+                      <option value="LOCKED">Bị khóa</option>
                     </select>
                   </div>
                 )}
 
                 <div className="form-group full-width">
-                  <label>Roles *</label>
+                  <label>Vai trò *</label>
                   <div className="checkbox-group">
                     {availableRoles.map((role) => (
                       <label key={role.id} className="checkbox-item">
@@ -247,9 +247,9 @@ export default function UserFormPage() {
 
               <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
                 <button type="button" className="btn btn-secondary"
-                  onClick={() => navigate('/admin/users')}>Cancel</button>
+                  onClick={() => navigate('/admin/users')}>Hủy</button>
                 <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
-                  {loading ? 'Saving...' : isEdit ? 'Update User' : 'Create User'}
+                  {loading ? 'Đang lưu...' : isEdit ? 'Cập nhật người dùng' : 'Tạo người dùng'}
                 </button>
               </div>
             </form>

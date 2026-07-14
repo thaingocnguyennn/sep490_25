@@ -23,8 +23,8 @@ export function ConfirmModal({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel = 'Xác nhận',
+  cancelLabel = 'Hủy',
   variant = 'danger',
   loading = false,
   onConfirm,
@@ -52,7 +52,7 @@ export function ConfirmModal({
             onClick={onConfirm}
             disabled={loading || confirmDisabled}
           >
-            {loading ? 'Please wait...' : confirmLabel}
+            {loading ? 'Vui lòng đợi...' : confirmLabel}
           </button>
         </div>
       </div>

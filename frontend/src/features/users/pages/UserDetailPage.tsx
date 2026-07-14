@@ -74,13 +74,13 @@ export default function UserDetailPage() {
   };
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   if (loading) {
     return (
       <>
-        <div className="top-bar"><h1>User Details</h1></div>
+        <div className="top-bar"><h1>Thông tin người dùng</h1></div>
         <div className="page-content"><LoadingSpinner /></div>
       </>
     );
@@ -93,11 +93,11 @@ export default function UserDetailPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>User Details</h1>
+        <h1>Thông tin người dùng</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>Back</button>
-          <button className="btn btn-secondary" onClick={() => navigate(`/admin/users/${id}/edit`)}>Edit</button>
-          <button className="btn btn-danger" onClick={() => setDeleteModal(true)}>Delete</button>
+          <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>Quay lại</button>
+          <button className="btn btn-secondary" onClick={() => navigate(`/admin/users/${id}/edit`)}>Chỉnh sửa</button>
+          <button className="btn btn-danger" onClick={() => setDeleteModal(true)}>Xóa</button>
         </div>
       </div>
 
@@ -109,12 +109,12 @@ export default function UserDetailPage() {
           </div>
           <div className="card-body">
             <div className="user-detail-grid">
-              <div className="detail-item"><label>Username</label><span>{user.username}</span></div>
+              <div className="detail-item"><label>Tên đăng nhập</label><span>{user.username}</span></div>
               <div className="detail-item"><label>Email</label><span>{user.email}</span></div>
-              <div className="detail-item"><label>Full Name</label><span>{user.fullName}</span></div>
-              <div className="detail-item"><label>Phone</label><span>{user.phone || '—'}</span></div>
+              <div className="detail-item"><label>Họ và tên</label><span>{user.fullName}</span></div>
+              <div className="detail-item"><label>Số điện thoại</label><span>{user.phone || '—'}</span></div>
               <div className="detail-item">
-                <label>Roles</label>
+                <label>Vai trò</label>
                 <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {user.roles.map((role: string) => (
                     <RoleBadge key={role} name={role} />
@@ -122,36 +122,36 @@ export default function UserDetailPage() {
                 </span>
               </div>
               {user.department && (
-                <div className="detail-item"><label>Primary Department</label><span>{user.department.name}</span></div>
+                <div className="detail-item"><label>Phòng ban chính</label><span>{user.department.name}</span></div>
               )}
               {user.createdBy && (
-                <div className="detail-item"><label>Created By</label><span>{user.createdBy.fullName}</span></div>
+                <div className="detail-item"><label>Người tạo</label><span>{user.createdBy.fullName}</span></div>
               )}
-              <div className="detail-item"><label>First Login</label><span>{user.isFirstLogin ? 'Yes' : 'No'}</span></div>
-              <div className="detail-item"><label>Last Login</label><span>{formatDate(user.lastLogin)}</span></div>
-              <div className="detail-item"><label>Created At</label><span>{formatDate(user.createdAt)}</span></div>
-              <div className="detail-item"><label>Updated At</label><span>{formatDate(user.updatedAt)}</span></div>
+              <div className="detail-item"><label>Đăng nhập lần đầu</label><span>{user.isFirstLogin ? 'Có' : 'Không'}</span></div>
+              <div className="detail-item"><label>Đăng nhập gần nhất</label><span>{formatDate(user.lastLogin)}</span></div>
+              <div className="detail-item"><label>Ngày tạo</label><span>{formatDate(user.createdAt)}</span></div>
+              <div className="detail-item"><label>Ngày cập nhật</label><span>{formatDate(user.updatedAt)}</span></div>
             </div>
           </div>
         </div>
 
         <div className="card" style={{ marginTop: 20 }}>
           <div className="card-header">
-            <h2>Department Memberships ({memberships.length})</h2>
+            <h2>Thành viên phòng ban ({memberships.length})</h2>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {memberships.length === 0 ? (
               <div className="empty-state">
-                <h3>No department memberships</h3>
-                <p>This user does not belong to any department yet. Add them from a Department's detail page.</p>
+                <h3>Chưa có thành viên phòng ban</h3>
+                <p>Người dùng này chưa thuộc phòng ban nào. Hãy thêm họ từ trang chi tiết của một phòng ban.</p>
               </div>
             ) : (
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Department</th>
-                    <th>Added</th>
-                    <th>Actions</th>
+                    <th>Phòng ban</th>
+                    <th>Ngày thêm</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -171,7 +171,7 @@ export default function UserDetailPage() {
                       <td>
                         <button
                           className="action-btn delete"
-                          title="Remove from department"
+                          title="Xóa khỏi phòng ban"
                           disabled={actionLoading}
                           onClick={() => {
                             clearActionError();
@@ -195,14 +195,14 @@ export default function UserDetailPage() {
 
       <ConfirmModal
         open={deleteModal}
-        title="Confirm Delete"
+        title="Xác nhận xóa"
         message={
           <>
-            Are you sure you want to delete user <strong>{user.username}</strong>?
-            This action cannot be undone.
+            Bạn có chắc chắn muốn xóa người dùng <strong>{user.username}</strong>?
+            Hành động này không thể hoàn tác.
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel="Xóa"
         variant="danger"
         loading={deleting}
         onConfirm={handleDelete}
@@ -211,10 +211,10 @@ export default function UserDetailPage() {
 
       <ConfirmModal
         open={!!removeDeptTarget}
-        title="Remove from Department"
+        title="Xóa khỏi phòng ban"
         message={
           <>
-            Are you sure you want to remove <strong>{user.fullName}</strong> from{' '}
+            Bạn có chắc chắn muốn xóa <strong>{user.fullName}</strong> khỏi{' '}
             <strong>{removeDeptTarget?.name}</strong>?
             {actionError ? (
               <>
@@ -225,7 +225,7 @@ export default function UserDetailPage() {
             ) : null}
           </>
         }
-        confirmLabel="Remove"
+        confirmLabel="Xóa"
         variant="warning"
         loading={actionLoading}
         onConfirm={handleRemoveDepartment}

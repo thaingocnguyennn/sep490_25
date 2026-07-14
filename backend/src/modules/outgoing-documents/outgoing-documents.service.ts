@@ -260,7 +260,6 @@ export class OutgoingDocumentsService {
       });
 
       return {
-        text: ocrResult.text,
         confidence: ocrResult.confidence,
         extractedFields,
       };
