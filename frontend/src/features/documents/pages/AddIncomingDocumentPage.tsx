@@ -175,7 +175,7 @@ export default function AddIncomingDocumentPage() {
         signerTitle: fields.signerTitle || prev.signerTitle,
       }));
 
-      setOcrRawText(result.ocrText || '');
+      setOcrRawText(result.text || '');
 
       const extractedKeys = Object.keys(fields);
       if (extractedKeys.length === 0) {

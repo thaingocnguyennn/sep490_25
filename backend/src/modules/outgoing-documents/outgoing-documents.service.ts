@@ -2,7 +2,7 @@ import { default as prisma } from '../../config/database';
 import { outgoingDocumentsRepository } from './outgoing-documents.repository';
 import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
-import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
+import { performOcr, extractFields } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
 import { checkPdfSignature, extractSignaturesFromFile, isSupportedSignatureFile, getPdfSignatureDetail } from '../../shared/utils/pdf-signature.util';
 import { DocumentStatus } from '@prisma/client';
@@ -243,7 +243,12 @@ export class OutgoingDocumentsService {
 
     try {
       const ocrResult = await performOcr(fileBuffer, mimeType);
-      const extractedFields = extractFieldsFromOcrText(ocrResult.text);
+      // Pass real per-page layout (bounding boxes for each line/word)
+      // to the field extractor. extractFieldsFromOcrText() collapses
+      // everything into a synthetic single-page and would cause the
+      // layout-aware extractors to return undefined for every field
+      // except pageCount.
+      const extractedFields = extractFields(ocrResult.pages);
 
       // Lưu kết quả OCR vào database
       await prisma.document.update({
@@ -255,7 +260,7 @@ export class OutgoingDocumentsService {
       });
 
       return {
-        ocrText: ocrResult.text,
+        text: ocrResult.text,
         confidence: ocrResult.confidence,
         extractedFields,
       };
