@@ -23,7 +23,7 @@ export default function AdminSidebar() {
     <aside className="sidebar">
       <div className="sidebar-header">
         <h2>Quản trị DMS</h2>
-        <p style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>Bảng điều khiển quản trị</p>
+        <p style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.75)', marginTop: 4 }}>Bảng điều khiển quản trị</p>
       </div>
 
       <nav className="sidebar-nav">
