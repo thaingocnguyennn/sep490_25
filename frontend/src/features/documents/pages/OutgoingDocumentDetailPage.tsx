@@ -14,8 +14,41 @@ import type {
   SignatureVerificationResult,
 } from '../../../types';
 import { usersApi } from '../../../api/modules/users';
+import { api } from '../../../api';
 
-const API_BASE = 'http://localhost:3000';
+async function openAuthenticatedFile(url: string): Promise<void> {
+  // Routes the request through axios so the Bearer token is attached.
+  // Falls back to a direct window.open() only if the upstream call fails
+  // so that an expired token does not silently break the link.
+  try {
+    const res = await api.get<Blob>(url, { responseType: 'blob' });
+    const blob = res.data;
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    // Revoke after a delay so the new tab has time to load the blob.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (err) {
+    console.error('Authenticated file fetch failed, falling back to direct URL:', err);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+async function downloadAuthenticatedFile(url: string, fileName: string): Promise<void> {
+  try {
+    const res = await api.get<Blob>(url, { responseType: 'blob' });
+    const blob = res.data;
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (err) {
+    console.error('Authenticated file download failed:', err);
+  }
+}
 
 // Helper: định dạng ngày giờ tiếng Việt
 const formatDateTime = (dateStr: string | null | undefined): string => {
@@ -496,22 +529,27 @@ export default function OutgoingDocumentDetailPage() {
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <a
-                        href={`${API_BASE}${doc.document.fileUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => openAuthenticatedFile(doc.document.fileUrl ?? '')}
                         className="btn btn-secondary"
                         style={{ fontSize: 13 }}
                       >
                         👁️ Xem
-                      </a>
-                      <a
-                        href={`${API_BASE}/api/documents/${doc.documentId}/download`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadAuthenticatedFile(
+                            `/api/documents/${doc.documentId}/download`,
+                            doc.document.originalFileName || `document-${doc.documentId}`,
+                          )
+                        }
                         className="btn btn-secondary"
                         style={{ fontSize: 13 }}
                       >
                         ⬇️ Tải về
-                      </a>
+                      </button>
                     </div>
                   </div>
 
@@ -560,7 +598,7 @@ export default function OutgoingDocumentDetailPage() {
                         </div>
                       )}
                       <div style={{ fontSize: 12, maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', color: '#4b5563', background: 'white', padding: 12, borderRadius: 6 }}>
-                        {ocrResult?.ocrText || doc.document.ocrText}
+                        {doc.document.ocrText}
                       </div>
                       {canEdit && ocrResult && (
                         <button

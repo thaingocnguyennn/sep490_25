@@ -42,10 +42,10 @@ export default function ProfileEditPage() {
   };
 
   const validate = () => {
-    if (!form.fullName.trim()) return 'Full name is required';
-    if (form.fullName.length < 2) return 'Full name must be at least 2 characters';
+    if (!form.fullName.trim()) return 'Vui lòng nhập họ và tên';
+    if (form.fullName.length < 2) return 'Họ và tên phải có ít nhất 2 ký tự';
     if (form.phone && !/^[0-9]{10,15}$/.test(form.phone)) {
-      return 'Phone must be 10-15 digits';
+      return 'Số điện thoại phải có từ 10 đến 15 chữ số';
     }
     return null;
   };
@@ -77,7 +77,7 @@ export default function ProfileEditPage() {
       navigate('/profile');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Failed to update profile. Please try again.');
+      setError(error.response?.data?.message || 'Cập nhật hồ sơ thất bại. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function ProfileEditPage() {
   if (fetchingProfile) {
     return (
       <>
-        <div className="top-bar"><h1>Edit Profile</h1></div>
+        <div className="top-bar"><h1>Chỉnh sửa hồ sơ</h1></div>
         <div className="page-content">
           <div className="loading-spinner"><div className="spinner" /></div>
         </div>
@@ -101,9 +101,9 @@ export default function ProfileEditPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>Edit Profile</h1>
+        <h1>Chỉnh sửa hồ sơ</h1>
         <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
-          Back
+          Quay lại
         </button>
       </div>
 
@@ -115,7 +115,7 @@ export default function ProfileEditPage() {
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
                 <div className="form-group full-width">
-                  <label htmlFor="username">Username</label>
+                  <label htmlFor="username">Tên đăng nhập</label>
                   <input
                     id="username"
                     type="text"
@@ -124,7 +124,7 @@ export default function ProfileEditPage() {
                     style={{ backgroundColor: '#f5f6fa', cursor: 'not-allowed' }}
                   />
                   <small style={{ color: '#636e72', fontSize: 12 }}>
-                    Username cannot be changed.
+                    Tên đăng nhập không thể thay đổi.
                   </small>
                 </div>
 
@@ -138,31 +138,31 @@ export default function ProfileEditPage() {
                     style={{ backgroundColor: '#f5f6fa', cursor: 'not-allowed' }}
                   />
                   <small style={{ color: '#636e72', fontSize: 12 }}>
-                    Contact an admin to change your email.
+                    Liên hệ quản trị viên để thay đổi email.
                   </small>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="fullName">Full Name *</label>
+                  <label htmlFor="fullName">Họ và tên *</label>
                   <input
                     id="fullName"
                     name="fullName"
                     type="text"
                     value={form.fullName}
                     onChange={handleChange}
-                    placeholder="e.g. John Doe"
+                    placeholder="Ví dụ: Nguyễn Văn A"
                   />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="phone">Phone</label>
+                  <label htmlFor="phone">Số điện thoại</label>
                   <input
                     id="phone"
                     name="phone"
                     type="tel"
                     value={form.phone}
                     onChange={handleChange}
-                    placeholder="e.g. 0901234567"
+                    placeholder="Ví dụ: 0901234567"
                   />
                 </div>
               </div>
@@ -173,7 +173,7 @@ export default function ProfileEditPage() {
                   className="btn btn-secondary"
                   onClick={() => navigate('/profile')}
                 >
-                  Cancel
+                  Hủy
                 </button>
                 <button
                   type="submit"
@@ -181,7 +181,7 @@ export default function ProfileEditPage() {
                   disabled={loading}
                   style={{ flex: 1 }}
                 >
-                  {loading ? 'Saving...' : 'Save Changes'}
+                  {loading ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
             </form>

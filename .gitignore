@@ -1,0 +1,8 @@
+temp/
+docs/
+data-test/
+
+# Root-level environment files (Postgres credentials, etc.)
+/.env
+/.env.local
+/.env.*.local

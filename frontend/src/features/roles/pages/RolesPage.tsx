@@ -19,15 +19,15 @@ export default function RolesPage() {
   };
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   return (
     <>
       <div className="top-bar">
-        <h1>Role Management</h1>
+        <h1>Quản lý vai trò</h1>
         <button className="btn btn-primary" onClick={() => navigate('/admin/roles/new')}>
-          + Create Role
+          + Tạo vai trò
         </button>
       </div>
 
@@ -38,19 +38,19 @@ export default function RolesPage() {
               <LoadingSpinner />
             ) : roles.length === 0 ? (
               <div className="empty-state">
-                <h3>No roles found</h3>
-                <p>Create your first role to get started.</p>
+                <h3>Chưa có vai trò nào</h3>
+                <p>Hãy tạo vai trò đầu tiên của bạn để bắt đầu.</p>
               </div>
             ) : (
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Role Name</th>
-                    <th>Description</th>
-                    <th>Users</th>
-                    <th>Created</th>
-                    <th>Actions</th>
+                    <th>Tên vai trò</th>
+                    <th>Mô tả</th>
+                    <th>Người dùng</th>
+                    <th>Ngày tạo</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -81,14 +81,14 @@ export default function RolesPage() {
                       <td>
                         <button
                           className="action-btn edit"
-                          title="Edit"
+                          title="Chỉnh sửa"
                           onClick={() => navigate(`/admin/roles/${role.id}/edit`)}
                         >
                           &#9998;
                         </button>
                         <button
                           className="action-btn delete"
-                          title="Delete"
+                          title="Xóa"
                           disabled={actionLoading}
                           onClick={() => setDeleteTarget({ id: role.id, name: role.name })}
                         >
@@ -106,10 +106,10 @@ export default function RolesPage() {
 
       <ConfirmModal
         open={!!deleteTarget}
-        title="Confirm Delete"
+        title="Xác nhận xóa"
         message={
           <>
-            Are you sure you want to delete role <strong>{deleteTarget?.name}</strong>?
+            Bạn có chắc chắn muốn xóa vai trò <strong>{deleteTarget?.name}</strong>?
             {deleteTarget ? (
               (() => {
                 const targetRole = roles.find((r) => r.id === deleteTarget.id);
@@ -117,17 +117,17 @@ export default function RolesPage() {
                 return count > 0 ? (
                   <><br /><br />
                     <span style={{ color: '#e74c3c' }}>
-                      Warning: This role is assigned to {count} user(s).
-                      Deleting will remove all user-role assignments.
+                      Cảnh báo: Vai trò này hiện đang được gán cho {count} người dùng.
+                      Việc xóa sẽ gỡ bỏ tất cả các phân công vai trò - người dùng.
                     </span>
                   </>
                 ) : null;
               })()
             ) : null}
-            <br />This action cannot be undone.
+            <br />Hành động này không thể hoàn tác.
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel="Xóa"
         variant="danger"
         loading={actionLoading}
         onConfirm={handleDeleteConfirm}

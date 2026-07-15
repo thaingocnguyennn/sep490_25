@@ -1,7 +1,34 @@
 import { PrismaClient, UserStatus } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { config } from '../src/config';
 
 const prisma = new PrismaClient();
+
+function resolveSeedPassword(overridden: string, label: string): string {
+  if (overridden && overridden.trim() !== '') {
+    if (overridden.length < 8) {
+      throw new Error(
+        `${label} must be at least 8 characters long. Refusing to seed.`,
+      );
+    }
+    return overridden;
+  }
+
+  if (config.nodeEnv === 'production') {
+    throw new Error(
+      `${label} is not set and NODE_ENV=production. ` +
+        'Refusing to seed users with default credentials in production.',
+    );
+  }
+
+  // Dev fallback — still warn loudly so it doesn't slip into production.
+  console.warn(
+    `[seed] WARNING: ${label} is not set; falling back to a development-only ` +
+      'default password. Set SEED_ADMIN_PASSWORD / SEED_DEFAULT_USER_PASSWORD ' +
+      'in backend/.env to override.',
+  );
+  return 'Password@123';
+}
 
 async function main() {
   console.log('Starting database seed...');
@@ -77,7 +104,17 @@ async function main() {
   const specialistRole = await prisma.role.findUnique({ where: { name: 'SPECIALIST' } });
   const docClerkRole = await prisma.role.findUnique({ where: { name: 'DOCUMENT_CLERK' } });
 
-  const hashedPassword = await bcrypt.hash('Password@123', 12);
+  const adminPassword = resolveSeedPassword(
+    config.seed.adminPassword,
+    'SEED_ADMIN_PASSWORD',
+  );
+  const defaultPassword = resolveSeedPassword(
+    config.seed.defaultUserPassword || config.seed.adminPassword,
+    'SEED_DEFAULT_USER_PASSWORD',
+  );
+
+  const adminHashedPassword = await bcrypt.hash(adminPassword, config.bcrypt.saltRounds);
+  const defaultHashedPassword = await bcrypt.hash(defaultPassword, config.bcrypt.saltRounds);
 
   const adminUser = await prisma.user.upsert({
     where: { username: 'admin' },
@@ -85,7 +122,7 @@ async function main() {
     create: {
       username: 'admin',
       email: 'admin@dms.local',
-      password: hashedPassword,
+      password: adminHashedPassword,
       fullName: 'System Administrator',
       phone: '0900000001',
       status: UserStatus.ACTIVE,
@@ -97,7 +134,7 @@ async function main() {
       },
     },
   });
-  console.log('Admin user seeded: admin / Password@123');
+  console.log('Admin user seeded');
 
   await prisma.user.upsert({
     where: { username: 'depthead01' },
@@ -105,7 +142,7 @@ async function main() {
     create: {
       username: 'depthead01',
       email: 'depthead01@dms.local',
-      password: hashedPassword,
+      password: defaultHashedPassword,
       fullName: 'Tran Thi B',
       phone: '0900000002',
       status: UserStatus.ACTIVE,
@@ -117,7 +154,7 @@ async function main() {
       },
     },
   });
-  console.log('Department Head seeded: depthead01 / Password@123');
+  console.log('Department Head seeded');
 
   await prisma.user.upsert({
     where: { username: 'specialist01' },
@@ -125,7 +162,7 @@ async function main() {
     create: {
       username: 'specialist01',
       email: 'specialist01@dms.local',
-      password: hashedPassword,
+      password: defaultHashedPassword,
       fullName: 'Le Van C',
       phone: '0900000003',
       status: UserStatus.ACTIVE,
@@ -137,7 +174,7 @@ async function main() {
       },
     },
   });
-  console.log('Specialist seeded: specialist01 / Password@123');
+  console.log('Specialist seeded');
 
   await prisma.user.upsert({
     where: { username: 'clerk01' },
@@ -145,7 +182,7 @@ async function main() {
     create: {
       username: 'clerk01',
       email: 'clerk01@dms.local',
-      password: hashedPassword,
+      password: defaultHashedPassword,
       fullName: 'Pham Thi D',
       phone: '0900000004',
       status: UserStatus.ACTIVE,
@@ -157,7 +194,7 @@ async function main() {
       },
     },
   });
-  console.log('Document Clerk seeded: clerk01 / Password@123');
+  console.log('Document Clerk seeded');
 
   // Seed default workflow steps for incoming documents
   const defaultSteps = [

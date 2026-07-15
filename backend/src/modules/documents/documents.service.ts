@@ -11,7 +11,7 @@ import {
   DocumentListResult,
   DocumentSummary,
 } from './documents.repository';
-import { performOcr, extractFieldsFromOcrText } from '../../shared/services/ocr.service';
+import { performOcr, extractFields } from '../../shared/services/ocr.service';
 import prisma from '../../config/database';
 
 // ─── Service ────────────────────────────────────────────────────────────────
@@ -688,10 +688,14 @@ export class DocumentsService {
    */
   async performOcr(imageBuffer: Buffer, mimeType: string, mode: string = 'INCOMING') {
     const result = await performOcr(imageBuffer, mimeType);
-    const extractedFields = extractFieldsFromOcrText(result.text, mode);
+    // Pass the real per-page PageOcr array (with bounding-box layout)
+    // into the layout-aware field extractor. Going through
+    // extractFieldsFromOcrText() would discard the layout info and
+    // collapse every page into a synthetic single-page where
+    // region-based extractors can no longer locate anything.
+    const extractedFields = extractFields(result.pages, mode);
 
     return {
-      text: result.text,
       confidence: result.confidence,
       extractedFields,
     };

@@ -22,36 +22,36 @@ export default function AdminSidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h2>DMS Admin</h2>
-        <p style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>Management Console</p>
+        <h2>Quản trị DMS</h2>
+        <p style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.75)', marginTop: 4 }}>Bảng điều khiển quản trị</p>
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section-title">Management</div>
+        <div className="nav-section-title">Quản lý</div>
         <NavLink
           to="/admin"
           end
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>🏠</span> Dashboard
+          <span>🏠</span> Bảng điều khiển
         </NavLink>
         <NavLink
           to="/admin/users"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>👥</span> User Management
+          <span>👥</span> Quản lý người dùng
         </NavLink>
         <NavLink
           to="/admin/roles"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>🛡️</span> Role Management
+          <span>🛡️</span> Quản lý vai trò
         </NavLink>
         <NavLink
           to="/admin/departments"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>🏢</span> Department Management
+          <span>🏢</span> Quản lý phòng ban
         </NavLink>
 
       </nav>
@@ -61,7 +61,7 @@ export default function AdminSidebar() {
           <div className="user-avatar">{getInitials(user?.fullName || '')}</div>
           <div>
             <div className="user-name">{user?.fullName}</div>
-            <div className="user-role">{user?.roles?.[0] || 'User'}</div>
+            <div className="user-role">{user?.roles?.[0] || 'Người dùng'}</div>
           </div>
         </div>
         <button
@@ -69,14 +69,14 @@ export default function AdminSidebar() {
           style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
           onClick={() => navigate('/change-password')}
         >
-          Change Password
+          Đổi mật khẩu
         </button>
         <button
           className="btn btn-secondary"
           style={{ width: '100%', fontSize: 13 }}
           onClick={handleLogout}
         >
-          Logout
+          Đăng xuất
         </button>
       </div>
     </aside>

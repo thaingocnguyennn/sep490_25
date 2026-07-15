@@ -395,7 +395,6 @@ export interface OutgoingDocumentFilterParams {
 }
 
 export interface OcrResult {
-  ocrText: string;
   confidence: number;
   extractedFields: {
     issuer?: string;
@@ -407,6 +406,8 @@ export interface OcrResult {
     signerName?: string;
     signerTitle?: string;
     recipientName?: string;
+    urgencyLevel?: string;
+    confidentialityLevel?: string;
   };
 }
 

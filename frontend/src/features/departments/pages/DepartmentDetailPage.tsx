@@ -108,14 +108,14 @@ export default function DepartmentDetailPage() {
   };
 
   if (!isAdmin) {
-    return <div className="page-content"><p>Access denied.</p></div>;
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
   }
 
   if (loading) {
     return (
       <>
         <div className="top-bar">
-          <h1>Department Details</h1>
+          <h1>Thông tin phòng ban</h1>
         </div>
         <div className="page-content">
           <LoadingSpinner />
@@ -131,19 +131,19 @@ export default function DepartmentDetailPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>Department Details</h1>
+        <h1>Thông tin phòng ban</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary" onClick={() => navigate('/admin/departments')}>
-            Back
+            Quay lại
           </button>
           <button
             className="btn btn-secondary"
             onClick={() => navigate(`/admin/departments/${id}/edit`)}
           >
-            Edit
+            Chỉnh sửa
           </button>
           <button className="btn btn-danger" onClick={() => setDeleteModal(true)}>
-            Delete
+            Xóa
           </button>
         </div>
       </div>
@@ -156,11 +156,11 @@ export default function DepartmentDetailPage() {
           <div className="card-body">
             <div className="user-detail-grid">
               <div className="detail-item">
-                <label>Name</label>
+                <label>Tên phòng ban</label>
                 <span>{department.name}</span>
               </div>
               <div className="detail-item">
-                <label>Parent</label>
+                <label>Phòng ban cấp trên</label>
                 <span>
                   {department.parent ? (
                     <a
@@ -175,23 +175,23 @@ export default function DepartmentDetailPage() {
                 </span>
               </div>
               <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <label>Description</label>
+                <label>Mô tả</label>
                 <span>{department.description || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Members</label>
+                <label>Số thành viên</label>
                 <span>{members.length}</span>
               </div>
               <div className="detail-item">
-                <label>Sub-departments</label>
+                <label>Phòng ban trực thuộc</label>
                 <span>{department.childCount ?? 0}</span>
               </div>
               <div className="detail-item">
-                <label>Created At</label>
+                <label>Ngày tạo</label>
                 <span>{formatDate(department.createdAt)}</span>
               </div>
               <div className="detail-item">
-                <label>Updated At</label>
+                <label>Ngày cập nhật</label>
                 <span>{formatDate(department.updatedAt)}</span>
               </div>
             </div>
@@ -200,7 +200,7 @@ export default function DepartmentDetailPage() {
 
         <div className="card" style={{ marginTop: 20 }}>
           <div className="card-header">
-            <h2>Members ({members.length})</h2>
+            <h2>Thành viên ({members.length})</h2>
             <button
               className="btn btn-primary"
               onClick={() => {
@@ -208,7 +208,7 @@ export default function DepartmentDetailPage() {
                 setAddMembersOpen(true);
               }}
             >
-              + Add User
+              + Thêm người dùng
             </button>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
@@ -216,20 +216,20 @@ export default function DepartmentDetailPage() {
               <LoadingSpinner />
             ) : members.length === 0 ? (
               <div className="empty-state">
-                <h3>No members yet</h3>
-                <p>Click "Add User" to add members to this department.</p>
+                <h3>Chưa có thành viên</h3>
+                <p>Nhấn "Thêm người dùng" để thêm thành viên vào phòng ban này.</p>
               </div>
             ) : (
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Username</th>
-                    <th>Full Name</th>
+                    <th>Tên đăng nhập</th>
+                    <th>Họ và tên</th>
                     <th>Email</th>
-                    <th>Roles</th>
-                    <th>Status</th>
-                    <th>Added</th>
-                    <th>Actions</th>
+                    <th>Vai trò</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày thêm</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -261,7 +261,7 @@ export default function DepartmentDetailPage() {
                       <td>
                         <button
                           className="action-btn delete"
-                          title="Remove from department"
+                          title="Xóa khỏi phòng ban"
                           disabled={actionLoading}
                           onClick={() => {
                             clearActionError();
@@ -282,14 +282,14 @@ export default function DepartmentDetailPage() {
         {department.children && department.children.length > 0 && (
           <div className="card" style={{ marginTop: 20 }}>
             <div className="card-header">
-              <h2>Sub-departments ({department.children.length})</h2>
+              <h2>Phòng ban trực thuộc ({department.children.length})</h2>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Action</th>
+                    <th>Tên phòng ban</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -302,7 +302,7 @@ export default function DepartmentDetailPage() {
                           style={{ fontSize: 12, padding: '4px 10px' }}
                           onClick={() => navigate(`/admin/departments/${c.id}`)}
                         >
-                          View
+                          Xem
                         </button>
                       </td>
                     </tr>
@@ -316,16 +316,16 @@ export default function DepartmentDetailPage() {
 
       <ConfirmModal
         open={deleteModal}
-        title="Confirm Delete"
+        title="Xác nhận xóa"
         message={
           <>
-            Are you sure you want to delete department <strong>{department.name}</strong>?
+            Bạn có chắc chắn muốn xóa phòng ban <strong>{department.name}</strong>?
             {members.length > 0 ? (
               <>
                 <br />
                 <br />
                 <span style={{ color: '#e74c3c' }}>
-                  Warning: This department has {members.length} member(s).
+                  Cảnh báo: Phòng ban này hiện có {members.length} thành viên.
                 </span>
               </>
             ) : null}
@@ -333,7 +333,7 @@ export default function DepartmentDetailPage() {
               <>
                 <br />
                 <span style={{ color: '#e74c3c' }}>
-                  Warning: This department has {department.childCount} sub-department(s).
+                  Cảnh báo: Phòng ban này có {department.childCount} phòng ban trực thuộc.
                 </span>
               </>
             ) : null}
@@ -345,10 +345,10 @@ export default function DepartmentDetailPage() {
               </>
             ) : null}
             <br />
-            This action cannot be undone.
+            Hành động này không thể hoàn tác.
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel="Xóa"
         variant="danger"
         loading={actionLoading}
         onConfirm={handleDelete}
@@ -357,11 +357,11 @@ export default function DepartmentDetailPage() {
 
       <ConfirmModal
         open={!!removeTarget}
-        title="Remove Member"
+        title="Xóa thành viên"
         message={
           <>
-            Are you sure you want to remove{' '}
-            <strong>{removeTarget?.user.fullName}</strong> from{' '}
+            Bạn có chắc chắn muốn xóa{' '}
+            <strong>{removeTarget?.user.fullName}</strong> khỏi{' '}
             <strong>{department.name}</strong>?
             {actionError ? (
               <>
@@ -372,7 +372,7 @@ export default function DepartmentDetailPage() {
             ) : null}
           </>
         }
-        confirmLabel="Remove"
+        confirmLabel="Xóa"
         variant="warning"
         loading={actionLoading}
         onConfirm={handleRemoveConfirm}
