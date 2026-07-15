@@ -32,10 +32,10 @@ app.use('/api', routes);
 
 app.use(errorHandler);
 
-app.listen(config.port, () => {
-  console.log(`🚀 Server running at http://localhost:${config.port}`);
+app.listen(config.port, config.host, () => {
+  const displayHost = config.host === '0.0.0.0' ? 'localhost' : config.host;
+  console.log(`🚀 Server running at http://${displayHost}:${config.port}`);
   console.log(`📦 Environment: ${config.nodeEnv}`);
 });
 
 export default app;
-// trigger reload

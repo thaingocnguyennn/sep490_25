@@ -31,7 +31,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         {!collapsed && (
           <>
             <h2>Hệ thống DMS</h2>
-            <p style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>Quản lý tài liệu</p>
+            <p style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.75)', marginTop: 4 }}>Quản lý tài liệu</p>
           </>
         )}
         <button

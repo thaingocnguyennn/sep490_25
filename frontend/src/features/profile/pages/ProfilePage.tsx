@@ -33,6 +33,12 @@ export default function ProfilePage() {
     return 'inactive';
   };
 
+  const STATUS_LABEL: Record<string, string> = {
+    ACTIVE: 'Đang hoạt động',
+    INACTIVE: 'Không hoạt động',
+    LOCKED: 'Bị khóa',
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleString('vi-VN', {
@@ -51,7 +57,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <>
-        <div className="top-bar"><h1>My Profile</h1></div>
+        <div className="top-bar"><h1>Hồ sơ của tôi</h1></div>
         <div className="page-content">
           <div className="loading-spinner"><div className="spinner" /></div>
         </div>
@@ -64,12 +70,12 @@ export default function ProfilePage() {
   return (
     <>
       <div className="top-bar">
-        <h1>My Profile</h1>
+        <h1>Hồ sơ của tôi</h1>
         <button
           className="btn btn-primary"
           onClick={() => navigate('/profile/edit')}
         >
-          Edit Profile
+          Chỉnh sửa hồ sơ
         </button>
       </div>
 
@@ -101,7 +107,7 @@ export default function ProfilePage() {
               <div>
                 <h2 style={{ margin: 0 }}>{user.fullName}</h2>
                 <span className={`status-badge ${getStatusClass(user.status)}`} style={{ marginTop: 4 }}>
-                  {user.status}
+                  {STATUS_LABEL[user.status] ?? user.status}
                 </span>
               </div>
             </div>
@@ -109,7 +115,7 @@ export default function ProfilePage() {
           <div className="card-body">
             <div className="user-detail-grid">
               <div className="detail-item">
-                <label>Username</label>
+                <label>Tên đăng nhập</label>
                 <span>{user.username}</span>
               </div>
               <div className="detail-item">
@@ -117,15 +123,15 @@ export default function ProfilePage() {
                 <span>{user.email}</span>
               </div>
               <div className="detail-item">
-                <label>Full Name</label>
+                <label>Họ và tên</label>
                 <span>{user.fullName}</span>
               </div>
               <div className="detail-item">
-                <label>Phone</label>
+                <label>Số điện thoại</label>
                 <span>{user.phone || '—'}</span>
               </div>
               <div className="detail-item">
-                <label>Roles</label>
+                <label>Vai trò</label>
                 <span>
                   {user.roles.map((role: string) => (
                     <span key={role} className="role-badge">
@@ -135,15 +141,15 @@ export default function ProfilePage() {
                 </span>
               </div>
               <div className="detail-item">
-                <label>First Login</label>
-                <span>{user.isFirstLogin ? 'Yes' : 'No'}</span>
+                <label>Đăng nhập lần đầu</label>
+                <span>{user.isFirstLogin ? 'Có' : 'Không'}</span>
               </div>
               <div className="detail-item">
-                <label>Last Login</label>
+                <label>Lần đăng nhập cuối</label>
                 <span>{formatDate(user.lastLogin)}</span>
               </div>
               <div className="detail-item">
-                <label>Member Since</label>
+                <label>Ngày tạo tài khoản</label>
                 <span>{formatDate(user.createdAt)}</span>
               </div>
             </div>
