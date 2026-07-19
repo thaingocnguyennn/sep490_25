@@ -11,6 +11,7 @@ import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
+import { formatConfidentiality } from '../../../shared/constants/confidentiality';
 import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
 import PdfPreview from '../components/PdfPreview';
 import { useProcessors } from '../../../shared/hooks';
@@ -302,10 +303,6 @@ export default function IncomingDocumentDetailPage() {
                     <span style={{ fontWeight: 600 }}>{doc.issuer}</span>
                   </div>
                 )}
-                <div className="detail-item full-width">
-                  <label>Tiêu đề</label>
-                  <span style={{ fontSize: 16, fontWeight: 600 }}>{d.title}</span>
-                </div>
                 {doc.summary && (
                   <div className="detail-item full-width">
                     <label>Trích yếu nội dung</label>
@@ -325,12 +322,8 @@ export default function IncomingDocumentDetailPage() {
                   <span>{doc.document.urgency ? formatUrgency(doc.document.urgency) : '—'}</span>
                 </div>
                 <div className="detail-item">
-                  <label>Phòng ban tiếp nhận</label>
-                  <span>{doc.document.department?.name || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Người tạo</label>
-                  <span>{d.createdByUser?.fullName || '—'}</span>
+                  <label>Độ mật</label>
+                  <span>{formatConfidentiality(doc.document.confidentiality)}</span>
                 </div>
                 <div className="detail-item">
                   <label>Văn thư tạo</label>
@@ -343,6 +336,26 @@ export default function IncomingDocumentDetailPage() {
               </div>
             </div>
           </div>
+
+          {(doc.signerName || doc.signerTitle) && (
+            <div className="card" style={{ marginBottom: 24 }}>
+              <div className="card-header">
+                <h2>Thông tin ký</h2>
+              </div>
+              <div className="card-body">
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Họ tên người ký</label>
+                    <span>{doc.signerName || '—'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Chức vụ</label>
+                    <span>{doc.signerTitle || '—'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {d.id && (
             <div className="card" style={{ marginBottom: 24 }}>
@@ -357,30 +370,6 @@ export default function IncomingDocumentDetailPage() {
                   mimeType={d.mimeType}
                   pageCount={doc.pageCount}
                 />
-              </div>
-            </div>
-          )}
-
-          {(doc.signerName || doc.signerTitle) && (
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div className="card-header">
-                <h2>Thông tin ký</h2>
-              </div>
-              <div className="card-body">
-                <div className="detail-grid">
-                  {doc.signerName && (
-                    <div className="detail-item">
-                      <label>Họ tên người ký</label>
-                      <span>{doc.signerName}</span>
-                    </div>
-                  )}
-                  {doc.signerTitle && (
-                    <div className="detail-item">
-                      <label>Chức vụ</label>
-                      <span>{doc.signerTitle}</span>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}
