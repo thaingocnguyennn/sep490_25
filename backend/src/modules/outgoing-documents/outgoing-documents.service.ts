@@ -4,7 +4,7 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFields } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
-import { checkPdfSignature, extractSignaturesFromFile, isSupportedSignatureFile, getPdfSignatureDetail } from '../../shared/utils/pdf-signature.util';
+import { checkPdfSignature, extractSignaturesFromFile, isSupportedSignatureFile, getPdfSignatureDetail, buildSignatureSummary, buildVisualMarks } from '../../shared/utils/pdf-signature.util';
 import { DocumentStatus } from '@prisma/client';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
@@ -339,7 +339,7 @@ export class OutgoingDocumentsService {
     const mimeType = outgoing.document.mimeType || '';
     if (!isSupportedSignatureFile(filePath, mimeType)) {
       throw new BadRequestError(
-        'FILE_NOT_SUPPORTED: Chỉ hỗ trợ kiểm tra chữ ký số cho file PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx).',
+        'UNSUPPORTED_FILE_TYPE: Chỉ hỗ trợ kiểm tra chữ ký số cho file PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx).',
       );
     }
 
@@ -355,14 +355,19 @@ export class OutgoingDocumentsService {
     try {
       signatures = extractSignaturesFromFile(buffer, filePath, mimeType);
     } catch {
-      throw new BadRequestError('PDF_PARSE_FAILED: Không thể phân tích cấu trúc chữ ký.');
+      throw new BadRequestError('SIGNATURE_PARSE_FAILED: Không thể phân tích cấu trúc chữ ký.');
     }
 
-    if (signatures.length === 0) {
-      return { signatures: [], message: 'No digital signatures were found in this PDF.' };
-    }
-
-    return { signatures, message: `Tìm thấy ${signatures.length} chữ ký số trong file.` };
+    return {
+      documentId: id,
+      fileName: filename,
+      fileType: signatures.length > 0 ? signatures[0].fileType : (path.extname(filename).toLowerCase() === '.pdf' ? 'PDF' : 'WORD'),
+      signatureCount: signatures.length,
+      summary: buildSignatureSummary(signatures),
+      signatures,
+      visualMarks: buildVisualMarks(),
+      warning: 'This result is based on digital signature structure inspection and does not confirm legal validity through a trusted CA/PKI validation process.',
+    };
   }
 
   /**
@@ -407,11 +412,10 @@ export class OutgoingDocumentsService {
       throw new NotFoundError('FILE_NOT_FOUND: File không tồn tại trên server.');
     }
 
-    // 4. Chi tiết chữ ký chỉ hỗ trợ PDF
-    const ext = path.extname(filename).toLowerCase();
+    // 4. Kiểm tra định dạng hỗ trợ
     const mimeType = outgoing.document.mimeType || '';
-    if (ext !== '.pdf' && mimeType !== 'application/pdf') {
-      throw new BadRequestError('FILE_NOT_PDF: Chi tiết chữ ký chỉ hỗ trợ file PDF.');
+    if (!isSupportedSignatureFile(filePath, mimeType)) {
+      throw new BadRequestError('UNSUPPORTED_FILE_TYPE: Chỉ hỗ trợ kiểm tra chữ ký số cho file PDF, Word (.docx, vv).');
     }
 
     // 5. Đọc file
@@ -419,18 +423,22 @@ export class OutgoingDocumentsService {
     try {
       buffer = fs.readFileSync(filePath);
     } catch {
-      throw new BadRequestError('CANNOT_READ_FILE: Không thể đọc file PDF.');
+      throw new BadRequestError('CANNOT_READ_FILE: Không thể đọc file.');
     }
 
     // 6. Lấy chi tiết chữ ký theo index
     try {
-      return getPdfSignatureDetail(buffer, signatureIndex);
+      const signatures = extractSignaturesFromFile(buffer, filePath, mimeType);
+      if (signatureIndex < 0 || signatureIndex >= signatures.length) {
+         throw new BadRequestError(`INVALID_SIGNATURE_INDEX: Index ${signatureIndex} không hợp lệ. File có ${signatures.length} chữ ký.`);
+      }
+      return signatures[signatureIndex];
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
-      if (msg.startsWith('INVALID_SIGNATURE_INDEX')) {
+      if (msg.startsWith('INVALID_SIGNATURE_INDEX') || msg.startsWith('UNSUPPORTED_FILE_TYPE')) {
         throw new BadRequestError(msg);
       }
-      throw new BadRequestError('PDF_PARSE_FAILED: Không thể đọc chi tiết chữ ký.');
+      throw new BadRequestError('SIGNATURE_PARSE_FAILED: Không thể đọc chi tiết chữ ký.');
     }
   }
 

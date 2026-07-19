@@ -227,7 +227,13 @@ function tokenizeLine(line: OcrLine): Array<{
   const words = line.words.filter((w) => {
     const trimmed = w.text.trim();
     if (!trimmed) return false;
-    if (w.confidence > 0 && w.confidence < LOW_CONFIDENCE_WORD_THRESHOLD) return false;
+    // Exempt short tokens (1-2 chars) from the confidence gate. Tesseract
+    // frequently assigns very low confidence to single characters that
+    // it split off from a longer word (e.g. "A" + "nh" = "Anh"). If we
+    // filter them here, the merge pass downstream never sees them.
+    if (trimmed.length > 2 && w.confidence > 0 && w.confidence < LOW_CONFIDENCE_WORD_THRESHOLD) {
+      return false;
+    }
     return true;
   });
 

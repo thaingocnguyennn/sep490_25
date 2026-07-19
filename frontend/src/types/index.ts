@@ -420,32 +420,80 @@ export interface SignatureVerificationResult {
   message: string;
 }
 
-// ─── UC-70: PDF Signature List ───────────────────────────────────────────────
+// ─── UC-57/70/71/72: Signature Inspection Types ──────────────────────────────
 
-export interface PdfSignatureItem {
+export type SignatureFileType = "PDF" | "WORD";
+
+export type SignatureEvidenceType =
+  | "CRYPTOGRAPHIC_SIGNATURE"
+  | "VISIBLE_SIGNATURE_OR_STAMP"
+  | "UNKNOWN";
+
+export type SignatureVerificationLevel =
+  | "BASIC_STRUCTURE_ONLY"
+  | "BASIC_STRUCTURE_AND_CERTIFICATE_EXTRACTION"
+  | "SIGNED_RANGE_CHECK"
+  | "XML_SIGNATURE_STRUCTURE_DETECTED"
+  | "VISUAL_ONLY_NOT_VERIFIED"
+  | "FULL_CA_PKI_VALIDATION_NOT_PERFORMED";
+
+export type SignatureIntegrityStatus =
+  | "NO_CHANGES_AFTER_SIGNING"
+  | "DATA_ADDED_AFTER_SIGNING"
+  | "INVALID_BYTE_RANGE"
+  | "SIGNATURE_STRUCTURE_FOUND"
+  | "UNSUPPORTED_INTEGRITY_CHECK"
+  | "NO_CRYPTOGRAPHIC_SIGNATURE_FOUND"
+  | "UNKNOWN";
+
+export interface DocumentSignatureItem {
   index: number;
-  signerName: string | null;
-  organization: string | null;
-  certificateIssuer: string | null;
-  signingTime: string | null;
-  certificateValidFrom: string | null;
-  certificateValidTo: string | null;
-  isModifiedAfterSigning: boolean | null;
-  integrityStatus:
-    | 'VALID_OR_NOT_MODIFIED'
-    | 'MODIFIED_AFTER_SIGNING'
-    | 'NO_SIGNATURE'
-    | 'UNKNOWN';
-  validityStatus: 'VALID' | 'INVALID' | 'MODIFIED_AFTER_SIGNING' | 'UNKNOWN';
-  signatureOrder: number;
+  fileType: SignatureFileType;
+  evidenceType: SignatureEvidenceType;
+  verificationLevel: SignatureVerificationLevel;
+  signatureFormat: string | null;
+  fieldName?: string;
+  signerName?: string;
+  organization?: string;
+  email?: string;
+  issuer?: string;
+  serialNumber?: string;
+  signingTime?: string;
+  subFilter?: string;
+  byteRange?: [number, number, number, number];
+  signedRevisionEnd?: number;
+  fileSize?: number;
+  hasChangesAfterSigning?: boolean;
+  integrityStatus: SignatureIntegrityStatus;
+  displayStatus: string;
+  warning: string;
+  /** Thời gian ModDate của file PDF — chỉ có khi phát hiện thay đổi sau khi ký */
+  fileModDate?: string | null;
 }
 
-// ─── UC-72: PDF Signature Detail ──────────────────────────────────────────────
+export interface DocumentSignatureSummary {
+  hasCryptographicSignature: boolean;
+  cryptographicSignatureCount: number;
+  hasVisualSignatureAppearance: null;
+  conclusion:
+    | "CRYPTOGRAPHIC_SIGNATURE_FOUND"
+    | "NO_CRYPTOGRAPHIC_SIGNATURE_FOUND"
+    | "UNSUPPORTED_FILE_TYPE";
+}
 
-export interface PdfSignatureDetail extends PdfSignatureItem {
-  certificateSerialNumber: string | null;
-  certificateSubject: string | null;
-  signatureAlgorithm: string | null;
-  byteRange: [number, number, number, number] | null;
+export interface VisualMark {
+  type: "VISIBLE_SIGNATURE_OR_STAMP";
+  status: "NOT_VERIFIED";
   message: string;
+}
+
+export interface DocumentSignatureResponse {
+  documentId: number;
+  fileName: string;
+  fileType: SignatureFileType;
+  signatureCount: number;
+  summary: DocumentSignatureSummary;
+  signatures: DocumentSignatureItem[];
+  visualMarks: VisualMark[];
+  warning: string;
 }

@@ -222,7 +222,7 @@ export class OutgoingDocumentsController {
       const id = parseInt(req.params.id as string);
       const currentUser = await buildCurrentUserContext(req.user);
       const result = await outgoingDocumentsService.getSignatures(id, currentUser!);
-      res.status(200).json(successResponse(result, result.message));
+      res.status(200).json(successResponse(result, 'Lấy danh sách chữ ký số thành công'));
     } catch (error) {
       next(error);
     }
