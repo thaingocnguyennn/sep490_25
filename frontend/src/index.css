@@ -1838,6 +1838,186 @@ textarea:focus {
   border: none;
 }
 
+/* ─── PDF Preview Section (IncomingDocumentDetail) ──────────────────────── */
+
+.pdf-preview-section {
+  border: 1px solid #dfe6e9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.pdf-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e8ecf0;
+}
+
+.pdf-preview-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pdf-preview-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #e74c3c;
+  color: #fff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pdf-preview-badge.image {
+  background: #667eea;
+}
+
+.pdf-preview-filename {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d3436;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.pdf-preview-size {
+  font-size: 12px;
+  color: #636e72;
+  flex-shrink: 0;
+}
+
+.pdf-preview-pages {
+  font-size: 12px;
+  color: #636e72;
+  flex-shrink: 0;
+}
+
+.pdf-preview-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pdf-preview-viewer {
+  position: relative;
+  min-height: 400px;
+  max-height: 80vh;
+  background: #f0f2f7;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.pdf-preview-iframe {
+  width: 100%;
+  height: 80vh;
+  min-height: 500px;
+  border: none;
+  display: block;
+}
+
+.pdf-preview-image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.pdf-preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(240, 242, 247, 0.9);
+  color: #667eea;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.pdf-preview-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: #e74c3c;
+  text-align: center;
+}
+
+.pdf-preview-error p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pdf-preview-unsupported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 60px 24px;
+  text-align: center;
+  color: #636e72;
+}
+
+.pdf-preview-unsupported p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pdf-preview-unsupported-type {
+  font-size: 12px !important;
+  color: #b2bec3 !important;
+}
+
+.pdf-preview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 60px 24px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px dashed #dfe6e9;
+  border-radius: 12px;
+}
+
+.pdf-preview-empty-icon {
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+
+.pdf-preview-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d3436;
+  margin: 0;
+}
+
+.pdf-preview-empty-hint {
+  font-size: 13px;
+  color: #636e72;
+  margin: 0;
+}
+
 /* ─── Document Type Badges ───────────────────────────────────────────────── */
 
 .doc-type-badge {

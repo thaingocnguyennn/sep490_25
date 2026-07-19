@@ -246,9 +246,6 @@ export async function recognizeSignatureBlock(
       const reOcr = await recognizeRegionWithParams(cropped, page.pageNumber, {
         tessedit_pageseg_mode: psm,
       });
-      if (process.env.OCR_DEBUG === '1') {
-        console.log('[signature re-OCR pass=' + psm + '] blocks=' + reOcr.blocks.length + ' text=' + JSON.stringify(reOcr.text));
-      }
       for (const l of linesInReadingOrder(reOcr)) {
         const text = cleanText(l.text);
         if (!text) continue;
@@ -260,11 +257,6 @@ export async function recognizeSignatureBlock(
       if (process.env.OCR_DEBUG === '1') console.log('[signature re-OCR] pass failed', e);
     }
   }
-  if (process.env.OCR_DEBUG === '1') {
-    console.log('[signature re-OCR] collected ' + collectedLines.length + ' lines');
-    for (const l of collectedLines) console.log('  - ' + JSON.stringify(l.text));
-  }
-
   if (collectedLines.length === 0) return { replacements };
 
   // Re-map collected line bboxes from crop-relative coords back to
@@ -321,8 +313,24 @@ export async function recognizeSignatureBlock(
     return false;
   };
 
-  let titleLine: { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } } | undefined;
-  let nameLine: { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } } | undefined;
+  // Pick the best name line across all collected re-OCR passes.
+  //
+  // Strategy: every candidate line gets a "name-score" equal to the
+  // length of its longest contiguous run of person-name words
+  // (>= 2). We then prefer the candidate with the highest score;
+  // ties are broken by total token count (more tokens = better
+  // signal that the line is a name) and finally by the line's
+  // original position in the collected list (later = preferred
+  // because later passes tend to be higher-PSM and higher-fidelity).
+  //
+  // This fixes a critical issue seen on the NQ PDF where pass 6
+  // produced "6 - 2031; NG Van Minh" (a fragment of the merged
+  // recipient-list + signer-name line) and pass 11 produced the
+  // correct "võ Văn Minh". The old `if (!nameLine)` logic would
+  // pick the first match it found and stop — here, the first match
+  // was the garbage fragment.
+  let titleLine: { text: string; bbox: any } | undefined;
+  let nameLine: { text: string; bbox: any } | undefined;
   for (const l of collectedLines) {
     const t = cleanText(l.text);
     // Skip the signature marker itself — its words ("UY BAN NHAN DAN")
@@ -333,33 +341,51 @@ export async function recognizeSignatureBlock(
       titleLine = l;
       continue;
     }
-    if (!nameLine) {
-      const tokens = t.split(/\s+/).filter(Boolean);
-      let run: string[] = [];
-      let bestRun: string[] = [];
-      for (const tok of tokens) {
-        if (isPersonNameWord(tok)) run.push(tok);
-        else {
-          if (run.length > bestRun.length) bestRun = run;
-          run = [];
-        }
-      }
-      if (run.length > bestRun.length) bestRun = run;
-      if (bestRun.length >= 2) {
-        // Emit the *raw* OCR text (no in-place character
-        // replacement) — the new signer-name pipeline normalises
-        // and corrects each token via dictionaries + Levenshtein,
-        // and emits multiple candidates instead of fabricating a
-        // single cleaned line.
-        nameLine = { text: t, bbox: l.bbox };
+  }
+  let nameCandidate: { text: string; bbox: any; nameRun: number; tokenCount: number; index: number } | undefined;
+  for (let i = 0; i < collectedLines.length; i++) {
+    const l = collectedLines[i];
+    const t = cleanText(l.text);
+    if (SIGNATURE_MARKER_RE.test(t)) continue;
+    const tokens = t.split(/\s+/).filter(Boolean);
+    let run: string[] = [];
+    let bestRun: string[] = [];
+    for (const tok of tokens) {
+      if (isPersonNameWord(tok)) run.push(tok);
+      else {
+        if (run.length > bestRun.length) bestRun = run;
+        run = [];
       }
     }
+    if (run.length > bestRun.length) bestRun = run;
+    if (bestRun.length < 2) continue;
+    const cand = {
+      text: t,
+      bbox: l.bbox,
+      nameRun: bestRun.length,
+      tokenCount: tokens.length,
+      index: i,
+    };
+    if (
+      !nameCandidate ||
+      cand.nameRun > nameCandidate.nameRun ||
+      (cand.nameRun === nameCandidate.nameRun &&
+        cand.tokenCount > nameCandidate.tokenCount) ||
+      (cand.nameRun === nameCandidate.nameRun &&
+        cand.tokenCount === nameCandidate.tokenCount &&
+        cand.index > nameCandidate.index)
+    ) {
+      nameCandidate = cand;
+    }
+  }
+  // Emit the chosen raw OCR text — same as the legacy single-match
+  // branch did. Downstream `extractSignerName` will normalise,
+  // classify, and re-rank via dictionaries.
+  if (nameCandidate) {
+    nameLine = { text: nameCandidate.text, bbox: nameCandidate.bbox };
   }
 
   const newLines: OcrLine[] = [];
-  if (process.env.OCR_DEBUG === '1') {
-    console.log('[signature re-OCR] titleLine=' + (titleLine ? JSON.stringify(titleLine.text) : 'undefined') + ' nameLine=' + (nameLine ? JSON.stringify(nameLine.text) : 'undefined'));
-  }
   if (titleLine) {
     newLines.push({
       text: titleLine.text,

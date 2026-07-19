@@ -90,7 +90,7 @@ export const config = {
   },
 
   // Absolute path to the uploads directory for document files
-  uploadDir: path.resolve(__dirname, '../../uploads'),
+  uploadDir: path.resolve(__dirname, '../../../uploads'),
 
   // SMTP email transport (used by email.service.ts). All values are
   // optional in development so the server can start without mail; in

@@ -28,6 +28,14 @@
 export const SURNAMES_NFC: readonly string[] = [
   'Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Vũ', 'Võ', 'Phan',
   'Trương', 'Bùi', 'Đặng', 'Đỗ', 'Ngô', 'Hồ', 'Dương', 'Đinh', 'Đoàn',
+  // `Đồng` ("copper"/"together") is the common Vietnamese surname.
+  // `Đông` ("east") is also a surname but far rarer; we list `Đồng`
+  // only so that the OCR misreading of `Đồng` → `Đông` (the
+  // circumflex disappears on low-contrast scans) can still be
+  // recovered via fuzzy match against `dong` (ascii) → first entry
+  // wins. Including both would let exact-OCR match `Đông` lock in
+  // the wrong surname.
+  'Đồng',
   'Lâm', 'Mai', 'Trịnh', 'Đào', 'Cao', 'Lý', 'Hà', 'Lưu', 'Lương',
   'Thái', 'Châu', 'Tạ', 'Phùng', 'Tô', 'Bành', 'Tiêu', 'Tôn', 'Quách',
   'Lại', 'Thạch', 'Diệp', 'Từ', 'Vương', 'Văn', 'Tăng', 'Hứa', 'Khổng',

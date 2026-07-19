@@ -1,5 +1,7 @@
+import path from 'node:path';
 import Tesseract, { createWorker, Worker, OEM, PSM } from 'tesseract.js';
-import { USER_WORDS } from './constants';
+import { USER_PATTERNS, userPatternsFile } from './constants';
+import { checkTessdata } from './tessdata-check';
 import type { Canvas } from '@napi-rs/canvas';
 import type { OcrBlock, OcrLine, OcrWord, PageOcr } from './types';
 import { locateRegionByCode } from './layout';
@@ -24,6 +26,19 @@ import { normalizedCrop, expandBBox, unionLines } from './canvas-utils';
  *     the implicit default explicit and is documented in code.
  *   - `load_system_dawg` / `load_freq_dawg` keep the Vietnamese
  *     dictionaries on (necessary for LSTM accuracy).
+ *
+ * Closed-vocabulary prior (`user_patterns`):
+ *   Tesseract's `user_patterns_file` is an *init-only* parameter; it
+ *   must be wired in via the `config` object passed to `createWorker`.
+ *   tesseract.js v7 does not expose a "pre-init FS write" hook, so
+ *   the pattern file is written into the worker's in-memory FS via
+ *   `worker.writeText()` AFTER `createWorker` resolves and BEFORE a
+ *   `reinitialize()` call that re-runs `api.Init` with the new config.
+ *   The previous attempt at this used the runtime-only `user_words`
+ *   parameter via `setParameters`, which the LSTM accepts but the
+ *   `tessdata` loader sometimes ignores after the dictionary is
+ *   already formed. The pattern-file path is the documented way to
+ *   influence the LSTM at recognition time.
  */
 
 let sharedWorker: Worker | null = null;
@@ -55,19 +70,87 @@ async function getSharedWorker(): Promise<Worker> {
     // so diacritics on real Vietnamese text are preserved. Override via
     // the OCR_LANGS env var for callers who need a different pack.
     const langs = process.env.OCR_LANGS ?? 'vie+eng';
+    // langPath points tesseract.js at our local models instead of letting it
+    // try to download from the default jsdelivr CDN.  The files must be
+    // gzipped (.traineddata.gz) — tesseract.js v7's worker-script/index.js:151
+    // always appends `.gz` to the langPath lookup.  Use the **tessdata/**
+    // (fast LSTM) variants, NOT tessdata_best, because they are the only ones
+    // ABI-compatible with tesseract.js-core@7.0.0: tessdata_best was compiled
+    // against a newer Tesseract C++ engine that calls SSE-optimised routines
+    // (e.g. _ZN9tesseract13DotProductSSEEPKfS1_i) which are absent from the
+    // older WASM core and cause an emscripten abort at runtime.
+    //
+    // Before we attempt to boot a worker, run a startup check that
+    // verifies (a) every requested language has a gzipped traineddata
+    // file present at langPath, and (b) the embedded Tesseract
+    // version is ABI-compatible with tesseract.js-core@7.x. Without
+    // this, a wrong-pack upgrade used to fail at the first OCR call
+    // with a cryptic emscripten abort — usually several minutes into
+    // a multi-page document. The check throws early so the operator
+    // sees the misconfiguration at boot time.
+    const langPath = process.env.OCR_LANG_PATH
+  ?? path.join(__dirname, '..', '..', '..', '..', 'tessdata');
+    checkTessdata(langs, langPath, { throwOnError: true });
+
+    // cachePath + cacheMethod redirect tesseract.js's disk cache away from
+    // the project root.  Without this, every fresh worker load writes the
+    // raw (uncompressed) `eng.traineddata` and `vie.traineddata` files into
+    // cwd = backend/, which then collide with our gzipped versions and cause
+    // confusion.  Cache them under node_modules/.cache instead.
+    const cachePath = path.join(
+      __dirname, '..', '..', '..', '..', 'node_modules', '.cache', 'tesseractjs',
+    );
+
+    // First boot: create the worker without the user-patterns config
+    // (the file doesn't exist in the worker's in-memory FS yet, and
+    // we can't write it before the worker exists). After creation we
+    // write the patterns file and reinitialize with the `config`
+    // argument that points at it.
     const w = await createWorker(langs, OEM.LSTM_ONLY, {
+      langPath,
+      cachePath,
+      cacheMethod: 'write',
       logger: () => undefined,
     });
     await w.setParameters({ ...WORKER_PARAMS });
-    // Note: `user_words` only affects the legacy Tesseract engine; the
-    // LSTM-only OEM we use ignores it. We leave a single dead reference
-    // here so it's clear the lever was tried and not effective — the
-    // exact equivalent for LSTM is `user_patterns` (regex constraints)
-    // or `tessedit_char_whitelist` (per-character restrictions).
-    const _userWordsUnused: Partial<Tesseract.WorkerParams> = {
-      user_words: USER_WORDS.slice(0, 0).join('\n'),
-    };
-    await w.setParameters(_userWordsUnused);
+
+    // Inject the closed-vocabulary regex constraints as a Tesseract
+    // `user_patterns_file`. The flow:
+    //   1. Write the patterns content to the worker's in-memory FS.
+    //   2. Reinitialize with `config = { user_patterns_file: '/<file>' }`,
+    //      which makes tesseract.js write a config file referencing
+    //      the patterns file and re-run `api.Init`.
+    // The first init still runs (with no patterns), so the second
+    // init essentially refreshes the LSTM with the prior. The cost
+    // is paid once at boot; per-request cost is unchanged.
+    if (USER_PATTERNS.length > 0) {
+      try {
+        await w.writeText('/vie.user-patterns', userPatternsFile().toString('utf8'));
+        // The `config` argument to reinitialize() accepts arbitrary
+        // key/value pairs (tesseract.js converts the object to a
+        // Tesseract config file). The InitOptions type only models
+        // the documented DAWG params, but `user_patterns_file` is
+        // equally accepted — tesseract.js v7 forwards all keys into
+        // the config file as-is.
+        await w.reinitialize(
+          langs,
+          OEM.LSTM_ONLY,
+          { user_patterns_file: '/vie.user-patterns' } as Partial<Tesseract.InitOptions>,
+        );
+      } catch (e) {
+        // If patterns-file wiring fails (rare ABI mismatch), fall
+        // back to the unconstrained worker. The default Vietnamese
+        // LSTM still produces usable output; we just lose the
+        // vocabulary boost. We log and continue so a misconfigured
+        // init doesn't kill the whole OCR pipeline.
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[ocr] failed to install user_patterns_file; continuing without it:',
+          e,
+        );
+      }
+    }
+
     sharedWorker = w;
     return w;
   })();
@@ -338,32 +421,23 @@ export async function recognizeRegionWithParams(
 /**
  * Multi-pass ensemble OCR for the document-number region only.
  *
- * The single biggest accuracy win on the Vietnamese golden set is to
- * re-OCR the Số: line with several PSM strategies and pick the
- * highest-confidence result. PSM.AUTO gives the LSTM's natural
- * guess; PSM.SINGLE_LINE forces it to treat the line as a single
- * token; and PSM.SINGLE_LINE + a tight character whitelist locks
- * it into "this is a numeric sequence".
+ * Strategy: crop the canvas to the Box 3 region (plus a small
+ * safety margin), then run Tesseract on the crop with 3 different
+ * PSM modes. Per-line candidate scoring picks the line most likely
+ * to be the Số: value (most '/' chars, leading digit, etc.).
  *
- * Returns the highest-confidence line whose shape looks like a doc
- * number (at least one slash and a leading digit). Used by the
- * orchestrator only when OCR_REGION_REOCR=2 is set, since the cost
- * is 3 extra recognise calls.
- */
-/**
- * Multi-pass ensemble OCR for the document-number region only.
+ * Speed: cropping to ~10% of the page area gives a roughly 5–10×
+ * speedup on the LSTM pass because the LSTM only processes ~10% of
+ * the pixels and PSM.SINGLE_LINE produces a stable result on a
+ * single-line crop.
  *
- * Strategy: run Tesseract on the FULL rendered page (not a crop) with
- * 3 different PSM modes and a character whitelist on the most
- * targeted pass. Per-line candidate scoring picks the line most
- * likely to be the Số: value (most '/' chars, leading digit, etc.).
- *
- * The doc-number line is almost always at the same vertical position
- * (~0.12–0.15 of page height) on Vietnamese Decree 30 documents,
- * so cropping it works — but the crop has to be large enough that
- * Tesseract sees the line as a full text block and not a fragment.
- * Cropping at 0.15 margin was blowing up the bbox into the whole
- * page for short lines, so we pad by min(0.03, half-line-height).
+ * Margin: the bbox is padded by 0.03 of the page on each side
+ * (≈ 30 px at 1000-px width). Padding too much blows up the bbox
+ * to include the entire Box 2 issuer block above, which then
+ * contaminates the candidate pool; padding too little clips the
+ * ascenders/descenders of the Số: label, which then forces Tesseract
+ * to OCR a fragment and confuses the LSTM. 0.03 is the empirical
+ * sweet spot from the Vietnamese golden set.
  */
 export async function recognizeDocNumberRegion(
   canvas: Canvas,
@@ -371,10 +445,20 @@ export async function recognizeDocNumberRegion(
 ): Promise<string | undefined> {
   const docRegion = locateRegionByCode(page, '3');
   if (!docRegion || docRegion.lines.length === 0) return undefined;
-  // Use the full page. Tesseract handles it the same way as the
-  // orchestrator's full-page call, but with tighter PSM + whitelist
-  // settings optimised for the Số: line shape.
-  const buffer = canvas.toBuffer('image/png');
+  // Union bbox of all lines in the Box 3 region. Box 3 sometimes
+  // spans two visually-adjacent lines (Số: ... and "V/v ..."), so
+  // we union them rather than picking just the first line.
+  const bbox = docRegion.blocks[0]?.bbox ?? unionLines(docRegion.lines);
+  // Pad by 0.03 of the page on every side. Clamp into [0, 1] so we
+  // never crop outside the canvas.
+  const padded: { x0: number; y0: number; x1: number; y1: number } = {
+    x0: Math.max(0, bbox.x0 - 0.03),
+    y0: Math.max(0, bbox.y0 - 0.03),
+    x1: Math.min(1, bbox.x1 + 0.03),
+    y1: Math.min(1, bbox.y1 + 0.03),
+  };
+  const cropped = normalizedCrop(canvas, padded);
+  const buffer = cropped.toBuffer('image/png');
   const worker = await getSharedWorker();
 
   const passes: Partial<Tesseract.WorkerParams>[] = [
@@ -382,7 +466,7 @@ export async function recognizeDocNumberRegion(
     { tessedit_pageseg_mode: PSM.SINGLE_LINE as unknown as PSM },
     {
       tessedit_pageseg_mode: PSM.SINGLE_LINE as unknown as PSM,
-      tessedit_char_whitelist: '0123456789/.-ABCDEFGHIJKLMNOPQRSTUVWXYZĐĂÂÊÔƠƯăâêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ',
+      tessedit_char_whitelist: DOC_NUMBER_WHITELIST,
     },
   ];
 
@@ -408,10 +492,10 @@ export async function recognizeDocNumberRegion(
         }
       }
       // For each pass pick the line most likely to be the doc number.
-// We rank by: matches NUMBER/YEAR/CODE pattern (digits/digits/code)
-// → strongest signal; otherwise falls back to slash count.
-const stripLabel = (t: string): string => t.replace(/^s[ốo0]\s*[:.\-]?\s*/i, '').trim();
-const ranked = allLines
+      // We rank by: matches NUMBER/YEAR/CODE pattern (digits/digits/code)
+      // → strongest signal; otherwise falls back to slash count.
+      const stripLabel = (t: string): string => t.replace(/^s[ốo0]\s*[:.\-]?\s*/i, '').trim();
+      const ranked = allLines
         .map((l: any) => {
           const rawText = (l.text ?? '').trim();
           const t = stripLabel(rawText);
@@ -475,6 +559,39 @@ interface TesseractBlock {
 
 const DATE_WHITELIST =
   '0123456789/.-nNgGaAyYtTháàÁÀảẢãÃạẠăĂằẰẳẲẵẴặẶâÂầẦẩẨẫẪậẬêÊếẾềỀểỂễỄệỆ';
+
+/**
+ * Closed vocabulary for the doc-number ensemble's most-targeted
+ * PSM.SINGLE_LINE pass.
+ *
+ * Vietnamese administrative doc numbers have the shape
+ * `<seq>/<year>/<code>` where `<code>` is a canonical organisational
+ * token (e.g. UBND, HĐND, QĐ-BGDĐT, NĐ-CP, BC-UBND, CV-SGDĐT).
+ * The character whitelist is the union of:
+ *
+ *   - the ASCII digits and the slash / dash / dot separators
+ *     that appear in <seq>/<year>/<code>;
+ *   - the Latin uppercase letters A–Z (English/Latin acronym root);
+ *   - the 6 Vietnamese uppercase letters with diacritics that appear
+ *     in canonical organisational tokens: Đ Ă Â Ê Ô Ơ Ư.
+ *
+ * Crucially we **do not** include the lowercase letters (a–z) or any
+ * other Vietnamese diacritics — Tesseract's `tessedit_char_whitelist`
+ * is hard-restrictive (a non-whitelisted glyph cannot appear in the
+ * output), and a permissive whitelist reintroduces the original Latin-26
+ * failure mode where "QĐ-UBND" was OCR'd as "QD-UBND" (losing the Đ)
+ * because the LSTM fell back to its Latin-alphabet prior. The
+ * restrictive whitelist here forces the LSTM to keep Vietnamese
+ * uppercase diacritics at the cost of precluding lowercase variants
+ * — the cost is acceptable because organisational tokens are
+ * universally written in caps on Decree 30 documents.
+ */
+const DOC_NUMBER_WHITELIST = [
+  '0123456789',
+  '/.-',
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  'ĐĂÂÊÔƠƯ',
+].join('');
 
 /**
  * Run a targeted OCR pass on the date region (Box 4) and return the
@@ -541,12 +658,74 @@ export async function recognizeDateRegion(
         .sort((a, b) => b.score - a.score);
       const top = ranked[0];
       if (!top || top.score <= 0) continue;
-      if (!best || top.score > best.score) best = { text: top.text, score: top.score };
+      // Sanitize the top candidate down to just the date-shaped
+      // substring. The Box 4 region on Vietnamese admin docs
+      // routinely contains the merged "Số: X/Y/CODE … ngày A
+      // tháng B năm C" header (Box 3 + Box 4 share a single OCR
+      // line). PSM.SINGLE_LINE on the cropped region forces
+      // Tesseract to read it as one line, and the plausibility
+      // check above accepts the trailing year — without
+      // sanitization the field would be the full merged string.
+      const sanitized = sanitizeDateHint(top.text);
+      if (!sanitized) continue;
+      if (!best || top.score > best.score) best = { text: sanitized, score: top.score };
     } catch {
       // Ignore individual-pass failures; one of the two usually succeeds.
     }
   }
   return best?.text;
+}
+
+/**
+ * Reduce a possibly-merged re-OCR output to its date substring.
+ *
+ * Accepts both the Vietnamese text form ("ngày X tháng Y năm Z")
+ * and the numeric form ("DD/MM/YYYY"). Returns undefined if no
+ * date-shaped substring is present, so the caller can fall through
+ * to the full-text extraction rather than emit a half-clean
+ * field value.
+ */
+function sanitizeDateHint(text: string): string | undefined {
+  const dmyMatch = text.match(/ng[àa]y\s*([0-9A-Za-zÀ-ỹ]{1,3})\s*th[áa]ng\s*([0-9A-Za-zÀ-ỹ]{1,3})\s*n[ăa]m\s*((?:19|20|[LlIiO0-9])[0-9A-Za-zÀ-ỹ]{2,3})/i);
+  if (dmyMatch) {
+    const [, dayRaw, monthRaw, yearRaw] = dmyMatch;
+// Apply the same lookalike mapping that the field extractor
+      // uses for the digit/letter confusion cluster on date slots,
+      // so "30 tháng B năm 202B" reduces to "30/6/2026" in one
+      // place rather than waiting for the downstream extractor to
+      // clean it. We intentionally limit this to the single-letter
+      // / single-digit cluster observed on the Vietnamese golden
+      // set (B↔6, S↔5, O↔0, A↔4, l↔1, I↔1); the full DIGIT_LOOKALIKE
+      // table lives in field-extractor.ts and is not exported
+      // because it's coupled to layout-aware parsing logic that
+      // doesn't make sense at this layer.
+      const LOOKALIKE_DIGIT: Record<string, string> = {
+        B: '6', b: '6', S: '5', s: '5', O: '0', o: '0',
+        A: '4', a: '4', I: '1', l: '1', i: '1', Y: '1',
+      };
+      const coerce = (s: string): string =>
+        s.split('').map((ch) => LOOKALIKE_DIGIT[ch] ?? ch).join('');
+    const day = coerce(dayRaw);
+    const month = coerce(monthRaw);
+    const year = coerce(yearRaw);
+    if (/^\d{1,2}$/.test(day) && /^\d{1,2}$/.test(month) && /^\d{4}$/.test(year)) {
+      const dn = Number(day);
+      const mn = Number(month);
+      if (dn >= 1 && dn <= 31 && mn >= 1 && mn <= 12) {
+        return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+      }
+    }
+  }
+  const numeric = text.match(/(\d{1,2})[\/\-.]\s*(\d{1,2})[\/\-.]\s*((?:19|20)\d{2})/);
+  if (numeric) {
+    const [, d, m, y] = numeric;
+    const dn = Number(d);
+    const mn = Number(m);
+    if (dn >= 1 && dn <= 31 && mn >= 1 && mn <= 12) {
+      return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+    }
+  }
+  return undefined;
 }
 
 /**

@@ -5,6 +5,9 @@ import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exc
 import { DocumentStatus, WorkflowStatus } from '@prisma/client';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
+import fs from 'fs';
+import path from 'path';
+import { config } from '../../config';
 
 function parseDateOrNull(input: string): Date | null {
   const trimmed = input.trim();
@@ -359,6 +362,106 @@ export class IncomingDocumentsService {
     });
 
     return this.getById(result.incomingId);
+  }
+
+  /**
+   * Create an incoming document with a file attached in a single request.
+   *
+   * The file is saved to disk by multer before this method is called. If the
+   * Prisma transaction fails, the uploaded file is deleted to avoid orphaned
+   * files on disk.
+   *
+   * @param file  - Multer file object from the multipart upload
+   * @param data  - Document metadata (same fields as create(), but without createdBy)
+   * @param userId - Authenticated user id (passed separately instead of in data)
+   */
+  async createWithFile(
+    file: Express.Multer.File,
+    data: Omit<Parameters<typeof this.create>[0], 'createdBy'>,
+    userId: number,
+  ) {
+    const fileUrl = `/uploads/${file.filename}`;
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
+
+        const document = await tx.document.create({
+          data: {
+            documentNumber,
+            title: data.summary
+              ? `${data.documentType || ''} ${data.summary}`.trim()
+              : data.issuer || `Văn bản đến số ${documentNumber}`,
+            type: 'INCOMING',
+            status: DocumentStatus.PENDING,
+            fileUrl,
+            originalFileName: file.originalname,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
+              ? await resolveUrgencyIdWithDefault(data.urgency)
+              : await resolveUrgencyIdWithDefault(null),
+            confidentialityId: await resolveConfidentialityIdWithDefault(
+              data.confidentialityId ?? data.confidentialityLevel ?? null,
+            ),
+            createdBy: userId,
+          },
+        });
+
+        const incoming = await tx.incomingDocument.create({
+          data: {
+            documentId: document.id,
+            issuer: data.issuer,
+            documentType: data.documentType,
+            documentNumber: data.documentNumber,
+            arrivalNumber: data.arrivalNumber,
+            signerName: data.signerName,
+            signerTitle: data.signerTitle,
+            dateLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            dateReceived: new Date(data.dateReceived),
+            summary: data.summary,
+            pageCount: data.pageCount,
+            notes: data.notes,
+            processingInstructions: data.processingInstructions,
+            createdByClerkId: userId,
+          },
+        });
+
+        await tx.documentProcessor.createMany({
+          data: data.processorIds.map((p) => ({
+            documentId: document.id,
+            userId: p.userId,
+            processorType: p.processorType,
+          })),
+        });
+
+        const workflowSteps = await tx.workflowStep.findMany({
+          orderBy: { stepOrder: 'asc' },
+        });
+        await tx.documentWorkflow.createMany({
+          data: workflowSteps.map((step: { id: number }) => ({
+            documentId: document.id,
+            workflowStepId: step.id,
+            status: WorkflowStatus.PENDING,
+          })),
+        });
+
+        return { documentId: document.id, incomingId: incoming.id };
+      });
+
+      return this.getById(result.incomingId);
+    } catch (error) {
+      // Transaction failed — delete the uploaded file to avoid orphaned files
+      const filePath = path.join(config.uploadDir, file.filename);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          // best-effort cleanup; log but don't throw
+        }
+      }
+      throw error;
+    }
   }
 
   async updateStatus(id: number, status: string, userId: number, notes?: string) {

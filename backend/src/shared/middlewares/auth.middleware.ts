@@ -13,11 +13,20 @@ export async function authenticate(
 ): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new UnauthorizedError('No token provided');
+    let token: string | null = null;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      // Standard: Authorization: Bearer <token>
+      token = authHeader.substring(7);
+    } else if (req.query.token && typeof req.query.token === 'string') {
+      // Fallback: token passed as a query parameter (used by iframes that cannot
+      // forward the Authorization header from the parent page)
+      token = req.query.token;
     }
 
-    const token = authHeader.substring(7);
+    if (!token) {
+      throw new UnauthorizedError('No token provided');
+    }
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
     const user = await prisma.user.findUnique({

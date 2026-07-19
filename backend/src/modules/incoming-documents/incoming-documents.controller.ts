@@ -64,6 +64,34 @@ export class IncomingDocumentsController {
     }
   }
 
+  /**
+   * POST /incoming-documents/with-file
+   * Accepts a file (PDF/image) and document metadata in a single multipart request.
+   * The file is persisted to disk; if the database transaction fails, the
+   * uploaded file is cleaned up to avoid orphaned files on disk.
+   *
+   * JSON-stringified fields (processorIds, attachments) are parsed by the
+   * parseJsonFields middleware before this method is called.
+   */
+  async createWithFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ success: false, message: 'No file uploaded' });
+        return;
+      }
+
+      const result = await incomingDocumentsService.createWithFile(
+        file,
+        { ...req.body },
+        req.user!.userId,
+      );
+      res.status(201).json(successResponse(result, 'Văn bản đến đã được tạo với tệp đính kèm'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async updateStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const idParam = req.params.id as string;
