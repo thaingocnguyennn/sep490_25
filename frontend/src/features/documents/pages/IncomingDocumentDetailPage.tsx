@@ -12,6 +12,7 @@ import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
 import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
+import PdfPreview from '../components/PdfPreview';
 import { useProcessors } from '../../../shared/hooks';
 
 const WORKFLOW_ACTION_LABELS: Record<string, string> = {
@@ -342,6 +343,23 @@ export default function IncomingDocumentDetailPage() {
               </div>
             </div>
           </div>
+
+          {d.id && (
+            <div className="card" style={{ marginBottom: 24 }}>
+              <div className="card-header">
+                <h2>Xem trước tài liệu</h2>
+              </div>
+              <div className="card-body" style={{ padding: 0 }}>
+                <PdfPreview
+                  documentId={d.id}
+                  fileName={d.originalFileName}
+                  fileSize={d.fileSize}
+                  mimeType={d.mimeType}
+                  pageCount={doc.pageCount}
+                />
+              </div>
+            </div>
+          )}
 
           {(doc.signerName || doc.signerTitle) && (
             <div className="card" style={{ marginBottom: 24 }}>

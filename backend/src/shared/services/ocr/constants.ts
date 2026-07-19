@@ -45,47 +45,121 @@ export function removeDiacriticsForMatch(s: string): string {
 }
 
 /**
- * Common Vietnamese administrative document terms that the LSTM
- * frequently mis-recognises. Hand-fed into Tesseract via the
- * `user_words` parameter so it prefers these dictionary entries
- * over free-form guesses. Each term is a single token or hyphenated
- * compound exactly as it appears in the source document.
+ * Closed-vocabulary regex constraints for Tesseract's `user_patterns`
+ * facility. These are passed to Tesseract at *initialization* time
+ * (not at recognition time) via a `user_patterns_file`, so the LSTM
+ * uses them as a search-time prior.
+ *
+ * Tesseract's user-patterns file format: one POSIX regex per line.
+ * Each pattern is tried against candidate character sequences and a
+ * match boosts the candidate's score; mismatches do not eliminate
+ * candidates outright, so overly-generic patterns do not degrade
+ * accuracy the way a too-narrow `tessedit_char_whitelist` would.
+ *
+ * The vocabulary here replaces the previous `USER_WORDS` array (which
+ * was wired to a no-op `user_words` parameter; the comment at the old
+ * call-site incorrectly stated that LSTM ignores `user_words`, which
+ * is not the case in Tesseract 5+).
+ *
+ * Vietnamese administrative-document patterns below cover:
+ *   - State apparatus / national motto fragments
+ *   - Decree 30 box labels (issuer titles, doc types)
+ *   - Standardised signer positions
+ *   - Issuing-body code prefixes (QĐ, NĐ, HĐND, UBND, …)
+ *   - Common province / municipality tokens
+ *   - Date keywords (ngày / tháng / năm)
+ *
+ * Keep each pattern tightly scoped: a pattern that matches everything
+ * forces Tesseract to consider every candidate, slowing recognition.
+ * Vietnamese tone marks are written in precomposed (NFC) form so the
+ * regex compiles to a tight byte sequence; Tesseract's input is also
+ * NFC by default after the .traineddata loader normalises the
+ * dictionary.
  */
-export const USER_WORDS: string[] = [
-  // Country / state apparatus
-  'CỘNG', 'HÒA', 'XÃ', 'HỘI', 'CHỦ', 'NGHĨA', 'VIỆT', 'NAM',
-  'ĐỘC', 'LẬP', 'TỰ', 'DO', 'HẠNH', 'PHÚC',
-  'HỘI', 'ĐỒNG', 'NHÂN', 'DÂN',
-  'ỦY', 'BAN', 'NHÂN', 'DÂN', 'UBND',
-  'HĐND', 'MTTQ', 'TQ', 'TTCP',
-  // Issuing agency suffixes
-  'QĐ-UBND', 'QĐ-BGDĐT', 'QĐ-BTP', 'QĐ-BYT', 'QĐ-BKHĐT',
-  'QĐ-BTNMT', 'QĐ-BXD', 'QĐ-BCA',
-  'CV-UBND', 'TB-UBND', 'TT-UBND', 'BC-UBND', 'TT',
-  // Decree 30 box labels
-  'QUYẾT', 'ĐỊNH', 'NGHỊ', 'QUYẾT', 'THÔNG', 'BÁO',
-  'TỜ', 'TRÌNH', 'CÔNG', 'VĂN', 'BÁO', 'CÁO',
-  'CHỈ', 'THỊ', 'KẾ', 'HOẠCH', 'HƯỚNG', 'DẪN',
-  'QUY', 'ĐỊNH', 'TRÌNH', 'CHƯƠNG', 'TRÌNH',
-  'GIẤY', 'ỦY', 'QUYỀN', 'HỢP', 'ĐỒNG', 'BIÊN', 'BẢN',
-  // Signer positions
-  'CHỦ', 'TỊCH', 'PHÓ', 'GIÁM', 'ĐỐC', 'TRƯỞNG', 'PHÒNG',
-  'THỦ', 'TRƯỞNG', 'HIỆU', 'TRƯỞNG', 'TỔNG', 'CỤC',
-  'VỤ', 'BỘ', 'THỨ',
-  // Date tokens
-  'ngày', 'tháng', 'năm',
-  // Common verbs / label fragments
-  'Căn', 'cứ', 'Theo', 'đề', 'nghị', 'Nơi', 'nhận',
-  'Kính', 'gửi', 'Tin', 'chắc', 'kính',
-  // Issuing-authority codes
-  'AN', 'GIANG', 'BẮC', 'GIANG', 'NINH', 'BÌNH',
-  'KIÊN', 'GIANG', 'HỒ', 'CHÍ', 'MINH', 'CẦN', 'THƠ',
-  'HÀ', 'NỘI', 'ĐÀ', 'NẴNG', 'LONG', 'AN', 'BÌNH',
-  'ĐỊNH', 'TIỀN', 'GIANG',
-  // Recipient entity names (hand-curated; rank before freetext)
-  'SỞ', 'BAN', 'NGÀNH', 'TỈNH', 'THÀNH', 'PHỐ', 'HUYỆN',
-  'QUẬN', 'XÃ', 'PHƯỜNG', 'ĐẶC', 'KHU',
+export const USER_PATTERNS: string[] = [
+  // Country / state apparatus — full motto fragments.
+  String.raw`(?:CỘNG|HÒA|XÃ|HỘI|CHỦ|NGHĨA|VIỆT|NAM)`,
+  String.raw`(?:ĐỘC|LẬP|TỰ|HẠNH|PHÚC)`,
+  String.raw`HỘI\s+ĐỒNG\s+NHÂN\s+DÂN`,
+  String.raw`ỦY\s+BAN\s+NHÂN\s+DÂN`,
+  String.raw`(?:UBND|HĐND|MTTQ|TTCP)`,
+  // Issuing-body code prefixes — closed vocabulary.
+  String.raw`QĐ-(?:UBND|BGDĐT|BTP|BYT|BKHĐT|BTNMT|BXD|BCA)`,
+  String.raw`NĐ-CP`,
+  String.raw`(?:CV|TB|TT|BC|NQ|QĐ)-(?:UBND|HĐND|CP)`,
+  // Decree 30 box labels (document types).
+  String.raw`QUYẾT\s+ĐỊNH`,
+  String.raw`NGHỊ\s+QUYẾT`,
+  String.raw`NGHỊ\s+ĐỊNH`,
+  String.raw`THÔNG\s+BÁO`,
+  String.raw`TỜ\s+TRÌNH`,
+  String.raw`BÁO\s+CÁO`,
+  String.raw`QUY\s+ĐỊNH`,
+  String.raw`CHỈ\s+THỊ`,
+  String.raw`KẾ\s+HOẠCH`,
+  String.raw`HƯỚNG\s+DẪN`,
+  String.raw`CHƯƠNG\s+TRÌNH`,
+  String.raw`GIẤY\s+ỦY\s+QUYỀN`,
+  String.raw`HỢP\s+ĐỒNG`,
+  String.raw`BIÊN\s+BẢN`,
+  String.raw`QUY\s+CHẾ`,
+  String.raw`CÔNG\s+VĂN`,
+  // Signer positions.
+  String.raw`(?:CHỦ|PHÓ)\s+TỊCH`,
+  String.raw`GIÁM\s+ĐỐC`,
+  String.raw`TRƯỞNG\s+PHÒNG`,
+  String.raw`THỦ\s+TRƯỞNG`,
+  String.raw`HIỆU\s+TRƯỞNG`,
+  String.raw`TỔNG\s+GIÁM\s+ĐỐC`,
+  String.raw`PHÓ\s+GIÁM\s+ĐỐC`,
+  String.raw`(?:CỤC|VỤ)\s+TRƯỞNG`,
+  String.raw`BỘ\s+TRƯỞNG`,
+  String.raw`THỨ\s+TRƯỞNG`,
+  // Standard doc-number shape.
+  String.raw`\d+/\d+/[A-ZĐÂĂÊÔƠƯ-]+`,
+  // Date keywords.
+  String.raw`ngày`,
+  String.raw`tháng`,
+  String.raw`năm`,
+  // Recipient-list openers.
+  String.raw`Kính\s+gửi`,
+  String.raw`Nơi\s+nhận`,
+  String.raw`Căn\s+cứ`,
+  String.raw`Theo\s+đề\s+nghị`,
+  // Issuing-authority province fragments (the longest patterns so
+  // they bind tightly; shorter fragments are above).
+  String.raw`(?:HÀ|NỘI)`,
+  String.raw`(?:HỒ|CHÍ|MINH)`,
+  String.raw`(?:ĐÀ|NẴNG)`,
+  String.raw`(?:CẦN|THƠ)`,
+  String.raw`(?:HẢI|PHÒNG)`,
+  String.raw`(?:AN|GIANG)`,
+  String.raw`(?:BÌNH|ĐỊNH)`,
+  String.raw`(?:BÌNH|DƯƠNG)`,
+  String.raw`(?:BÌNH|PHƯỚC)`,
+  String.raw`(?:BÌNH|THUẬN)`,
+  String.raw`(?:QUẢNG|NAM)`,
+  String.raw`(?:QUẢNG|NGÃI)`,
+  String.raw`(?:QUẢNG|BÌNH)`,
+  String.raw`(?:QUẢNG|TRỊ)`,
+  String.raw`(?:NINH|BÌNH)`,
+  String.raw`(?:KIÊN|GIANG)`,
+  String.raw`(?:LONG|AN)`,
+  String.raw`(?:TIỀN|GIANG)`,
+  String.raw`(?:TỈNH|TỈNH)`,
+  String.raw`(?:THÀNH|PHỐ)`,
+  String.raw`(?:SỞ|BAN|NGÀNH|QUẬN|HUYỆN|XÃ|PHƯỜNG|ĐẶC\s+KHU)`,
 ];
+
+/**
+ * Render the `USER_PATTERNS` array into the on-disk format
+ * `tesseract` expects: one POSIX regex per line, LF line endings,
+ * trailing blank line. Returned as a Buffer so the caller can hand
+ * it to `worker.writeText()` for the in-memory FS.
+ */
+export function userPatternsFile(): Buffer {
+  return Buffer.from(USER_PATTERNS.join('\n') + '\n\n', 'utf8');
+}
 
 /** Title keywords used to identify signer position (chức vụ / Box 7a). */
 export const TITLE_KEYWORDS = [
@@ -263,6 +337,31 @@ export const BOX_VERTICAL_HINT: Record<string, number> = {
   '7b': 0.87,
   '10a': 0.92,
   '10b': 0.95,
+};
+
+/**
+ * Approximate horizontal band of a numbered box on the page (in [0, 1]).
+ *
+ * Decree 30 layouts are two-column: the left column holds the issuer,
+ * document number, and recipient list; the right column holds the date,
+ * signer title/name, and signature. Adding horizontal priors prevents the
+ * layout extractor from accidentally attributing a right-column line to a
+ * left-column region (or vice versa), which was the root cause of the
+ * "issuer includes national motto" and "signer name bleeds into
+ * recipient list" failure modes.
+ *
+ * Tolerance: ±0.05 on each edge so the filter doesn't reject lines that
+ * just barely spill over the nominal column boundary.
+ */
+export const BOX_HORIZONTAL_HINT: Record<string, { x0: number; x1: number }> = {
+  '2':   { x0: 0.00, x1: 0.55 },  // Issuer — left half (left-col) + small overlap
+  '3':   { x0: 0.00, x1: 0.55 },  // Doc-number label — left half
+  '4':   { x0: 0.50, x1: 1.00 },  // Date — right half
+  '5a':  { x0: 0.25, x1: 0.75 },  // Doc-type heading — centred
+  '7a':  { x0: 0.50, x1: 1.00 },  // Signer title — right column
+  '7b':  { x0: 0.50, x1: 1.00 },  // Signer name — right column
+  '10a': { x0: 0.00, x1: 0.50 },  // Confidentiality — bottom-left
+  '10b': { x0: 0.00, x1: 0.50 },  // Urgency — bottom-left
 };
 
 export const SUPPORTED_TYPES = [

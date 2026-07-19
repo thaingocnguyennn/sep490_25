@@ -3,6 +3,7 @@ import multer from 'multer';
 import { documentsController } from './documents.controller';
 import { upload } from '../../shared/middlewares/upload.middleware';
 import { validateRequest } from '../../shared/middlewares/validate.middleware';
+import { authenticate } from '../../shared/middlewares/auth.middleware';
 import { requireRole } from '../../shared/middlewares/require-role.middleware';
 import {
   uploadDocumentValidation,
@@ -166,6 +167,7 @@ router.delete(
 // GET /documents/:id/preview — View PDF inline in browser
 router.get(
   '/:id/preview',
+  authenticate,
   getDocumentByIdValidation,
   validateRequest,
   documentsController.preview.bind(documentsController)
@@ -174,6 +176,7 @@ router.get(
 // GET /documents/:id/download — Download the original file
 router.get(
   '/:id/download',
+  authenticate,
   getDocumentByIdValidation,
   validateRequest,
   documentsController.download.bind(documentsController)

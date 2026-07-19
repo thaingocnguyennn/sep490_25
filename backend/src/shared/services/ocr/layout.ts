@@ -8,6 +8,7 @@ import type {
 } from './types';
 import {
   BOX_VERTICAL_HINT,
+  BOX_HORIZONTAL_HINT,
   DECREE_30_REGIONS,
 } from './constants';
 
@@ -92,18 +93,50 @@ export function linesInVerticalBand(
 }
 
 /**
+ * Filter lines by horizontal band for a given region code.
+ *
+ * Decree 30 layouts are two-column. The horizontal hint keeps the
+ * extractor from attributing a right-column line to a left-column region
+ * (or vice versa). The filter uses the line's horizontal *centre*
+ * against the band's edges ± a 0.05 tolerance so lines that just
+ * barely overlap the boundary are still accepted.
+ */
+function linesInHorizontalBand(
+  page: PageOcr,
+  regionCode: string,
+): OcrLine[] {
+  const hh = BOX_HORIZONTAL_HINT[regionCode];
+  if (!hh) return linesInReadingOrder(page);
+  const { x0: hx0, x1: hx1 } = hh;
+  return linesInReadingOrder(page).filter((l) => {
+    const cx = (l.bbox.x0 + l.bbox.x1) / 2;
+    return cx >= hx0 - 0.05 && cx <= hx1 + 0.05;
+  });
+}
+
+/**
  * Locate the lines / words that satisfy a Decree 30 region.
  *
  * The algorithm:
  *   1. Narrow the candidate lines to the region's vertical band.
- *   2. Apply the region.match() predicate (line-level).
- *   3. If no line matches, fall back to the band as a whole.
+ *   2. Further filter by the region's horizontal band (two-column layout).
+ *   3. Apply the region.match() predicate (line-level).
+ *   4. If no line matches, fall back to the band as a whole.
  */
 export function locateRegion(
   page: PageOcr,
   region: BoxRegion,
 ): RegionMatch {
-  const candidateLines = linesInVerticalBand(page, region.code);
+  // Vertical filter first (always runs).
+  let candidateLines = linesInVerticalBand(page, region.code);
+  // Horizontal filter — only active for regions that have a BOX_HORIZONTAL_HINT.
+  const hh = BOX_HORIZONTAL_HINT[region.code];
+  if (hh) {
+    candidateLines = candidateLines.filter((l) => {
+      const cx = (l.bbox.x0 + l.bbox.x1) / 2;
+      return cx >= hh.x0 - 0.05 && cx <= hh.x1 + 0.05;
+    });
+  }
 
   const matchedLines: OcrLine[] = [];
   for (const line of candidateLines) {

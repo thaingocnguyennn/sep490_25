@@ -63,6 +63,16 @@ const LAST_PAGE_Y_MIN = 0.30;
 const RIGHT_COLUMN_X_MIN = 0.50;
 
 /**
+ * When a single OCR line spans both the recipient-list (left) and
+ * the signature block (right), the line-level bbox.x0 will be < 0.5
+ * (left column), and the old per-line filter would discard the
+ * whole line — losing the signer name. We instead split the line
+ * by the largest horizontal gap between consecutive words and keep
+ * only the right-hand segment whose bbox.x0 ≥ this threshold.
+ */
+const SPLIT_GAP_THRESHOLD = 0.06;
+
+/**
  * A single name-span candidate produced by the generator. The
  * `text` is the canonical NFC form, `score` is non-negative when
  * structurally valid, and `debug` keeps intermediate stats for
@@ -433,10 +443,15 @@ function selectBest(candidates: NameCandidate[]): NameCandidate | undefined {
 }
 
 /**
- * Gather candidate lines from the page-level OCR. Uses two
+ * Gather candidate lines from the page-level OCR. Uses three
  * strategies:
  *   - Lines inside a 7sig re-OCR block (boosted by source=reocr).
  *   - Lines in the bottom-right of the last page (source=lastpage).
+ *   - ALL pages, ALL blocks: when the above two strategies produce
+ *     zero candidates (a degradation mode seen in multi-PDF eval
+ *     runs where Tesseract's shared LSTM state produces degraded
+ *     output for the last page), fall back to scanning every page
+ *     for right-column name lines.
  */
 function collectCandidateLines(
   pages: PageOcr[],
@@ -478,15 +493,116 @@ function collectCandidateLines(
   }
 
   // Strategy 2: last-page bottom-right region.
+  //
+  // Critical fix for documents where the recipient-list bullet on the
+  // LEFT is merged with the signer-name on the RIGHT into a single
+  // OCR line. The line's bbox.x0 will be < 0.5 (left column), and
+  // a strict per-line filter would discard the whole line — losing
+  // the signer name. We instead split the line by the largest
+  // horizontal gap and keep only the right-hand segment whose
+  // bbox.x0 ≥ RIGHT_COLUMN_X_MIN.
   const lines = linesInReadingOrder(lastPage);
   for (const line of lines) {
     if (line.bbox.y0 < LAST_PAGE_Y_MIN) continue;
-    if (line.bbox.x0 < RIGHT_COLUMN_X_MIN) continue;
-    const tokens = tokenizeLine(line);
+    // If the line itself is already in the right column, accept it
+    // directly.
+    if (line.bbox.x0 >= RIGHT_COLUMN_X_MIN) {
+      const tokens = tokenizeLine(line);
+      if (tokens.length >= MIN_NAME_SPAN_LENGTH) {
+        out.push({ line, isFromReOcr: false, y0: line.bbox.y0, tokens });
+      }
+      continue;
+    }
+    // Otherwise, try splitting the line by its largest horizontal
+    // gap and using the right-hand segment.
+    const splitLine = splitLineAtLargestGap(line);
+    if (!splitLine) continue;
+    const tokens = tokenizeLine(splitLine);
     if (tokens.length < MIN_NAME_SPAN_LENGTH) continue;
-    out.push({ line, isFromReOcr: false, y0: line.bbox.y0, tokens });
+    out.push({ line: splitLine, isFromReOcr: false, y0: line.bbox.y0, tokens });
   }
+
+  // Strategy 3: ALL pages, ALL blocks.
+  //
+  // In degraded Tesseract state (e.g. after processing several PDFs in
+  // sequence), the last page's OCR can be severely degraded — the merged
+  // recipient-list + signer-name line that normally carries "Võ Văn Minh"
+  // gets split into separate lines and the name drops out entirely.
+  // When the first two strategies yield no candidates, we scan EVERY page
+  // and EVERY block for right-column lines (x0 ≥ 0.50) with plausible
+  // name structure. We sort by y0 descending (lowest on page = best
+  // signature candidate) and token count (longer = better signal).
+  if (out.length === 0) {
+    for (const page of pages) {
+      for (const block of page.blocks) {
+        for (const line of block.lines) {
+          if (line.bbox.x0 < RIGHT_COLUMN_X_MIN) continue;
+          if (line.bbox.y0 < LAST_PAGE_Y_MIN) continue;
+          const tokens = tokenizeLine(line);
+          if (tokens.length < MIN_NAME_SPAN_LENGTH) continue;
+          // Require at least one surname at position 0 to filter out
+          // pure title lines ("CHỦ TỊCH", "KT. CHỦ TỊCH").
+          if (tokens[0].role !== 'surname' && tokens[0].role !== 'middle') continue;
+          out.push({ line, isFromReOcr: false, y0: line.bbox.y0, tokens });
+        }
+      }
+    }
+    // Sort by y0 descending (bottom of page = best).
+    out.sort((a, b) => b.y0 - a.y0);
+  }
+
   return out;
+}
+
+/**
+ * Split an OCR line in two by the largest horizontal gap between
+ * consecutive words. Returns the right-hand segment when its bbox
+ * starts at or after RIGHT_COLUMN_X_MIN, or undefined if no gap is
+ * large enough to be a meaningful column break.
+ *
+ * Background: when Tesseract merges a recipient-list bullet on the
+ * left with the signer name on the right, the visual gap between
+ * them is large (the recipient bullets are short, then a wide
+ * whitespace, then the signature block). Splitting on that gap
+ * recovers the signer name without dragging in the recipient text.
+ */
+function splitLineAtLargestGap(line: OcrLine): OcrLine | undefined {
+  const words = line.words
+    .filter((w) => w.text.trim().length > 0)
+    .sort((a, b) => a.bbox.x0 - b.bbox.x0);
+  if (words.length < 2) return undefined;
+
+  let maxGap = 0;
+  let gapIdx = -1;
+  for (let i = 0; i < words.length - 1; i++) {
+    const gap = words[i + 1].bbox.x0 - words[i].bbox.x1;
+    if (gap > maxGap) {
+      maxGap = gap;
+      gapIdx = i;
+    }
+  }
+  if (gapIdx < 0 || maxGap < SPLIT_GAP_THRESHOLD) return undefined;
+
+  const right = words.slice(gapIdx + 1);
+  if (right.length === 0) return undefined;
+  const x0 = right[0].bbox.x0;
+  if (x0 < RIGHT_COLUMN_X_MIN) return undefined;
+
+  // Reconstruct a synthetic OcrLine whose bbox is the union of the
+  // right-side words. We re-use the original line's confidence (the
+  // OCR pipeline assigns one per line, not per word, in our model).
+  const x1 = right[right.length - 1].bbox.x1;
+  const y0 = Math.min(...right.map((w) => w.bbox.y0));
+  const y1 = Math.max(...right.map((w) => w.bbox.y1));
+  const text = right.map((w) => w.text).join(' ');
+  return {
+    text,
+    bbox: { x0, y0, x1, y1 },
+    confidence: line.confidence,
+    block: line.block,
+    paragraph: line.paragraph,
+    words: right,
+  };
 }
 
 /**
