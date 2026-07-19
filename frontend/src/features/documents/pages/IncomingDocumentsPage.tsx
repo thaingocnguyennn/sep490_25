@@ -130,7 +130,7 @@ export default function IncomingDocumentsPage() {
                     <th>Số ký hiệu</th>
                     <th>Cơ quan ban hành</th>
                     <th>Loại VB</th>
-                    <th>Tiêu đề</th>
+                    <th>Trích yếu</th>
                     <th>Ngày đến</th>
                     <th>Độ khẩn</th>
                     <th>Trạng thái</th>
@@ -157,13 +157,13 @@ export default function IncomingDocumentsPage() {
                         ) : '—'}
                       </td>
                       <td style={{ maxWidth: 200 }}>
-                        <span title={item.document.title} style={{
+                        <span title={item.summary || ''} style={{
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                         }}>
-                          {item.document.title}
+                          {item.summary || '—'}
                         </span>
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>
