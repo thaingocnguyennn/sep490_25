@@ -4,6 +4,7 @@ export { rolesApi } from './modules/roles';
 export { documentsApi, incomingDocumentsApi } from './modules/documents';
 export type { SpecialistAction, ProcessSpecialistDocumentRequest } from './modules/documents';
 export { departmentsApi } from './modules/departments';
+export { documentBooksApi } from './modules/document-books';
 export type {
   IncomingDocumentDetail,
   IncomingDocumentListItem,
