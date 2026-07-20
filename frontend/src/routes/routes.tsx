@@ -31,6 +31,7 @@ import OutgoingDocumentDetailPage from '../features/documents/pages/OutgoingDocu
 import OutgoingDocumentEditPage from '../features/documents/pages/OutgoingDocumentEditPage';
 import OutgoingStatisticsPage from '../features/documents/pages/OutgoingStatisticsPage'; // giữ lại cho backward compat
 import DocumentStatisticsPage from '../features/documents/pages/DocumentStatisticsPage';
+import { DocumentBooksPage } from '../features/document-books/pages/DocumentBooksPage';
 
 
 export const routes: RouteObject[] = [
@@ -60,6 +61,8 @@ export const routes: RouteObject[] = [
       { path: 'outgoing-documents/statistics',  element: <OutgoingStatisticsPage /> }, // backward compat
       { path: 'outgoing-documents/:id',         element: <OutgoingDocumentDetailPage /> },
       { path: 'outgoing-documents/:id/edit',    element: <OutgoingDocumentEditPage /> },
+      // Sổ văn bản
+      { path: 'document-books',                 element: <DocumentBooksPage /> },
       // Trang thống kê gộp
       { path: 'documents/statistics', element: <DocumentStatisticsPage /> },
     ],

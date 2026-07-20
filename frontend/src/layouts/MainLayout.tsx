@@ -8,7 +8,7 @@ interface LayoutContextValue {
 }
 
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { user, logout, isDepartmentHead, isSpecialist, isAdmin } = useAuth();
+  const { user, logout, isDepartmentHead, isSpecialist, isAdmin, isDocumentClerk } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -93,6 +93,14 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                 <line x1="6"  y1="20" x2="6"  y2="14" />
               </svg>
             </NavLink>
+            {(isDocumentClerk || isAdmin) && (
+              <NavLink to="/document-books" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Quản lý sổ văn bản">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+              </NavLink>
+            )}
           </div>
         ) : (
           <>
@@ -144,6 +152,15 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
               </svg>
               Thống kê văn bản
             </NavLink>
+            {(isDocumentClerk || isAdmin) && (
+              <NavLink to="/document-books" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+                Quản lý sổ văn bản
+              </NavLink>
+            )}
           </>
         )}
       </nav>
@@ -178,7 +195,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
 }
 
 export default function MainLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isDocumentClerk, isAdmin } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const layoutContext: LayoutContextValue = {
