@@ -254,3 +254,12 @@ export const exportOutgoingPdf = (params: OutgoingDocumentFilterParams) =>
     params: { ...params, format: 'pdf' },
     responseType: 'blob',
   });
+
+/** Cấp số (vào sổ) văn bản đi */
+export const registerOutgoingDocument = async (
+  id: number,
+  data: { documentBookId: number; customIssuanceDate?: string },
+): Promise<OutgoingDocument> => {
+  const res = await api.post<ApiResponse<OutgoingDocument>>(`${BASE}/${id}/register`, data);
+  return res.data.data!;
+};

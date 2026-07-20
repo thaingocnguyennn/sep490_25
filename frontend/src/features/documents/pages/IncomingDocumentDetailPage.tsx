@@ -16,6 +16,8 @@ import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentM
 import PdfPreview from '../components/PdfPreview';
 import { useProcessors } from '../../../shared/hooks';
 
+import RegisterDocumentModal from '../components/RegisterDocumentModal';
+
 const WORKFLOW_ACTION_LABELS: Record<string, string> = {
   PENDING: 'Chưa xử lý',
   APPROVED: 'Đã duyệt',
@@ -48,6 +50,9 @@ export default function IncomingDocumentDetailPage() {
   const [spReason, setSpReason] = useState('');
   const [spSubmitting, setSpSubmitting] = useState(false);
   const [spError, setSpError] = useState('');
+  
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [registering, setRegistering] = useState(false);
 
   const fetchDoc = () => {
     if (!id) return;
@@ -235,11 +240,41 @@ export default function IncomingDocumentDetailPage() {
     }
   };
 
+  const handleRegister = async (data: { documentBookId: number; customDate?: string }) => {
+    if (!doc) return;
+    setRegistering(true);
+    try {
+      await incomingDocumentsApi.register(doc.id, {
+        documentBookId: data.documentBookId,
+        customArrivalDate: data.customDate,
+      });
+      alert('Vào sổ văn bản thành công!');
+      setRegisterModalOpen(false);
+      fetchDoc();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra khi vào sổ');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const { isDocumentClerk: canRegisterGlobal } = useAuth();
+  const canRegister = canRegisterGlobal && !doc.arrivalNumber && (d.status === 'PENDING' || d.status === 'APPROVED');
+
   return (
     <>
       <div className="top-bar">
         <h1>Chi tiết Văn bản đến</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          {canRegister && (
+            <button
+              className="btn btn-primary"
+              onClick={() => setRegisterModalOpen(true)}
+              title="Cấp số và vào sổ văn bản"
+            >
+              Vào sổ văn bản
+            </button>
+          )}
           {canReply && (
             <button
               className="btn btn-outline"
@@ -668,6 +703,15 @@ export default function IncomingDocumentDetailPage() {
             handleProcessClose();
             fetchDoc();
           }}
+        />
+      )}
+
+      {registerModalOpen && (
+        <RegisterDocumentModal
+          type="INCOMING"
+          loading={registering}
+          onClose={() => setRegisterModalOpen(false)}
+          onRegister={handleRegister}
         />
       )}
     </>

@@ -14,6 +14,7 @@ import type {
 } from '../../../types';
 import { usersApi } from '../../../api/modules/users';
 import { api } from '../../../api';
+import RegisterDocumentModal from '../components/RegisterDocumentModal';
 
 async function openAuthenticatedFile(url: string): Promise<void> {
   // Routes the request through axios so the Bearer token is attached.
@@ -91,12 +92,14 @@ export default function OutgoingDocumentDetailPage() {
   // State modal trạng thái
   const [statusModal, setStatusModal] = useState<{
     open: boolean;
-    action: 'submit' | 'approve' | 'return' | 'register' | 'issue' | 'recall' | 'trash' | 'restore' | null;
+    action: 'submit' | 'approve' | 'return' | 'issue' | 'recall' | 'trash' | 'restore' | null;
   }>({ open: false, action: null });
   const [returnReason, setReturnReason] = useState('');
   const [recallReason, setRecallReason] = useState('');
-  const [dispatchNumber, setDispatchNumber] = useState('');
-  const [issuanceDate, setIssuanceDate] = useState('');
+  
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [registering, setRegistering] = useState(false);
+
   const [sentDate, setSentDate] = useState('');
   const [issueUrgency, setIssueUrgency] = useState<string>('');
   const [issueConfidentiality, setIssueConfidentiality] = useState<string>('');
@@ -202,7 +205,6 @@ export default function OutgoingDocumentDetailPage() {
       submit: 'SUBMITTED',
       approve: 'APPROVED',
       return: 'RETURNED',
-      register: 'WAITING_FOR_ISSUE',
       issue: 'ISSUED',
       recall: 'RECALLED',
       restore: 'DRAFT',
@@ -212,8 +214,6 @@ export default function OutgoingDocumentDetailPage() {
       status: statusMap[statusModal.action] as any,
       returnReason: returnReason || undefined,
       recallReason: recallReason || undefined,
-      dispatchNumber: dispatchNumber || undefined,
-      issuanceDate: issuanceDate || undefined,
       sentDate: sentDate || undefined,
       urgency: (issueUrgency || undefined) as any,
       confidentialityLevel: (issueConfidentiality || undefined) as any,
@@ -227,8 +227,6 @@ export default function OutgoingDocumentDetailPage() {
       setStatusModal({ open: false, action: null });
       setReturnReason('');
       setRecallReason('');
-      setDispatchNumber('');
-      setIssuanceDate('');
       setSentDate('');
       setIssueUrgency('');
       setIssueConfidentiality('');
@@ -237,7 +235,26 @@ export default function OutgoingDocumentDetailPage() {
     }
   };
 
-  const handleOpenStatusModal = async (action: 'submit' | 'approve' | 'return' | 'register' | 'issue' | 'recall' | 'trash' | 'restore') => {
+  const handleRegister = async (data: { documentBookId: number; customDate?: string }) => {
+    if (!doc) return;
+    setRegistering(true);
+    try {
+      const { registerOutgoingDocument } = await import('../../../api/modules/outgoing-documents');
+      await registerOutgoingDocument(doc.id, {
+        documentBookId: data.documentBookId,
+        customIssuanceDate: data.customDate,
+      });
+      alert('Vào sổ văn bản thành công!');
+      setRegisterModalOpen(false);
+      loadDoc();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra khi vào sổ');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const handleOpenStatusModal = async (action: 'submit' | 'approve' | 'return' | 'issue' | 'recall' | 'trash' | 'restore') => {
     setStatusModal({ open: true, action });
     if (action === 'submit') {
       try {
@@ -318,7 +335,7 @@ export default function OutgoingDocumentDetailPage() {
             </button>
           )}
           {canRegister && (
-            <button id="btn-register-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('register')}
+            <button id="btn-register-doc" className="btn btn-primary" onClick={() => setRegisterModalOpen(true)}
               style={{ background: '#f39c12' }}>
               📝 Vào sổ
             </button>
@@ -778,7 +795,6 @@ export default function OutgoingDocumentDetailPage() {
               {statusModal.action === 'submit' && '📤 Trình văn bản để duyệt'}
               {statusModal.action === 'approve' && '✅ Phê duyệt văn bản'}
               {statusModal.action === 'return' && '↩️ Trả lại văn bản'}
-              {statusModal.action === 'register' && '📝 Vào sổ văn bản'}
               {statusModal.action === 'issue' && '🚀 Phát hành văn bản'}
               {statusModal.action === 'recall' && '🔙 Thu hồi văn bản đã phát hành'}
               {statusModal.action === 'trash' && '🗑️ Chuyển vào thùng rác'}
@@ -857,33 +873,6 @@ export default function OutgoingDocumentDetailPage() {
               </div>
             )}
 
-            {/* Vào sổ: nhập số phát hành, ngày ban hành */}
-            {statusModal.action === 'register' && (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Số phát hành chính thức <span style={{ color: '#e74c3c' }}>*</span></label>
-                  <input
-                    id="dispatch-number-input"
-                    type="text"
-                    value={dispatchNumber}
-                    onChange={(e) => setDispatchNumber(e.target.value)}
-                    placeholder="Vd: 123/QĐ-UBND"
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ngày ban hành <span style={{ color: '#e74c3c' }}>*</span></label>
-                  <input
-                    id="issuance-date-input"
-                    type="date"
-                    value={issuanceDate}
-                    onChange={(e) => setIssuanceDate(e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-              </>
-            )}
-
             {/* Phát hành: nhập thông tin gửi */}
             {statusModal.action === 'issue' && (
               <>
@@ -940,7 +929,6 @@ export default function OutgoingDocumentDetailPage() {
               <p style={{ color: '#636e72', marginBottom: 20 }}>
                 {statusModal.action === 'submit' && 'Xác nhận trình văn bản lên Lãnh đạo để duyệt?'}
                 {statusModal.action === 'approve' && 'Xác nhận phê duyệt văn bản và chuyển cho Văn thư?'}
-                {statusModal.action === 'register' && 'Xác nhận vào sổ văn bản này?'}
                 {statusModal.action === 'issue' && 'Xác nhận phát hành văn bản chính thức?'}
                 {statusModal.action === 'trash' && 'Văn bản sẽ được chuyển vào thùng rác. Có thể khôi phục sau.'}
                 {statusModal.action === 'restore' && 'Khôi phục văn bản này từ thùng rác về trạng thái Bản nháp?'}
@@ -964,8 +952,7 @@ export default function OutgoingDocumentDetailPage() {
                   (statusModal.action === 'return' && !returnReason.trim()) || 
                   (statusModal.action === 'recall' && !recallReason.trim()) ||
                   (statusModal.action === 'submit' && !assignedApproverId) ||
-                  (statusModal.action === 'approve' && !assignedClerkId) ||
-                  (statusModal.action === 'register' && (!dispatchNumber.trim() || !issuanceDate))
+                  (statusModal.action === 'approve' && !assignedClerkId)
                 }
                 style={{
                   background: statusModal.action === 'trash' ? '#e74c3c' :
@@ -1080,6 +1067,14 @@ export default function OutgoingDocumentDetailPage() {
             )}
           </div>
         </div>
+      )}
+      {registerModalOpen && (
+        <RegisterDocumentModal
+          type="OUTGOING"
+          loading={registering}
+          onClose={() => setRegisterModalOpen(false)}
+          onRegister={handleRegister}
+        />
       )}
     </>
   );

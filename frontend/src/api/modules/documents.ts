@@ -350,4 +350,8 @@ export const incomingDocumentsApi = {
       byDepartment: { departmentId: number | null; departmentName: string; count: number }[];
       byMonth: { month: string; count: number }[];
     }>>('/incoming-documents/statistics', { params }),
+
+  // Cấp số (vào sổ) văn bản đến
+  register: (id: number, data: { documentBookId: number; customArrivalDate?: string }) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/register`, data),
 };
