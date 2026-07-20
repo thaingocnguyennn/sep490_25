@@ -693,11 +693,24 @@ export class DocumentsService {
     // extractFieldsFromOcrText() would discard the layout info and
     // collapse every page into a synthetic single-page where
     // region-based extractors can no longer locate anything.
-    const extractedFields = extractFields(result.pages, mode);
+    //
+    // When OCR_FIELD_DEBUG=1 is set in the environment, every
+    // extractFields call returns a non-enumerable `__trace` array
+    // describing the per-field decisions (selected value, bbox,
+    // confidence, reason). We surface that on the result as
+    // `fieldTrace` so the caller can inspect what the layout
+    // interpreter picked without leaking it into the regular
+    // extractedFields JSON.
+    const debug = process.env.OCR_FIELD_DEBUG === '1';
+    const extractedFields = extractFields(result.pages, mode, { debug });
+
+    // Stash the debug trace so callers can inspect it.
+    const fieldTrace = (extractedFields as any).__trace;
 
     return {
       confidence: result.confidence,
       extractedFields,
+      ...(debug && fieldTrace ? { fieldTrace } : {}),
     };
   }
 }

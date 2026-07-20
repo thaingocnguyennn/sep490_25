@@ -286,6 +286,49 @@ export const incomingDocumentsApi = {
   create: (data: CreateIncomingDocumentRequest) =>
     api.post<ApiResponse<IncomingDocumentDetail>>('/incoming-documents', data),
 
+  /**
+   * Create an incoming document with a PDF/image file attached.
+   * Sends metadata and the file in a single multipart request.
+   * Used when the user has already run OCR and wants to persist the PDF.
+   */
+  createWithFile: (data: CreateIncomingDocumentRequest, file: File) => {
+    const formData = new FormData();
+    // Attach file first so it appears first in the multipart body
+    formData.append('file', file);
+    // Append all metadata fields
+    const entries: [string, string | number | undefined][] = [
+      ['issuer', data.issuer],
+      ['documentType', data.documentType],
+      ['documentNumber', data.documentNumber],
+      ['arrivalNumber', data.arrivalNumber],
+      ['signerName', data.signerName],
+      ['signerTitle', data.signerTitle],
+      ['dateLetter', data.dateLetter],
+      ['dateReceived', data.dateReceived],
+      ['summary', data.summary],
+      ['pageCount', data.pageCount],
+      ['urgency', data.urgency],
+      ['confidentialityLevel', data.confidentialityLevel],
+      ['confidentialityId', data.confidentialityId],
+      ['notes', data.notes],
+      ['processingInstructions', data.processingInstructions],
+    ];
+    for (const [key, value] of entries) {
+      if (value !== undefined) {
+        formData.append(key, String(value));
+      }
+    }
+    if (data.processorIds && data.processorIds.length > 0) {
+      formData.append('processorIds', JSON.stringify(data.processorIds));
+    }
+    if (data.attachments && data.attachments.length > 0) {
+      formData.append('attachments', JSON.stringify(data.attachments));
+    }
+    return api.post<ApiResponse<IncomingDocumentDetail>>('/incoming-documents/with-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   updateStatus: (id: number, data: { status: string; notes?: string }) =>
     api.patch<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/status`, data),
 

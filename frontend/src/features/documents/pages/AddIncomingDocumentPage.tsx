@@ -246,28 +246,36 @@ export default function AddIncomingDocumentPage() {
     setSubmitting(true);
     setError('');
 
+    const payload = {
+      issuer: form.issuer || undefined,
+      documentType: form.documentType || undefined,
+      documentNumber: form.documentNumber || undefined,
+      arrivalNumber: arrivalNumber ? Number(arrivalNumber) : undefined,
+      signerName: form.signerName || undefined,
+      signerTitle: form.signerTitle || undefined,
+      dateLetter: normalizeDate(form.dateLetter),
+      dateReceived,
+      summary: form.summary || undefined,
+      pageCount: form.pageCount ? Number(form.pageCount) : undefined,
+      urgency,
+      confidentialityLevel: confidentiality,
+      notes: notes || undefined,
+      processingInstructions: processingInstructions || undefined,
+      processorIds: processorsList,
+      attachments: attachments.map((a) => ({
+        fileName: a.name,
+        fileUrl: a.url,
+      })),
+    };
+
     try {
-      await incomingDocumentsApi.create({
-        issuer: form.issuer || undefined,
-        documentType: form.documentType || undefined,
-        documentNumber: form.documentNumber || undefined,
-        arrivalNumber: arrivalNumber ? Number(arrivalNumber) : undefined,
-        signerName: form.signerName || undefined,
-        signerTitle: form.signerTitle || undefined,
-        dateLetter: normalizeDate(form.dateLetter),
-        dateReceived,
-        summary: form.summary || undefined,
-        pageCount: form.pageCount ? Number(form.pageCount) : undefined,
-        urgency,
-        confidentialityLevel: confidentiality,
-        notes: notes || undefined,
-        processingInstructions: processingInstructions || undefined,
-        processorIds: processorsList,
-        attachments: attachments.map((a) => ({
-          fileName: a.name,
-          fileUrl: a.url,
-        })),
-      });
+      if (selectedFile) {
+        // Persist the PDF file and create the incoming document in one request
+        await incomingDocumentsApi.createWithFile(payload, selectedFile);
+      } else {
+        // No file — create without attachment
+        await incomingDocumentsApi.create(payload);
+      }
 
       navigate('/incoming-documents');
     } catch (err: unknown) {
@@ -762,6 +770,12 @@ export default function AddIncomingDocumentPage() {
                 <div className="summary-item">
                   <span className="summary-label">Người xử lý</span>
                   <span className="summary-value">{processorsList.length}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Tệp đính kèm chính</span>
+                  <span className="summary-value">
+                    {selectedFile ? selectedFile.name : 'Không có'}
+                  </span>
                 </div>
               </div>
             </div>
