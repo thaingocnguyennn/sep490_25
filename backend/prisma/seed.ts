@@ -212,6 +212,63 @@ async function main() {
   }
   console.log('Workflow steps seeded');
 
+  // Seed default DocumentBooks for each department
+  // Creates one INCOMING and one OUTGOING book per department for the current year
+  const currentYear = new Date().getFullYear();
+  const departments = await prisma.department.findMany({ select: { id: true, name: true } });
+  const clerkUser = await prisma.user.findUnique({ where: { username: 'clerk01' } });
+
+  if (clerkUser && departments.length > 0) {
+    for (const dept of departments) {
+      // Incoming book
+      await prisma.documentBook.upsert({
+        where: {
+          departmentId_bookType_year_name: {
+            departmentId: dept.id,
+            bookType: 'INCOMING',
+            year: currentYear,
+            name: `Sổ văn bản đến ${currentYear} - ${dept.name}`,
+          },
+        },
+        update: {},
+        create: {
+          name: `Sổ văn bản đến ${currentYear} - ${dept.name}`,
+          bookType: 'INCOMING',
+          year: currentYear,
+          isDefault: true,
+          status: 'ACTIVE',
+          departmentId: dept.id,
+          createdById: clerkUser.id,
+        },
+      });
+
+      // Outgoing book
+      await prisma.documentBook.upsert({
+        where: {
+          departmentId_bookType_year_name: {
+            departmentId: dept.id,
+            bookType: 'OUTGOING',
+            year: currentYear,
+            name: `Sổ văn bản đi ${currentYear} - ${dept.name}`,
+          },
+        },
+        update: {},
+        create: {
+          name: `Sổ văn bản đi ${currentYear} - ${dept.name}`,
+          bookType: 'OUTGOING',
+          year: currentYear,
+          isDefault: true,
+          status: 'ACTIVE',
+          departmentId: dept.id,
+          createdById: clerkUser.id,
+        },
+      });
+    }
+    console.log(`Default document books seeded for ${departments.length} departments (year ${currentYear})`);
+  } else {
+    console.log('Skipping document book seed: no departments or clerk user found');
+  }
+
   console.log('Database seeding completed!');
 }
 

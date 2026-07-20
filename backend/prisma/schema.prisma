@@ -21,6 +21,7 @@ enum DocumentStatus {
   SUBMITTED // Đã trình duyệt (văn bản đi - chờ trưởng phòng duyệt)
   RETURNED // Trả lại để chỉnh sửa
   APPROVED // Đã duyệt (trưởng phòng duyệt)
+  REGISTERED // Đã vào sổ (văn thư đã cấp số, chờ phát hành)
   WAITING_FOR_ISSUE // Chờ văn thư cấp số và phát hành
   ISSUED // Đã phát hành
   COMPLETED // Hoàn tất
@@ -28,6 +29,19 @@ enum DocumentStatus {
   TRASHED // Đã chuyển vào thùng rác
   REJECTED // Bị từ chối
   CANCELLED // Đã huỷ
+}
+
+// Loại sổ văn bản
+enum DocumentBookType {
+  INCOMING // Sổ văn bản đến
+  OUTGOING // Sổ văn bản đi
+}
+
+// Trạng thái sổ văn bản
+enum DocumentBookStatus {
+  ACTIVE   // Đang hoạt động
+  CLOSED   // Đã đóng sổ (cuối năm)
+  INACTIVE // Vô hiệu hóa
 }
 
 enum ProcessorType {
@@ -89,6 +103,7 @@ model Department {
   documents         Document[]         @relation("DocumentDepartment")
   incomingDocuments IncomingDocument[]
   User              User[]
+  documentBooks     DocumentBook[]
 
   @@unique([name, parentId])
   @@index([parentId])
@@ -157,6 +172,12 @@ model User {
   outgoingAssignedClerk    OutgoingDocument[] @relation("OutgoingAssignedClerk")
 
   incomingDocumentsCreated IncomingDocument[] @relation("IncomingDocumentClerk")
+
+  // Document book relations
+  createdDocumentBooks         DocumentBook[]      @relation("DocumentBookCreatedBy")
+  registeredIncomingEntries    IncomingBookEntry[] @relation("IncomingEntryRegisteredBy")
+  acknowledgedIncomingEntries  IncomingBookEntry[] @relation("IncomingEntryAcknowledgedBy")
+  registeredOutgoingEntries    OutgoingBookEntry[] @relation("OutgoingEntryRegisteredBy")
 
   @@index([departmentId])
 }
@@ -275,7 +296,7 @@ model IncomingDocument {
   issuer                 String? // Cơ quan ban hành
   documentType           String? // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
   documentNumber         String? // Số ký hiệu văn bản
-  arrivalNumber          Int? // Số đến (số tự động tăng)
+  arrivalNumber          Int? // Số đến (do DocumentBook cấp, không gán thủ công)
   signerName             String? // Họ tên người ký
   signerTitle            String? // Chức vụ người ký
   dateLetter             DateTime? // Ngày, tháng, năm văn bản
@@ -287,6 +308,10 @@ model IncomingDocument {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
+  // Liên kết sổ văn bản đến
+  documentBookId Int?
+  documentBook   DocumentBook? @relation("IncomingDocumentBook", fields: [documentBookId], references: [id])
+
   document     Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
   department   Department? @relation(fields: [departmentId], references: [id])
   departmentId Int?
@@ -295,11 +320,13 @@ model IncomingDocument {
   createdByClerkId Int?
 
   outgoingResponses OutgoingDocument[]
+  bookEntry         IncomingBookEntry?
 
   @@index([createdByClerkId])
   @@index([departmentId])
   @@index([dateReceived])
   @@index([arrivalNumber])
+  @@index([documentBookId])
 }
 
 model OutgoingDocument {
@@ -309,7 +336,7 @@ model OutgoingDocument {
   // Thông tin cơ bản văn bản đi
   documentType   String? // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
   documentNumber String? // Số ký hiệu văn bản gốc
-  dispatchNumber String? // Số phát hành chính thức (do văn thư cấp)
+  dispatchNumber String? // Số phát hành chính thức (officialNumber, do DocumentBook cấp)
   issuanceDate   DateTime? // Ngày ban hành chính thức
   signerName     String? // Họ tên người ký
   signerTitle    String? // Chức vụ người ký
@@ -321,10 +348,13 @@ model OutgoingDocument {
   sentDate         DateTime? // Ngày gửi/phát hành
   pageCount        Int? // Số trang
 
+  // Liên kết sổ văn bản đi
+  documentBookId Int?
+  documentBook   DocumentBook? @relation("OutgoingDocumentBook", fields: [documentBookId], references: [id])
+
   // Workflow notes
   relatedIncomingDocumentId Int?
   relatedIncomingDocument   IncomingDocument? @relation(fields: [relatedIncomingDocumentId], references: [id])
-
 
   submittedAt  DateTime? // Thời điểm trình duyệt
   submittedBy  Int? // Người trình duyệt
@@ -361,10 +391,13 @@ model OutgoingDocument {
   assignedClerkId    Int?
   assignedClerk      User? @relation("OutgoingAssignedClerk", fields: [assignedClerkId], references: [id])
 
+  bookEntry OutgoingBookEntry?
+
   @@index([relatedIncomingDocumentId])
   @@index([dispatchNumber])
   @@index([assignedApproverId])
   @@index([assignedClerkId])
+  @@index([documentBookId])
 }
 
 model DocumentProcessor {
@@ -453,4 +486,134 @@ model SystemLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+// ─── Document Book Models ──────────────────────────────────────────────────────
+
+// So dang ky van ban theo Nghi dinh 30/2020/ND-CP.
+// Mot so thuoc ve mot phong ban, mot loai (den/di), mot nam.
+// So den/so van ban di duoc cap tuan tu trong pham vi so.
+model DocumentBook {
+  id            Int                @id @default(autoincrement())
+  name          String             // VD: "Sổ văn bản đến 2026 - Phòng Hành chính"
+  code          String?            // Ký hiệu sổ (tuỳ chọn)
+  description   String?            // Ghi chú mô tả
+  bookType      DocumentBookType
+  year          Int                // Năm quản lý (VD: 2026)
+  currentNumber Int                @default(0) // Số hiện tại (tự động tăng, không sửa trực tiếp)
+  isDefault     Boolean            @default(false) // Sổ mặc định của dept+type+year
+  status        DocumentBookStatus @default(ACTIVE)
+
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  createdById Int
+  createdBy   User @relation("DocumentBookCreatedBy", fields: [createdById], references: [id])
+
+  openedAt  DateTime  @default(now())
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  incomingEntries  IncomingBookEntry[]
+  outgoingEntries  OutgoingBookEntry[]
+  incomingDocuments IncomingDocument[] @relation("IncomingDocumentBook")
+  outgoingDocuments OutgoingDocument[] @relation("OutgoingDocumentBook")
+
+  // Trong cùng dept + type + year, tên phải duy nhất
+  @@unique([departmentId, bookType, year, name])
+  @@index([departmentId, bookType, year, status])
+  @@index([isDefault])
+}
+
+// Entry cua so van ban den.
+// Luu snapshot tai thoi diem dang ky de bao toan lich su.
+// Mot van ban den chi duoc dang ky vao mot so duy nhat.
+model IncomingBookEntry {
+  id                 Int      @id @default(autoincrement())
+
+  documentBookId     Int
+  documentBook       DocumentBook     @relation(fields: [documentBookId], references: [id])
+
+  incomingDocumentId Int              @unique
+  incomingDocument   IncomingDocument @relation(fields: [incomingDocumentId], references: [id])
+
+  // Số đến được cấp bởi transaction atomic
+  arrivalNumber Int
+  arrivalDate   DateTime
+
+  // Snapshot tại thời điểm đăng ký (bảo toàn lịch sử khi metadata thay đổi)
+  senderSnapshot             String   // Cơ quan gửi
+  documentNumberSnapshot     String?  // Số ký hiệu văn bản
+  documentSymbolSnapshot     String?  // Ký hiệu văn bản
+  documentDateSnapshot       DateTime? // Ngày văn bản
+  documentTypeSnapshot       String?  // Loại văn bản
+  summarySnapshot            String   @db.Text // Trích yếu
+  assignedDepartmentSnapshot String?  // Đơn vị nhận
+  assignedUserSnapshot       String?  // Người nhận
+
+  // Theo dõi chuyển giao
+  transferDate     DateTime?
+  acknowledgedAt   DateTime?
+  acknowledgedById Int?
+  acknowledgedBy   User?   @relation("IncomingEntryAcknowledgedBy", fields: [acknowledgedById], references: [id])
+
+  note String? @db.Text
+
+  registeredById Int
+  registeredBy   User     @relation("IncomingEntryRegisteredBy", fields: [registeredById], references: [id])
+  registeredAt   DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  // Một sổ không được có hai entry cùng số đến
+  @@unique([documentBookId, arrivalNumber])
+  @@index([arrivalDate])
+  @@index([documentBookId])
+  @@index([registeredById])
+}
+
+// Entry cua so van ban di.
+// Luu snapshot va so chinh thuc duoc cap tai thoi diem dang ky.
+// Mot van ban di chi duoc dang ky vao mot so duy nhat.
+model OutgoingBookEntry {
+  id                 Int      @id @default(autoincrement())
+
+  documentBookId     Int
+  documentBook       DocumentBook     @relation(fields: [documentBookId], references: [id])
+
+  outgoingDocumentId Int              @unique
+  outgoingDocument   OutgoingDocument @relation(fields: [outgoingDocumentId], references: [id])
+
+  // Số thứ tự và số văn bản chính thức (VD: 001/QĐ-DMS)
+  sequenceNumber Int
+  officialNumber String   // Số văn bản đi chính thức
+  documentSymbol String?  // Ký hiệu văn bản
+  issuanceDate   DateTime // Ngày ban hành
+
+  // Snapshot tại thời điểm đăng ký
+  documentTypeSnapshot     String?  // Loại văn bản
+  summarySnapshot          String   @db.Text // Trích yếu
+  signerSnapshot           String?  // Người ký
+  recipientsSnapshot       String   @db.Text // Nơi nhận
+  archiveRecipientSnapshot String?  // Đơn vị/người nhận bản lưu
+  copyCount                Int      @default(1) // Số lượng bản
+
+  // Theo dõi chuyển giao
+  transferDate   DateTime?
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+
+  note String? @db.Text
+
+  registeredById Int
+  registeredBy   User     @relation("OutgoingEntryRegisteredBy", fields: [registeredById], references: [id])
+  registeredAt   DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  // Trong cùng một sổ, số thứ tự và số chính thức phải duy nhất
+  @@unique([documentBookId, sequenceNumber])
+  @@unique([documentBookId, officialNumber])
+  @@index([issuanceDate])
+  @@index([documentBookId])
+  @@index([registeredById])
 }
