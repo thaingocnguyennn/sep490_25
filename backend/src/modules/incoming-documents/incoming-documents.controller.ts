@@ -96,6 +96,8 @@ export class IncomingDocumentsController {
     try {
       const idParam = req.params.id as string;
       const { status, notes } = req.body;
+      // Only ADMIN may reach this endpoint (route-level guard). We still
+      // verify the document exists before mutating.
       const incoming = await incomingDocumentsService.updateStatus(
         parseInt(idParam),
         status,
@@ -118,9 +120,56 @@ export class IncomingDocumentsController {
         parseInt(workflowIdParam),
         stepStatus,
         req.user!.userId,
+        req.user!.roles ?? [],
         notes
       );
       res.status(200).json(successResponse(incoming, 'Cập nhật bước xử lý thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async addComment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = req.params.id as string;
+      const { body } = req.body;
+      const incoming = await incomingDocumentsService.addComment(
+        parseInt(idParam),
+        req.user!.userId,
+        req.user!.roles ?? [],
+        body
+      );
+      res.status(201).json(successResponse(incoming, 'Đã thêm bình luận'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listComments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = req.params.id as string;
+      const incoming = await incomingDocumentsService.listComments(
+        parseInt(idParam),
+        req.user!.userId,
+        req.user!.roles ?? []
+      );
+      res.status(200).json(successResponse(incoming, 'Danh sách bình luận'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async completeProcessorTask(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = req.params.id as string;
+      const userIdParam = req.params.userId as string;
+      const incoming = await incomingDocumentsService.completeProcessorTask(
+        parseInt(idParam),
+        parseInt(userIdParam),
+        req.user!.userId,
+        req.user!.roles ?? []
+      );
+      res.status(200).json(successResponse(incoming, 'Đã hoàn thành nhiệm vụ'));
     } catch (error) {
       next(error);
     }
@@ -186,7 +235,8 @@ export class IncomingDocumentsController {
         parseInt(idParam),
         req.body.action,
         req.body,
-        req.user!.userId
+        req.user!.userId,
+        req.user!.roles ?? []
       );
       res.status(200).json(successResponse(incoming, 'Xử lý văn bản bởi Chuyên viên thành công'));
     } catch (error) {
@@ -201,7 +251,8 @@ export class IncomingDocumentsController {
         parseInt(idParam),
         req.body.action,
         req.body,
-        req.user!.userId
+        req.user!.userId,
+        req.user!.roles ?? []
       );
       res.status(200).json(successResponse(incoming, 'Xử lý văn bản thành công'));
     } catch (error) {

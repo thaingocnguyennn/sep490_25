@@ -46,7 +46,7 @@ export interface DocumentWorkflow {
   user: { id: number; fullName: string } | null;
 }
 
-export type WorkflowStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED' | 'SKIPPED';
+export type WorkflowStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
 
 export interface IncomingDocumentDetail {
   id: number;
@@ -340,6 +340,43 @@ export const incomingDocumentsApi = {
 
   processBySpecialist: (id: number, data: ProcessSpecialistDocumentRequest) =>
     api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/process-specialist`, data),
+
+  /**
+   * Add a comment to the discussion thread on an incoming document.
+   * Returns the comment with the author info attached.
+   */
+  addComment: (id: number, body: string) =>
+    api.post<
+      ApiResponse<{
+        id: number;
+        body: string;
+        createdAt: string;
+        user: { id: number; fullName: string; email: string };
+      }>
+    >(`/incoming-documents/${id}/comments`, { body }),
+
+  /** Fetch the comment thread for an incoming document. */
+  listComments: (id: number) =>
+    api.get<
+      ApiResponse<
+        Array<{
+          id: number;
+          body: string;
+          createdAt: string;
+          user: { id: number; fullName: string; email: string };
+        }>
+      >
+    >(`/incoming-documents/${id}/comments`),
+
+  /**
+   * Mark a PHXL processor's supporting task as complete. Only PHXL users
+   * (or ADMIN) may invoke this; XDB is read-only.
+   */
+  completeProcessorTask: (id: number, userId: number) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(
+      `/incoming-documents/${id}/processors/${userId}/complete`,
+      {}
+    ),
 
   // Thống kê Văn bản đến (thêm mới)
   getStatistics: (params?: { dateFrom?: string; dateTo?: string; departmentId?: number }) =>

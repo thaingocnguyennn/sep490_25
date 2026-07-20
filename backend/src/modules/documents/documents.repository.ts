@@ -381,17 +381,32 @@ export class DocumentsRepository {
     return documents.map(this.formatSummary);
   }
 
-  /** Generate a unique document number based on type */
+  /**
+   * Generate a unique document number based on type. Uses a generation retry
+   * loop to absorb concurrent inserts (Postgres serial/unique collision).
+   */
   async generateDocumentNumber(type: string): Promise<string> {
     const prefix = type === 'INCOMING' ? 'IN' : type === 'OUTGOING' ? 'OUT' : 'INT';
     const year = new Date().getFullYear();
-    const count = await prisma.document.count({
-      where: {
-        documentNumber: { startsWith: `${prefix}-${year}` },
-      },
-    });
-    const seq = String(count + 1).padStart(4, '0');
-    return `${prefix}-${year}-${seq}`;
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const count = await prisma.document.count({
+        where: {
+          documentNumber: { startsWith: `${prefix}-${year}` },
+        },
+      });
+      const seq = String(count + attempt + 1).padStart(4, '0');
+      const candidate = `${prefix}-${year}-${seq}`;
+
+      const exists = await prisma.document.count({
+        where: { documentNumber: candidate },
+      });
+      if (exists === 0) {
+        return candidate;
+      }
+    }
+    // Fallback: append a millisecond timestamp to guarantee uniqueness
+    return `${prefix}-${year}-${Date.now()}`;
   }
 
   // ─── Private formatters ──────────────────────────────────────────────────

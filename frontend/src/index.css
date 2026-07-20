@@ -1734,7 +1734,7 @@ textarea:focus {
 .workflow-status-tag.in_progress { background: #dbeafe; color: #1d4ed8; }
 .workflow-status-tag.completed { background: #eafaf1; color: #27ae60; }
 .workflow-status-tag.rejected { background: #ffeaea; color: #e74c3c; }
-.workflow-status-tag.skipped { background: #f1f2f6; color: #636e72; }
+.workflow-status-tag.cancelled { background: #f1f2f6; color: #636e72; }
 
 /* Workflow Steps List (horizontal step rows) */
 .workflow-steps-list {
@@ -1782,7 +1782,7 @@ textarea:focus {
   background: #e74c3c;
 }
 
-.workflow-step-row:has(.workflow-status-tag.skipped) .workflow-step-number {
+.workflow-step-row:has(.workflow-status-tag.cancelled) .workflow-step-number {
   background: #95a5a6;
 }
 

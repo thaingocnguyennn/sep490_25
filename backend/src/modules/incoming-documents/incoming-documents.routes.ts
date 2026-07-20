@@ -12,6 +12,7 @@ import {
   createIncomingDocumentWithFileValidation,
   processIncomingDocumentValidation,
   processSpecialistDocumentValidation,
+  addCommentValidation,
 } from './incoming-documents.validation';
 
 const router = Router();
@@ -136,6 +137,7 @@ router.get(
 router.patch(
   '/:id/status',
   authenticate,
+  requireRole(ROLES.ADMIN),
   incomingDocumentsController.updateStatus.bind(incomingDocumentsController)
 );
 
@@ -143,6 +145,28 @@ router.patch(
   '/:id/workflow/:workflowId',
   authenticate,
   incomingDocumentsController.updateWorkflowStep.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/comments',
+  authenticate,
+  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  addCommentValidation,
+  validateRequest,
+  incomingDocumentsController.addComment.bind(incomingDocumentsController)
+);
+
+router.get(
+  '/:id/comments',
+  authenticate,
+  incomingDocumentsController.listComments.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/processors/:userId/complete',
+  authenticate,
+  requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
+  incomingDocumentsController.completeProcessorTask.bind(incomingDocumentsController)
 );
 
 router.post(
