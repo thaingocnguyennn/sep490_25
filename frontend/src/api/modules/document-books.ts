@@ -30,6 +30,7 @@ export interface CreateDocumentBookRequest {
   currentNumber?: number;
   isDefault?: boolean;
   description?: string;
+  departmentId: number;
 }
 
 export interface UpdateDocumentBookRequest {

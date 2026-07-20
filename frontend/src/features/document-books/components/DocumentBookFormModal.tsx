@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDocumentBookActions } from '../../../shared/hooks';
+import { useAuth } from '../../../contexts/AuthContext';
 import { DocumentBook } from '../../../api/modules/document-books';
 import '../styles/document-books.css';
 
@@ -8,9 +9,9 @@ interface DocumentBookFormModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
-
 export function DocumentBookFormModal({ book, onClose, onSuccess }: DocumentBookFormModalProps) {
   const isEditing = !!book;
+  const { user } = useAuth();
   const { create, update, loading } = useDocumentBookActions();
 
   const [formData, setFormData] = useState({
@@ -57,6 +58,7 @@ export function DocumentBookFormModal({ book, onClose, onSuccess }: DocumentBook
           currentNumber: formData.currentNumber,
           isDefault: formData.isDefault,
           description: formData.description,
+          departmentId: user?.department?.id || 1,
         });
         alert('Tạo sổ văn bản thành công');
       }
