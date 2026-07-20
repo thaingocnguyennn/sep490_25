@@ -216,7 +216,7 @@ function normalizeBBox(
 }
 
 function buildPageOcr(
-  data: { blocks?: unknown[]; text?: string },
+  data: { blocks?: unknown[] | null; text?: string | null },
   pageNumber: number,
   canvasWidth: number,
   canvasHeight: number,
@@ -224,13 +224,13 @@ function buildPageOcr(
   const blocks: OcrBlock[] = (data.blocks ?? []).map((rawBlock: unknown) => {
     const block = rawBlock as {
       block_id: number; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number };
-      paragraphs: { lines: { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number }; block_id: number; para_id: number; words: { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number }; block_id: number; para_id: number; line_id: number }[] }[] };
+      paragraphs: { lines: { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number }; block_id: number; para_id: number; words: { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number }; block_id: number; para_id: number; line_id: number }[] }[] }[];
     };
     return {
       id: block.block_id,
       bbox: normalizeBBox(block.bbox, canvasWidth, canvasHeight),
       confidence: block.confidence,
-      lines: block.paragraphs.flatMap((p) => p.lines).map((rawLine) => {
+      lines: block.paragraphs.flatMap((p: any) => p.lines).map((rawLine: any) => {
         const line = rawLine as {
           text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number };
           block_id: number; para_id: number;

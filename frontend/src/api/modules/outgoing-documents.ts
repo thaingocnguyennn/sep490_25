@@ -9,8 +9,8 @@ import type {
   ApiResponse,
   OcrResult,
   SignatureVerificationResult,
-  PdfSignatureItem,
-  PdfSignatureDetail,
+  DocumentSignatureItem,
+  DocumentSignatureResponse,
 } from '../../types';
 
 const BASE = '/outgoing-documents';
@@ -182,12 +182,12 @@ export const verifyOutgoingDocumentSignature = async (id: number): Promise<Signa
 };
 
 /**
- * UC-70: Lấy danh sách tất cả chữ ký số trong file PDF.
+ * UC-70: Lấy danh sách tất cả chữ ký số trong file PDF/Word.
  */
 export const getOutgoingSignatures = async (
   id: number,
-): Promise<{ signatures: PdfSignatureItem[]; message: string }> => {
-  const res = await api.get<ApiResponse<{ signatures: PdfSignatureItem[]; message: string }>>(
+): Promise<DocumentSignatureResponse> => {
+  const res = await api.get<ApiResponse<DocumentSignatureResponse>>(
     `${BASE}/${id}/signatures`,
   );
   return res.data.data!;
@@ -199,8 +199,8 @@ export const getOutgoingSignatures = async (
 export const getOutgoingSignatureDetail = async (
   id: number,
   signatureIndex: number,
-): Promise<PdfSignatureDetail> => {
-  const res = await api.get<ApiResponse<PdfSignatureDetail>>(
+): Promise<DocumentSignatureItem> => {
+  const res = await api.get<ApiResponse<DocumentSignatureItem>>(
     `${BASE}/${id}/signatures/${signatureIndex}`,
   );
   return res.data.data!;
