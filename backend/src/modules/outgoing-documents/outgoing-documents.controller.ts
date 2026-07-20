@@ -17,8 +17,25 @@ async function buildCurrentUserContext(user: any) {
     departmentName,
   };
 }
+import { documentRegistrationService } from '../document-books/document-registration.service';
 
 export class OutgoingDocumentsController {
+  async register(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const { documentBookId, customIssuanceDate } = req.body;
+      const result = await documentRegistrationService.registerOutgoingDocument(
+        idParam,
+        documentBookId,
+        req.user!.userId,
+        customIssuanceDate ? new Date(customIssuanceDate) : undefined
+      );
+      res.status(200).json(successResponse(result, 'Cấp số văn bản đi thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /**
    * GET /outgoing-documents
    * Lấy danh sách văn bản đi với phân trang và filter.

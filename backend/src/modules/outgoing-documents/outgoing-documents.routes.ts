@@ -11,6 +11,7 @@ import {
   updateOutgoingStatusValidation,
   outgoingIdParamValidation,
   listOutgoingDocumentsValidation,
+  registerOutgoingDocumentValidation,
 } from './outgoing-documents.validation';
 
 const router = Router();
@@ -142,6 +143,16 @@ router.patch(
   updateOutgoingStatusValidation,
   validateRequest,
   outgoingDocumentsController.updateStatus.bind(outgoingDocumentsController),
+);
+
+// POST /outgoing-documents/:id/register — Vào sổ văn bản đi
+router.post(
+  '/:id/register',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  registerOutgoingDocumentValidation,
+  validateRequest,
+  outgoingDocumentsController.register.bind(outgoingDocumentsController),
 );
 
 // DELETE /outgoing-documents/:id — Xóa mềm văn bản đi
