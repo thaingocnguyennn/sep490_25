@@ -45,7 +45,7 @@ export default function RegisterDocumentModal({ type, onClose, onRegister, loadi
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: 500 }}>
+      <div className="modal" style={{ maxWidth: 500 }}>
         <div className="modal-header">
           <h3>Vào sổ văn bản {type === 'INCOMING' ? 'đến' : 'đi'}</h3>
           <button type="button" className="close-btn" onClick={onClose} disabled={loading}>
