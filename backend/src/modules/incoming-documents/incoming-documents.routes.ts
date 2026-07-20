@@ -12,6 +12,7 @@ import {
   createIncomingDocumentWithFileValidation,
   processIncomingDocumentValidation,
   processSpecialistDocumentValidation,
+  registerIncomingDocumentValidation,
 } from './incoming-documents.validation';
 
 const router = Router();
@@ -137,6 +138,15 @@ router.patch(
   '/:id/status',
   authenticate,
   incomingDocumentsController.updateStatus.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/register',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  registerIncomingDocumentValidation,
+  validateRequest,
+  incomingDocumentsController.register.bind(incomingDocumentsController)
 );
 
 router.patch(
