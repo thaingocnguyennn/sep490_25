@@ -68,7 +68,7 @@ export function DocumentBookFormModal({ book, onClose, onSuccess }: DocumentBook
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content document-book-modal">
+      <div className="modal document-book-modal">
         <div className="modal-header">
           <h3>{isEditing ? 'Chỉnh sửa sổ văn bản' : 'Tạo sổ văn bản mới'}</h3>
           <button className="close-btn" onClick={onClose}>&times;</button>

@@ -110,7 +110,7 @@ export function DocumentBooksPage() {
         ) : (
           <>
             <div className="table-responsive">
-              <table className="table">
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>Tên sổ</th>
