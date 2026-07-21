@@ -11,4 +11,6 @@ export { useOutgoingDocuments } from './useOutgoingDocuments';
 export { useOutgoingDocumentActions } from './useOutgoingDocumentActions';
 export { useDepartments, useDepartmentMembers } from './useDepartments';
 export { useDepartmentActions } from './useDepartmentActions';
+export { useDocumentBooks } from './useDocumentBooks';
+export { useDocumentBookActions } from './useDocumentBookActions';
 

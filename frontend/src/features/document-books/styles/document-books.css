@@ -1,0 +1,108 @@
+.document-books-page {
+  padding: 24px;
+}
+
+.document-books-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.document-books-page .page-header h2 {
+  margin: 0;
+  color: #2d3436;
+}
+
+.document-books-page .filters-section {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.document-books-page .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.document-books-page .filter-group label {
+  font-weight: 500;
+  color: #636e72;
+  font-size: 14px;
+}
+
+.document-books-page .filter-group select,
+.document-books-page .filter-group input {
+  padding: 8px 12px;
+  border: 1px solid #dfe6e9;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 150px;
+}
+
+.document-books-page .badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.document-books-page .badge-info {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.document-books-page .badge-primary {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.document-books-page .badge-success {
+  background: #e8f8f0;
+  color: #27ae60;
+}
+
+.document-books-page .badge-warning {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.document-books-page .badge-danger {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* Modal styles */
+.document-book-modal {
+  max-width: 600px;
+  width: 100%;
+}
+
+.document-book-modal .form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.document-book-modal .form-group.half {
+  flex: 1;
+}
+
+.document-book-modal .help-text {
+  color: #636e72;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+.document-book-modal .checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: normal;
+  cursor: pointer;
+}

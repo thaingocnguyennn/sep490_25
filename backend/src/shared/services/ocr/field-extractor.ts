@@ -1,4 +1,4 @@
-﻿import type { ExtractedFields, FieldTrace, NormalizedBBox, OcrLine, OcrWord, PageOcr } from './types';
+import type { ExtractedFields, FieldTrace, NormalizedBBox, OcrLine, OcrWord, PageOcr } from './types';
 import {
   DOC_TYPES,
   MONTH_NAMES,
@@ -79,9 +79,27 @@ const DIGIT_LOOKALIKE: Record<string, string> = {
   q: '9', g: '9', P: '9', p: '9',
   // 5: Tesseract frequently reads digit 5 as the vowel-with-diaresis ä
   // when the surrounding noise pattern looks similar; very common
-  // in dates.
+  // in dates (e.g. "tháng ä năm" → "tháng 5 năm").
   ä: '5', Ä: '5',
+  // Tesseract also occasionally reads 8 as ö on some scan profiles.
+  ö: '8', Ö: '8',
 };
+
+/**
+ * Replace any isolated non-digit, non-alphanumeric character that
+ * maps to a digit via DIGIT_LOOKALIKE with its digit equivalent.
+ *
+ * "Isolated" means the character is surrounded by whitespace, start/
+ * end of string, or another digit — i.e. it is the *entire* token.
+ * This resolves the common case "tháng ä năm" (where ä is a garbled 5)
+ * without touching Vietnamese letters inside longer words.
+ */
+function applyDigitLookalikeToIsolated(text: string): string {
+  return text.replace(
+    /((?:^|\s|\d))([^\d\w\u00C0-\u1EF9\s])((?:\s|\d|$))/g,
+    (_full, pre, ch, post) => pre + (DIGIT_LOOKALIKE[ch] ?? ch) + post,
+  );
+}
 
 /**
  * Parse a date triple (day, month, year) out of a regex match.
@@ -1157,6 +1175,9 @@ function finalizeDocNumber(raw: string): string {
   const rewritten = rewriteDocNumberDigits(cleaned);
   const parts = rewritten.split('/');
   if (parts.length >= 3) {
+    // Collapse OCR-inserted whitespace in the code suffix
+    // (e.g. "U BND" → "UBND", "Q D" → "QD" before diacritic restore).
+    parts[2] = parts[2].replace(/\s+/g, '');
     // Restore the QD→QĐ diacritic on the code suffix (the most
     // common Vietnamese doc-code Tesseract artefact) plus the
     // HDND→HĐND fix.
@@ -1733,8 +1754,13 @@ function extractDate(
       }
     }
     for (const { text: flat, line, rightHalf } of rightLines) {
-      const normalized = flat.replace(
-        /(ng[àa]y\s+)([^]*?)(\s+th[áa]ng\s+)([^]*?)(\s+n[ăa]m\s+)([^]*)/iu,
+      // Pre-processing: replace isolated Latin-Extended chars (like ä, ö)
+      // that DIGIT_LOOKALIKE knows about, before the regex patterns are
+      // applied. This catches the common case where Tesseract emits "ä"
+      // for digit "5" (e.g. "tháng ä năm" → "tháng 5 năm").
+      const flatNorm = applyDigitLookalikeToIsolated(flat);
+      const normalized = flatNorm.replace(
+        /(ng[\u00e0a]y\s+)([^]*?)(\s+th[\u00e1a]ng\s+)([^]*?)(\s+n[\u0103a]m\s+)([^]*)/iu,
         (_full, lead, day, mid, month, trail, year) =>
           lead + numericSlot(day) + mid + numericSlot(month) + trail + year,
       );
@@ -1778,7 +1804,7 @@ function extractDate(
   for (const line of upperLinesAll) {
     // Restrict to the right column for two-column layouts.
     if (layout.isTwoColumn && line.bbox.x1 < layout.columns[0].x1) continue;
-    const t = clean(line.text);
+    const t = applyDigitLookalikeToIsolated(clean(line.text));
     for (const pattern of [...DATE_TEXT_PATTERNS, ...DATE_NUMERIC_PATTERNS]) {
       const m = t.match(pattern);
       if (m) {
@@ -1818,8 +1844,9 @@ function extractDate(
         (_full, lead, day, mid, month, trail, year) =>
           lead + numericSlot(day) + mid + numericSlot(month) + trail + year,
       ).replace(/(\d)\s+(\d)/g, '$1$2');
+      const numericNormalizedNorm = applyDigitLookalikeToIsolated(numericNormalized);
       for (const pattern of [...DATE_TEXT_PATTERNS, ...DATE_NUMERIC_PATTERNS]) {
-        const m = numericNormalized.match(pattern);
+        const m = numericNormalizedNorm.match(pattern);
         if (m) {
           const d = parseDateMatch(m);
           if (d) {

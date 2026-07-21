@@ -1,8 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
 import { incomingDocumentsService } from './incoming-documents.service';
 import { successResponse } from '../../shared/utils/response.util';
+import { documentRegistrationService } from '../document-books/document-registration.service';
 
 export class IncomingDocumentsController {
+  async register(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const { documentBookId, customArrivalDate } = req.body;
+      const result = await documentRegistrationService.registerIncomingDocument(
+        idParam,
+        documentBookId,
+        req.user!.userId,
+        customArrivalDate ? new Date(customArrivalDate) : undefined
+      );
+      res.status(200).json(successResponse(result, 'Đăng ký văn bản đến thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async list(req: Request, res: Response, next: NextFunction) {
     try {
       const page = parseInt(req.query.page as string) || 1;

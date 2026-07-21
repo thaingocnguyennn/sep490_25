@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getOutgoingDocumentById, deleteOutgoingDocument, sendOutgoingEmail, SendEmailResult, verifyOutgoingDocumentSignature } from '../../../api/modules/outgoing-documents';
+import { getOutgoingDocumentById, deleteOutgoingDocument, sendOutgoingEmail, SendEmailResult } from '../../../api/modules/outgoing-documents';
 import SignaturePanel from '../components/SignaturePanel';
 import { useOutgoingDocumentActions } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
@@ -11,10 +11,10 @@ import type {
   UpdateOutgoingStatusRequest,
   OcrResult,
   User,
-  SignatureVerificationResult,
 } from '../../../types';
 import { usersApi } from '../../../api/modules/users';
 import { api } from '../../../api';
+import RegisterDocumentModal from '../components/RegisterDocumentModal';
 
 async function openAuthenticatedFile(url: string): Promise<void> {
   // Routes the request through axios so the Bearer token is attached.
@@ -89,19 +89,17 @@ export default function OutgoingDocumentDetailPage() {
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [showOcrResult, setShowOcrResult] = useState(false);
 
-  // Signature state
-  const [signatureResult, setSignatureResult] = useState<SignatureVerificationResult | null>(null);
-  const [checkingSignature, setCheckingSignature] = useState(false);
-
-  // Modal trạng thái
+  // State modal trạng thái
   const [statusModal, setStatusModal] = useState<{
     open: boolean;
-    action: 'submit' | 'approve' | 'return' | 'register' | 'issue' | 'recall' | 'trash' | 'restore' | null;
+    action: 'submit' | 'approve' | 'return' | 'issue' | 'recall' | 'trash' | 'restore' | null;
   }>({ open: false, action: null });
   const [returnReason, setReturnReason] = useState('');
   const [recallReason, setRecallReason] = useState('');
-  const [dispatchNumber, setDispatchNumber] = useState('');
-  const [issuanceDate, setIssuanceDate] = useState('');
+  
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [registering, setRegistering] = useState(false);
+
   const [sentDate, setSentDate] = useState('');
   const [issueUrgency, setIssueUrgency] = useState<string>('');
   const [issueConfidentiality, setIssueConfidentiality] = useState<string>('');
@@ -186,20 +184,6 @@ export default function OutgoingDocumentDetailPage() {
     }
   };
 
-  const handleVerifySignature = async () => {
-    if (!doc?.id) return;
-    setCheckingSignature(true);
-    setSignatureResult(null);
-    try {
-      const res = await verifyOutgoingDocumentSignature(doc.id);
-      setSignatureResult(res);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Lỗi khi kiểm tra chữ ký số');
-    } finally {
-      setCheckingSignature(false);
-    }
-  };
-
   // ─── Status update handler ───────────────────────────────────────────────
 
   const handleStatusUpdate = async () => {
@@ -221,7 +205,6 @@ export default function OutgoingDocumentDetailPage() {
       submit: 'SUBMITTED',
       approve: 'APPROVED',
       return: 'RETURNED',
-      register: 'WAITING_FOR_ISSUE',
       issue: 'ISSUED',
       recall: 'RECALLED',
       restore: 'DRAFT',
@@ -231,8 +214,6 @@ export default function OutgoingDocumentDetailPage() {
       status: statusMap[statusModal.action] as any,
       returnReason: returnReason || undefined,
       recallReason: recallReason || undefined,
-      dispatchNumber: dispatchNumber || undefined,
-      issuanceDate: issuanceDate || undefined,
       sentDate: sentDate || undefined,
       urgency: (issueUrgency || undefined) as any,
       confidentialityLevel: (issueConfidentiality || undefined) as any,
@@ -246,8 +227,6 @@ export default function OutgoingDocumentDetailPage() {
       setStatusModal({ open: false, action: null });
       setReturnReason('');
       setRecallReason('');
-      setDispatchNumber('');
-      setIssuanceDate('');
       setSentDate('');
       setIssueUrgency('');
       setIssueConfidentiality('');
@@ -256,7 +235,26 @@ export default function OutgoingDocumentDetailPage() {
     }
   };
 
-  const handleOpenStatusModal = async (action: 'submit' | 'approve' | 'return' | 'register' | 'issue' | 'recall' | 'trash' | 'restore') => {
+  const handleRegister = async (data: { documentBookId: number; customDate?: string }) => {
+    if (!doc) return;
+    setRegistering(true);
+    try {
+      const { registerOutgoingDocument } = await import('../../../api/modules/outgoing-documents');
+      await registerOutgoingDocument(doc.id, {
+        documentBookId: data.documentBookId,
+        customIssuanceDate: data.customDate,
+      });
+      alert('Vào sổ văn bản thành công!');
+      setRegisterModalOpen(false);
+      loadDoc();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra khi vào sổ');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const handleOpenStatusModal = async (action: 'submit' | 'approve' | 'return' | 'issue' | 'recall' | 'trash' | 'restore') => {
     setStatusModal({ open: true, action });
     if (action === 'submit') {
       try {
@@ -337,7 +335,7 @@ export default function OutgoingDocumentDetailPage() {
             </button>
           )}
           {canRegister && (
-            <button id="btn-register-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('register')}
+            <button id="btn-register-doc" className="btn btn-primary" onClick={() => setRegisterModalOpen(true)}
               style={{ background: '#f39c12' }}>
               📝 Vào sổ
             </button>
@@ -400,59 +398,117 @@ export default function OutgoingDocumentDetailPage() {
 
             {/* Thông tin cơ bản */}
             <div className="card">
-              <div className="card-header"><h2>📋 Thông tin văn bản</h2></div>
+              <div className="card-header">
+                <h2>Thông tin văn bản</h2>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <DocumentStatusBadge status={docStatus} />
+                </div>
+              </div>
               <div className="card-body">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    {[
-                      ['📌 Tiêu đề', doc.document.title],
-                      ['🏷️ Loại văn bản', doc.documentType || '—'],
-                      ['🔢 Số ký hiệu (gốc)', doc.documentNumber || '—'],
-                      ['🚀 Số phát hành', doc.dispatchNumber || '—'],
-                      ['📅 Ngày ban hành', formatDate(doc.issuanceDate)],
-                      ['👤 Người ký', doc.signerName ? `${doc.signerName}${doc.signerTitle ? ` (${doc.signerTitle})` : ''}` : '—'],
-                      ['🏢 Người/Cơ quan nhận', doc.recipientName || '—'],
-                      ['📍 Địa chỉ người nhận', doc.recipientAddress || '—'],
-                      ['✉️ Email người nhận', doc.recipientEmail || '—'],
-                      ['📤 Ngày gửi', formatDate(doc.sentDate)],
-                      ['📄 Số trang', doc.pageCount ? `${doc.pageCount} trang` : '—'],
-                      ['⚠️ Độ khẩn', null], // render manually
-                      ['🚥 Trạng thái', null],
-                      ['🏛️ Phòng ban', doc.document.department?.name || '—'],
-                      ['✍️ Người tạo', doc.document.createdByUser?.fullName || '—'],
-                      ['🕒 Ngày tạo', formatDateTime(doc.createdAt)],
-                    ].map(([label, value]) => {
-                      if (label === '⚠️ Độ khẩn') {
-                        return (
-                          <tr key={label as string}>
-                            <td style={{ padding: '8px 0', color: '#636e72', width: 220, fontWeight: 500 }}>{label}</td>
-                            <td style={{ padding: '8px 0' }}><UrgencyBadge urgency={doc.document.urgency} /></td>
-                          </tr>
-                        );
-                      }
-                      if (label === '🚥 Trạng thái') {
-                        return (
-                          <tr key={label as string}>
-                            <td style={{ padding: '8px 0', color: '#636e72', width: 220, fontWeight: 500 }}>{label}</td>
-                            <td style={{ padding: '8px 0' }}><DocumentStatusBadge status={docStatus} /></td>
-                          </tr>
-                        );
-                      }
-                      return (
-                        <tr key={label as string}>
-                          <td style={{ padding: '8px 0', color: '#636e72', width: 220, fontWeight: 500 }}>{label}</td>
-                          <td style={{ padding: '8px 0' }}>{value}</td>
-                        </tr>
-                      );
-                    })}
-                    {doc.notes && (
-                      <tr>
-                        <td style={{ padding: '8px 0', color: '#636e72', fontWeight: 500, verticalAlign: 'top' }}>Ghi chú</td>
-                        <td style={{ padding: '8px 0', whiteSpace: 'pre-wrap' }}>{doc.notes}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                <div className="detail-grid">
+                  {doc.documentNumber && (
+                    <div className="detail-item">
+                      <label>Số ký hiệu</label>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea' }}>
+                        {doc.documentNumber}
+                      </span>
+                    </div>
+                  )}
+                  {doc.dispatchNumber && (
+                    <div className="detail-item">
+                      <label>Số phát hành</label>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#667eea', fontSize: 16 }}>
+                        {doc.dispatchNumber}
+                      </span>
+                    </div>
+                  )}
+                  {doc.documentType && (
+                    <div className="detail-item">
+                      <label>Loại văn bản</label>
+                      <span>{doc.documentType}</span>
+                    </div>
+                  )}
+                  {doc.pageCount && (
+                    <div className="detail-item">
+                      <label>Số trang</label>
+                      <span>{doc.pageCount} trang</span>
+                    </div>
+                  )}
+                  <div className="detail-item full-width">
+                    <label>Tiêu đề văn bản</label>
+                    <span style={{ fontSize: 16, fontWeight: 600 }}>{doc.document.title}</span>
+                  </div>
+                  {doc.document.description && (
+                    <div className="detail-item full-width">
+                      <label>Mô tả</label>
+                      <span>{doc.document.description}</span>
+                    </div>
+                  )}
+                  <div className="detail-item">
+                    <label>Độ khẩn</label>
+                    <span><UrgencyBadge urgency={doc.document.urgency} /></span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Trạng thái</label>
+                    <span><DocumentStatusBadge status={docStatus} /></span>
+                  </div>
+                  {doc.signerName && (
+                    <div className="detail-item">
+                      <label>Người ký</label>
+                      <span style={{ fontWeight: 600 }}>
+                        {doc.signerName}{doc.signerTitle ? ` (${doc.signerTitle})` : ''}
+                      </span>
+                    </div>
+                  )}
+                  {doc.issuanceDate && (
+                    <div className="detail-item">
+                      <label>Ngày ban hành</label>
+                      <span>{formatDate(doc.issuanceDate)}</span>
+                    </div>
+                  )}
+                  {doc.recipientName && (
+                    <div className="detail-item full-width">
+                      <label>Người/Cơ quan nhận</label>
+                      <span style={{ fontWeight: 600 }}>{doc.recipientName}</span>
+                    </div>
+                  )}
+                  {doc.recipientAddress && (
+                    <div className="detail-item full-width">
+                      <label>Địa chỉ người nhận</label>
+                      <span>{doc.recipientAddress}</span>
+                    </div>
+                  )}
+                  {doc.recipientEmail && (
+                    <div className="detail-item">
+                      <label>Email người nhận</label>
+                      <span>{doc.recipientEmail}</span>
+                    </div>
+                  )}
+                  {doc.sentDate && (
+                    <div className="detail-item">
+                      <label>Ngày gửi</label>
+                      <span>{formatDate(doc.sentDate)}</span>
+                    </div>
+                  )}
+                  <div className="detail-item">
+                    <label>Phòng ban</label>
+                    <span>{doc.document.department?.name || '—'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Người tạo</label>
+                    <span>{doc.document.createdByUser?.fullName || '—'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Ngày tạo</label>
+                    <span>{formatDateTime(doc.createdAt)}</span>
+                  </div>
+                  {doc.notes && (
+                    <div className="detail-item full-width">
+                      <label>Ghi chú</label>
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{doc.notes}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -511,56 +567,65 @@ export default function OutgoingDocumentDetailPage() {
               </div>
             )}
 
-            {/* File hiện tại + OCR */}
+            {/* File đính kèm + OCR */}
             {doc.document.fileUrl && (
               <div className="card">
                 <div className="card-header">
-                  <h2>📄 File đính kèm</h2>
+                  <h2>Tệp đính kèm</h2>
                 </div>
                 <div className="card-body">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 24 }}>📃</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{doc.document.originalFileName || 'File đính kèm'}</div>
-                      {doc.document.fileSize && (
-                        <div style={{ fontSize: 12, color: '#636e72' }}>
-                          {(doc.document.fileSize / 1024).toFixed(1)} KB
+                  <div className="attachment-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+                    <div className="attachment-file-card">
+                      <div className="attachment-file-icon">&#128196;</div>
+                      <div className="attachment-file-info">
+                        <div className="attachment-file-name" title={doc.document.originalFileName || 'File đính kèm'}>
+                          {doc.document.originalFileName || 'File đính kèm'}
                         </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => openAuthenticatedFile(doc.document.fileUrl ?? '')}
-                        className="btn btn-secondary"
-                        style={{ fontSize: 13 }}
-                      >
-                        👁️ Xem
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          downloadAuthenticatedFile(
-                            `/api/documents/${doc.documentId}/download`,
-                            doc.document.originalFileName || `document-${doc.documentId}`,
-                          )
-                        }
-                        className="btn btn-secondary"
-                        style={{ fontSize: 13 }}
-                      >
-                        ⬇️ Tải về
-                      </button>
+                        {doc.document.fileSize && (
+                          <div className="attachment-file-size">
+                            {(doc.document.fileSize / 1024).toFixed(1)} KB
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => openAuthenticatedFile(doc.document.fileUrl ?? '')}
+                          className="btn btn-secondary"
+                          style={{ fontSize: 13, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                          👁️ Xem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadAuthenticatedFile(
+                              `/api/documents/${doc.documentId}/download`,
+                              doc.document.originalFileName || `document-${doc.documentId}`,
+                            )
+                          }
+                          className="btn btn-secondary"
+                          style={{ fontSize: 13, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                          ⬇️ Tải về
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* OCR status */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {/* Trạng thái OCR */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
                     <div style={{ fontSize: 13, color: '#636e72' }}>
-                      OCR: <strong>{
-                        doc.document.ocrStatus === 'COMPLETED' ? '✅ Hoàn tất' :
-                          doc.document.ocrStatus === 'PROCESSING' ? '⏳ Đang xử lý' :
-                            doc.document.ocrStatus === 'FAILED' ? '❌ Thất bại' : '⏸️ Chưa chạy'
-                      }</strong>
+                      OCR:{' '}
+                      <strong>
+                        {doc.document.ocrStatus === 'COMPLETED'
+                          ? '✅ Hoàn tất'
+                          : doc.document.ocrStatus === 'PROCESSING'
+                          ? '⏳ Đang xử lý'
+                          : doc.document.ocrStatus === 'FAILED'
+                          ? '❌ Thất bại'
+                          : '⏸️ Chưa chạy'}
+                      </strong>
                     </div>
                     {canOcr && (
                       <button
@@ -584,27 +649,59 @@ export default function OutgoingDocumentDetailPage() {
                     )}
                   </div>
 
-                  {/* OCR result */}
-                  {(showOcrResult && (ocrResult || doc.document.ocrText)) && (
-                    <div style={{ marginTop: 16, padding: 16, background: '#f0f2ff', borderRadius: 8, border: '1px solid #c7d2fe' }}>
+                  {/* Kết quả OCR */}
+                  {showOcrResult && (ocrResult || doc.document.ocrText) && (
+                    <div
+                      style={{
+                        marginTop: 16,
+                        padding: 16,
+                        background: '#f0f2ff',
+                        borderRadius: 8,
+                        border: '1px solid #c7d2fe',
+                      }}
+                    >
                       <h4 style={{ margin: '0 0 12px', color: '#4c1d95' }}>Kết quả OCR</h4>
                       {ocrResult?.extractedFields && (
-                        <div style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                          {Object.entries(ocrResult.extractedFields).map(([key, val]) => val ? (
-                            <div key={key} style={{ fontSize: 13 }}>
-                              <strong>{key}:</strong> {val}
-                            </div>
-                          ) : null)}
+                        <div
+                          style={{
+                            marginBottom: 12,
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 8,
+                          }}
+                        >
+                          {Object.entries(ocrResult.extractedFields).map(([key, val]) =>
+                            val ? (
+                              <div key={key} style={{ fontSize: 13 }}>
+                                <strong>{key}:</strong> {val}
+                              </div>
+                            ) : null,
+                          )}
                         </div>
                       )}
-                      <div style={{ fontSize: 12, maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', color: '#4b5563', background: 'white', padding: 12, borderRadius: 6 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          maxHeight: 200,
+                          overflow: 'auto',
+                          whiteSpace: 'pre-wrap',
+                          color: '#4b5563',
+                          background: 'white',
+                          padding: 12,
+                          borderRadius: 6,
+                        }}
+                      >
                         {doc.document.ocrText}
                       </div>
                       {canEdit && ocrResult && (
                         <button
                           className="btn btn-primary"
                           style={{ marginTop: 12, fontSize: 13 }}
-                          onClick={() => navigate(`/outgoing-documents/${doc.id}/edit`, { state: { ocrFields: ocrResult.extractedFields } })}
+                          onClick={() =>
+                            navigate(`/outgoing-documents/${doc.id}/edit`, {
+                              state: { ocrFields: ocrResult.extractedFields },
+                            })
+                          }
                         >
                           ✍️ Điền vào form từ OCR
                         </button>
@@ -615,12 +712,17 @@ export default function OutgoingDocumentDetailPage() {
               </div>
             )}
 
-            {/* UC-70: Chữ ký số */}
+            {/* Chữ ký số — tự động disable nếu không phải PDF/Word */}
             {doc.document.fileUrl && (
               <div className="card">
-                <div className="card-header"><h2>🔐 Chữ ký số</h2></div>
+                <div className="card-header">
+                  <h2>Chữ ký số</h2>
+                </div>
                 <div className="card-body">
-                  <SignaturePanel documentId={doc.id} />
+                  <SignaturePanel
+                    documentId={doc.id}
+                    mimeType={doc.document.mimeType}
+                  />
                 </div>
               </div>
             )}
@@ -693,7 +795,6 @@ export default function OutgoingDocumentDetailPage() {
               {statusModal.action === 'submit' && '📤 Trình văn bản để duyệt'}
               {statusModal.action === 'approve' && '✅ Phê duyệt văn bản'}
               {statusModal.action === 'return' && '↩️ Trả lại văn bản'}
-              {statusModal.action === 'register' && '📝 Vào sổ văn bản'}
               {statusModal.action === 'issue' && '🚀 Phát hành văn bản'}
               {statusModal.action === 'recall' && '🔙 Thu hồi văn bản đã phát hành'}
               {statusModal.action === 'trash' && '🗑️ Chuyển vào thùng rác'}
@@ -772,33 +873,6 @@ export default function OutgoingDocumentDetailPage() {
               </div>
             )}
 
-            {/* Vào sổ: nhập số phát hành, ngày ban hành */}
-            {statusModal.action === 'register' && (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Số phát hành chính thức <span style={{ color: '#e74c3c' }}>*</span></label>
-                  <input
-                    id="dispatch-number-input"
-                    type="text"
-                    value={dispatchNumber}
-                    onChange={(e) => setDispatchNumber(e.target.value)}
-                    placeholder="Vd: 123/QĐ-UBND"
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ngày ban hành <span style={{ color: '#e74c3c' }}>*</span></label>
-                  <input
-                    id="issuance-date-input"
-                    type="date"
-                    value={issuanceDate}
-                    onChange={(e) => setIssuanceDate(e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                  />
-                </div>
-              </>
-            )}
-
             {/* Phát hành: nhập thông tin gửi */}
             {statusModal.action === 'issue' && (
               <>
@@ -855,7 +929,6 @@ export default function OutgoingDocumentDetailPage() {
               <p style={{ color: '#636e72', marginBottom: 20 }}>
                 {statusModal.action === 'submit' && 'Xác nhận trình văn bản lên Lãnh đạo để duyệt?'}
                 {statusModal.action === 'approve' && 'Xác nhận phê duyệt văn bản và chuyển cho Văn thư?'}
-                {statusModal.action === 'register' && 'Xác nhận vào sổ văn bản này?'}
                 {statusModal.action === 'issue' && 'Xác nhận phát hành văn bản chính thức?'}
                 {statusModal.action === 'trash' && 'Văn bản sẽ được chuyển vào thùng rác. Có thể khôi phục sau.'}
                 {statusModal.action === 'restore' && 'Khôi phục văn bản này từ thùng rác về trạng thái Bản nháp?'}
@@ -879,8 +952,7 @@ export default function OutgoingDocumentDetailPage() {
                   (statusModal.action === 'return' && !returnReason.trim()) || 
                   (statusModal.action === 'recall' && !recallReason.trim()) ||
                   (statusModal.action === 'submit' && !assignedApproverId) ||
-                  (statusModal.action === 'approve' && !assignedClerkId) ||
-                  (statusModal.action === 'register' && (!dispatchNumber.trim() || !issuanceDate))
+                  (statusModal.action === 'approve' && !assignedClerkId)
                 }
                 style={{
                   background: statusModal.action === 'trash' ? '#e74c3c' :
@@ -995,6 +1067,14 @@ export default function OutgoingDocumentDetailPage() {
             )}
           </div>
         </div>
+      )}
+      {registerModalOpen && (
+        <RegisterDocumentModal
+          type="OUTGOING"
+          loading={registering}
+          onClose={() => setRegisterModalOpen(false)}
+          onRegister={handleRegister}
+        />
       )}
     </>
   );

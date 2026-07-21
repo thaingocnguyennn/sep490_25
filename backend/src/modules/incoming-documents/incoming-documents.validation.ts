@@ -1,5 +1,10 @@
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 
+export const registerIncomingDocumentValidation = [
+  param('id').isInt({ min: 1 }).withMessage('ID văn bản không hợp lệ'),
+  body('documentBookId').isInt({ min: 1 }).withMessage('ID sổ văn bản là bắt buộc'),
+  body('customArrivalDate').optional({ nullable: true }).isISO8601().withMessage('Ngày đến không hợp lệ'),
+];
 export const createIncomingDocumentValidation = [
   body('issuer').optional().trim(),
   body('documentType').optional().trim(),
