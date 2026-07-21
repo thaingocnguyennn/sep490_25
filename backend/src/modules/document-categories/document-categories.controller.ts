@@ -38,7 +38,7 @@ export class DocumentCategoriesController {
 
   async findById(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string, 10);
       if (isNaN(id)) {
         return res.status(400).json({ error: 'Invalid category ID' });
       }
