@@ -47,7 +47,7 @@ export const DocumentCategoryTable: React.FC<DocumentCategoryTableProps> = ({
                   <div className="flex items-center space-x-2">
                     <span>{category.code}</span>
                     {category.isSystem && (
-                      <ShieldAlert className="h-4 w-4 text-amber-500" title="Hệ thống mặc định" />
+                      <ShieldAlert className="h-4 w-4 text-amber-500" aria-label="Hệ thống mặc định" />
                     )}
                   </div>
                 </td>

@@ -4,7 +4,9 @@
   "description": "Document Management System with OCR - Backend API",
   "main": "dist/app.js",
   "scripts": {
+    "predev": "prisma generate",
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "prebuild": "prisma generate",
     "build": "tsc",
     "start": "node dist/app.js",
     "test": "jest",
