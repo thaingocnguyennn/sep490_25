@@ -157,6 +157,13 @@ export const processIncomingDocumentValidation = [
     .if(body('action').equals('FORWARD'))
     .isIn(['XLC', 'PHXL', 'XDB'])
     .withMessage('Loại xử lý không hợp lệ'),
+  body('processorIds')
+    .if(body('action').equals('FORWARD'))
+    .custom((value) => {
+      if (!Array.isArray(value)) return true;
+      return value.some((p) => p && p.processorType === 'XLC');
+    })
+    .withMessage('Phải chọn ít nhất một Người xử lý chính (XLC)'),
   body('processingInstructions')
     .optional({ values: 'falsy' })
     .isString()
@@ -195,6 +202,14 @@ export const processSpecialistDocumentValidation = [
     .if(body('action').equals('TRANSFER'))
     .isIn(['XLC', 'PHXL', 'XDB'])
     .withMessage('Loại xử lý không hợp lệ'),
+  // Enforce ≥1 XLC for TRANSFER at the validation layer (defense in depth).
+  body('processorIds')
+    .if(body('action').equals('TRANSFER'))
+    .custom((value) => {
+      if (!Array.isArray(value)) return true;
+      return value.some((p) => p && p.processorType === 'XLC');
+    })
+    .withMessage('Phải chọn ít nhất một Người xử lý chính (XLC)'),
   body('processingInstructions')
     .optional({ values: 'falsy' })
     .isString()
@@ -207,4 +222,17 @@ export const processSpecialistDocumentValidation = [
     .isString()
     .isLength({ max: 1000 })
     .withMessage('Lý do trả lại tối đa 1000 ký tự'),
+];
+
+/**
+ * Validation for the comment-thread endpoint used by XLC/PHXL processors and
+ * the originating clerk.
+ */
+export const addCommentValidation = [
+  body('body')
+    .notEmpty()
+    .withMessage('Nội dung bình luận là bắt buộc')
+    .isString()
+    .isLength({ min: 1, max: 4000 })
+    .withMessage('Nội dung bình luận phải từ 1 đến 4000 ký tự'),
 ];

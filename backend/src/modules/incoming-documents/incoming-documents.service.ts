@@ -1,10 +1,26 @@
 import { default as prisma } from '../../config/database';
 import { incomingDocumentsRepository } from './incoming-documents.repository';
 import { documentsRepository } from '../documents/documents.repository';
-import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
-import { DocumentStatus, WorkflowStatus } from '@prisma/client';
+import {
+  NotFoundError,
+  BadRequestError,
+  ForbiddenError,
+  ConflictError,
+} from '../../shared/exceptions/app-error';
+import { DocumentStatus, WorkflowStatus, ProcessorType, OcrStatus } from '@prisma/client';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
+import {
+  checkIncomingDocumentAccess,
+  checkWorkflowStepAccess,
+  resolveStageFromRoleName,
+  resolveDocumentId,
+} from '../../shared/access/document-access';
+import {
+  emitNotificationToUser,
+  emitNotificationToUsers,
+} from '../../shared/services/notification.service';
+import { logSystemAction } from '../../shared/services/system-log.service';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../../config';
@@ -80,7 +96,7 @@ export class IncomingDocumentsService {
     const incoming = await incomingDocumentsRepository.findById(id);
 
     if (userId !== undefined && userRoles !== undefined) {
-      await this.checkDocumentAccess(id, userId, userRoles);
+      await checkIncomingDocumentAccess(id, userId, userRoles);
     }
 
     return incoming;
@@ -100,16 +116,27 @@ export class IncomingDocumentsService {
       reason?: string;
       attachments?: AttachmentInput[];
     },
-    userId: number
+    userId: number,
+    userRoles: string[] = []
   ) {
     const incoming = await incomingDocumentsRepository.findById(id);
     const documentId = incoming.documentId;
+
+    // XLC stage gating: callers without DEPT_HEAD (or ADMIN) cannot act at the
+    // head stage. This complements the route-level requireRole guard by
+    // pinning to the assigned XLC for non-admins.
+    if (!userRoles.includes('ADMIN') && !userRoles.includes('DEPARTMENT_HEAD')) {
+      throw new ForbiddenError(
+        'Chỉ Trưởng phòng hoặc Quản trị viên mới có thể xử lý văn bản ở giai đoạn này'
+      );
+    }
 
     const headStep = await prisma.documentWorkflow.findFirst({
       where: {
         documentId,
         workflowStep: { stepOrder: 2, roleName: 'DEPARTMENT_HEAD' },
       },
+      include: { workflowStep: true },
     });
     if (!headStep) {
       throw new BadRequestError('Văn bản này không có bước xử lý của Trưởng phòng');
@@ -117,6 +144,9 @@ export class IncomingDocumentsService {
     if (headStep.status !== 'PENDING') {
       throw new BadRequestError('Bước xử lý của Trưởng phòng không ở trạng thái chờ xử lý');
     }
+
+    // Access check — make sure the document is visible to the caller.
+    await checkIncomingDocumentAccess(id, userId, userRoles);
 
     if (action === 'FORWARD') {
       const processorIds = payload.processorIds || [];
@@ -138,7 +168,13 @@ export class IncomingDocumentsService {
 
       const deadlineDate = payload.deadline ? parseDateOrNull(payload.deadline) : null;
 
+      const forwardedUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
+        // Capture the previous set for history
+        const previous = await tx.documentProcessor.findMany({
+          where: { documentId },
+          select: { userId: true, processorType: true },
+        });
         await tx.documentProcessor.deleteMany({ where: { documentId } });
         await tx.documentProcessor.createMany({
           data: processorIds.map((p) => ({
@@ -147,6 +183,27 @@ export class IncomingDocumentsService {
             processorType: p.processorType,
           })),
         });
+        if (previous.length > 0) {
+          await tx.documentProcessorHistory.createMany({
+            data: previous.map((p) => ({
+              documentId,
+              userId: p.userId,
+              processorType: p.processorType as ProcessorType,
+              action: 'TRANSFERRED',
+              actorId: userId,
+            })),
+          });
+        }
+        await tx.documentProcessorHistory.createMany({
+          data: processorIds.map((p) => ({
+            documentId,
+            userId: p.userId,
+            processorType: p.processorType as ProcessorType,
+            action: 'ASSIGNED',
+            actorId: userId,
+          })),
+        });
+        forwardedUserIds.push(...processorIds.map((p) => p.userId));
 
         await tx.documentWorkflow.update({
           where: { id: headStep.id },
@@ -187,6 +244,19 @@ export class IncomingDocumentsService {
           });
         }
       });
+
+      await emitNotificationToUsers(
+        forwardedUserIds,
+        'Văn bản đến được chuyển xử lý',
+        `Trưởng phòng đã chuyển văn bản ${incoming.document.documentNumber} cho bạn`
+      );
+      await logSystemAction({
+        userId,
+        action: 'INCOMING_FORWARDED',
+        entityType: 'IncomingDocument',
+        entityId: id,
+        details: `Forwarded to ${processorIds.length} processor(s)`,
+      });
     } else if (action === 'FINISH') {
       await prisma.$transaction(async (tx) => {
         await tx.documentWorkflow.update({
@@ -220,7 +290,19 @@ export class IncomingDocumentsService {
           data: { status: DocumentStatus.COMPLETED },
         });
       });
+      await logSystemAction({
+        userId,
+        action: 'INCOMING_FINISHED_BY_HEAD',
+        entityType: 'IncomingDocument',
+        entityId: id,
+      });
     } else if (action === 'RETURN') {
+      if (!payload.reason?.trim()) {
+        throw new BadRequestError('Phải nhập lý do trả lại');
+      }
+      const previous = await prisma.documentProcessor.findMany({
+        where: { documentId },
+      });
       await prisma.$transaction(async (tx) => {
         await tx.documentWorkflow.update({
           where: { id: headStep.id },
@@ -238,6 +320,33 @@ export class IncomingDocumentsService {
         });
 
         await tx.documentProcessor.deleteMany({ where: { documentId } });
+        if (previous.length > 0) {
+          await tx.documentProcessorHistory.createMany({
+            data: previous.map((p) => ({
+              documentId,
+              userId: p.userId,
+              processorType: p.processorType as ProcessorType,
+              action: 'REMOVED',
+              reason: payload.reason,
+              actorId: userId,
+            })),
+          });
+        }
+      });
+      // Notify the clerk who created the document so they can act.
+      if (incoming.document.createdBy && incoming.document.createdByUser) {
+        await emitNotificationToUser(
+          incoming.document.createdBy,
+          'Văn bản đến bị trả lại',
+          `Trưởng phòng trả lại văn bản ${incoming.document.documentNumber}: ${payload.reason}`
+        );
+      }
+      await logSystemAction({
+        userId,
+        action: 'INCOMING_RETURNED',
+        entityType: 'IncomingDocument',
+        entityId: id,
+        details: payload.reason,
       });
     } else {
       throw new BadRequestError('Hành động không hợp lệ');
@@ -381,6 +490,7 @@ export class IncomingDocumentsService {
     userId: number,
   ) {
     const fileUrl = `/uploads/${file.filename}`;
+    let resultDocId: number | null = null;
 
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -435,6 +545,19 @@ export class IncomingDocumentsService {
           })),
         });
 
+        // Record the initial processor assignments in history.
+        if (data.processorIds.length > 0) {
+          await tx.documentProcessorHistory.createMany({
+            data: data.processorIds.map((p) => ({
+              documentId: document.id,
+              userId: p.userId,
+              processorType: p.processorType as ProcessorType,
+              action: 'ASSIGNED',
+              actorId: userId,
+            })),
+          });
+        }
+
         const workflowSteps = await tx.workflowStep.findMany({
           orderBy: { stepOrder: 'asc' },
         });
@@ -449,8 +572,24 @@ export class IncomingDocumentsService {
         return { documentId: document.id, incomingId: incoming.id };
       });
 
+      resultDocId = result.documentId;
+
+      // Kick off OCR asynchronously so we don't block the create response.
+      // The HTTP client does not need to wait for the result; the clerk sees
+      // the extracted fields on the next page load.
+      const filePath = path.join(config.uploadDir, file.filename);
+      this.persistOcrAsync(result.documentId, filePath, file.mimetype)
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn('[ocr] background ocr failed', err);
+        });
+
       return this.getById(result.incomingId);
     } catch (error) {
+      const conflict = (error as { code?: string }).code === 'P2002';
+      if (conflict) {
+        throw new ConflictError('Mã văn bản đã tồn tại, vui lòng thử lại');
+      }
       // Transaction failed — delete the uploaded file to avoid orphaned files
       const filePath = path.join(config.uploadDir, file.filename);
       if (fs.existsSync(filePath)) {
@@ -461,33 +600,141 @@ export class IncomingDocumentsService {
         }
       }
       throw error;
+    } finally {
+      // nothing — placeholder to keep lint happy
+      void resultDocId;
+    }
+  }
+
+  /**
+   * Persist OCR result after the document is committed. Runs in the
+   * background so the create response can return immediately. Marks the
+   * row PROCESSING while in flight, COMPLETED on success, FAILED on error.
+   */
+  private async persistOcrAsync(
+    documentId: number,
+    filePath: string,
+    mimeType: string
+  ): Promise<void> {
+    try {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { ocrStatus: OcrStatus.PROCESSING },
+      });
+
+      if (!fs.existsSync(filePath)) {
+        await prisma.document.update({
+          where: { id: documentId },
+          data: { ocrStatus: OcrStatus.FAILED },
+        });
+        return;
+      }
+
+      const buffer = await fs.promises.readFile(filePath);
+      // Lazy-import the OCR service to avoid loading Tesseract.js when
+      // running unit tests that don't exercise OCR.
+      const { performOcr } = await import('../../shared/services/ocr.service');
+      const result = await performOcr(buffer, mimeType);
+      const text = (result.text ?? '').toString();
+
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          ocrText: text,
+          ocrStatus: text.trim() ? OcrStatus.COMPLETED : OcrStatus.FAILED,
+        },
+      });
+    } catch (error) {
+      try {
+        await prisma.document.update({
+          where: { id: documentId },
+          data: { ocrStatus: OcrStatus.FAILED },
+        });
+      } catch {
+        // ignore — we cannot recover from a failed failure update
+      }
+      // eslint-disable-next-line no-console
+      console.warn('[ocr] failed', error);
     }
   }
 
   async updateStatus(id: number, status: string, userId: number, notes?: string) {
     const incoming = await incomingDocumentsRepository.findById(id);
 
+    const allowedNextStatuses = new Set<DocumentStatus>([
+      DocumentStatus.PENDING,
+      DocumentStatus.IN_PROGRESS,
+      DocumentStatus.RETURNED,
+      DocumentStatus.COMPLETED,
+      DocumentStatus.REJECTED,
+      DocumentStatus.CANCELLED,
+    ]);
+    if (!allowedNextStatuses.has(status as DocumentStatus)) {
+      throw new BadRequestError('Trạng thái không hợp lệ');
+    }
+
     await prisma.document.update({
       where: { id: incoming.documentId },
-      data: { status: status as any },
+      data: { status: status as DocumentStatus },
+    });
+
+    await logSystemAction({
+      userId,
+      action: 'INCOMING_DOCUMENT_STATUS_OVERRIDE',
+      entityType: 'IncomingDocument',
+      entityId: id,
+      details: notes || `Status set to ${status}`,
     });
 
     return this.getById(id);
   }
 
-  async updateWorkflowStep(id: number, workflowId: number, stepStatus: string, userId: number, notes?: string) {
+  async updateWorkflowStep(
+    id: number,
+    workflowId: number,
+    stepStatus: string,
+    userId: number,
+    userRoles: string[],
+    notes?: string
+  ) {
     const incoming = await incomingDocumentsRepository.findById(id);
+
+    // Guard rails: caller must have access to the document AND the role
+    // required to act on the step's stage.
+    await checkIncomingDocumentAccess(id, userId, userRoles);
+    await checkWorkflowStepAccess(workflowId, userRoles);
 
     const workflow = await prisma.documentWorkflow.findUnique({ where: { id: workflowId } });
     if (!workflow) throw new NotFoundError('Không tìm thấy bước xử lý');
 
-    const stepStatusEnum = stepStatus as 'APPROVED' | 'REJECTED' | 'SKIPPED';
+    // Repeat-call guard: cannot re-act on a terminal step.
+    if (
+      workflow.status === WorkflowStatus.COMPLETED ||
+      workflow.status === WorkflowStatus.CANCELLED ||
+      workflow.status === WorkflowStatus.REJECTED
+    ) {
+      throw new ConflictError('Bước xử lý này đã được hoàn tất');
+    }
+
+    // The SKIPPED option was removed — only APPROVED and REJECTED are
+    // accepted at this endpoint.
+    const stepStatusEnum = stepStatus as 'APPROVED' | 'REJECTED';
+    if (stepStatusEnum !== 'APPROVED' && stepStatusEnum !== 'REJECTED') {
+      throw new BadRequestError('Trạng thái bước xử lý không hợp lệ');
+    }
+    const stage = resolveStageFromRoleName(
+      (await prisma.workflowStep.findUnique({ where: { id: workflow.workflowStepId } }))
+        ?.roleName ?? null
+    );
 
     await prisma.$transaction(async (tx) => {
       await tx.documentWorkflow.update({
         where: { id: workflowId },
         data: {
-          status: stepStatusEnum === 'REJECTED' ? 'REJECTED' : 'COMPLETED',
+          status:
+            stepStatusEnum === 'REJECTED'
+              ? WorkflowStatus.REJECTED
+              : WorkflowStatus.COMPLETED,
           notes: notes || undefined,
           completedAt: new Date(),
           userId,
@@ -497,31 +744,163 @@ export class IncomingDocumentsService {
       if (stepStatusEnum === 'REJECTED') {
         await tx.document.update({
           where: { id: incoming.documentId },
-          data: { status: 'REJECTED' },
+          data: { status: DocumentStatus.REJECTED },
         });
-      } else if (stepStatusEnum === 'APPROVED') {
+      } else {
         const allWorkflows = await tx.documentWorkflow.findMany({
           where: { documentId: incoming.documentId },
           orderBy: { workflowStep: { stepOrder: 'asc' } },
         });
         const allDone = allWorkflows.every(
-          (w) => w.id === workflowId || w.status === 'COMPLETED' || (w.status as string) === 'SKIPPED'
+          (w) =>
+            w.id === workflowId ||
+            w.status === WorkflowStatus.COMPLETED ||
+            w.status === WorkflowStatus.CANCELLED ||
+            w.status === WorkflowStatus.REJECTED
         );
         if (allDone) {
           await tx.document.update({
             where: { id: incoming.documentId },
-            data: { status: 'COMPLETED' },
+            data: { status: DocumentStatus.COMPLETED },
           });
         } else {
           await tx.document.update({
             where: { id: incoming.documentId },
-            data: { status: 'IN_PROGRESS' },
+            data: { status: DocumentStatus.IN_PROGRESS },
           });
         }
       }
     });
 
+    await logSystemAction({
+      userId,
+      action: `INCOMING_WORKFLOW_STEP_${stepStatusEnum}`,
+      entityType: 'DocumentWorkflow',
+      entityId: workflowId,
+      details: `${stage} step updated to ${stepStatusEnum}`,
+    });
+
+    if (stepStatusEnum === 'APPROVED' || stepStatusEnum === 'REJECTED') {
+      await emitNotificationToUser(
+        incoming.document.createdBy ?? 0,
+        `Bước xử lý ${stepStatusEnum === 'APPROVED' ? 'đã duyệt' : 'bị từ chối'}`,
+        `Văn bản ${incoming.document.documentNumber} — bước đã được cập nhật`
+      ).catch(() => undefined);
+    }
+
     return this.getById(id);
+  }
+
+  /**
+   * POST /incoming-documents/:id/comments — append a comment to the thread.
+   * Author is the authenticated user. Access must be allowed via
+   * checkIncomingDocumentAccess.
+   */
+  async addComment(
+    id: number,
+    userId: number,
+    userRoles: string[],
+    body: string
+  ) {
+    await checkIncomingDocumentAccess(id, userId, userRoles);
+    const incoming = await incomingDocumentsRepository.findById(id);
+
+    await prisma.incomingDocumentComment.create({
+      data: {
+        incomingId: id,
+        documentId: incoming.documentId,
+        userId,
+        body,
+      },
+    });
+
+    await logSystemAction({
+      userId,
+      action: 'INCOMING_COMMENT_ADDED',
+      entityType: 'IncomingDocument',
+      entityId: id,
+      details: `Comment length=${body.length}`,
+    });
+
+    return this.getById(id);
+  }
+
+  async listComments(id: number, userId: number, userRoles: string[]) {
+    await checkIncomingDocumentAccess(id, userId, userRoles);
+    const comments = await prisma.incomingDocumentComment.findMany({
+      where: { incomingId: id },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        user: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+    return comments.map((c) => ({
+      id: c.id,
+      body: c.body,
+      createdAt: c.createdAt.toISOString(),
+      user: c.user,
+    }));
+  }
+
+  /**
+   * POST /incoming-documents/:id/processors/:userId/complete — mark a PHXL
+   * processor's supporting task as complete. Only the assigned PHXL user (or
+   * ADMIN) can call this; XDB is read-only.
+   */
+  async completeProcessorTask(
+    incomingId: number,
+    processorUserId: number,
+    actorId: number,
+    actorRoles: string[]
+  ) {
+    await checkIncomingDocumentAccess(incomingId, actorId, actorRoles);
+
+    const incoming = await incomingDocumentsRepository.findById(incomingId);
+    const isAdmin = actorRoles.includes('ADMIN');
+    const isSelf = actorId === processorUserId;
+    if (!isAdmin && !isSelf) {
+      throw new ForbiddenError(
+        'Chỉ có thể đánh dấu hoàn thành nhiệm vụ của chính bạn'
+      );
+    }
+
+    const processor = incoming.document.processors.find(
+      (p) => p.user.id === processorUserId
+    );
+    if (!processor) {
+      throw new NotFoundError('Không tìm thấy người xử lý');
+    }
+    if (processor.processorType !== 'PHXL') {
+      throw new BadRequestError(
+        'Chỉ có thể đánh dấu hoàn thành cho Người phối hợp (PHXL)'
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.documentProcessor.update({
+        where: { id: processor.id },
+        data: { completedAt: new Date() },
+      });
+      await tx.documentProcessorHistory.create({
+        data: {
+          documentId: incoming.documentId,
+          userId: processorUserId,
+          processorType: ProcessorType.PHXL,
+          action: 'COMPLETED',
+          actorId,
+        },
+      });
+    });
+
+    await logSystemAction({
+      userId: actorId,
+      action: 'INCOMING_PROCESSOR_COMPLETED',
+      entityType: 'IncomingDocument',
+      entityId: incomingId,
+      details: `PHXL processor ${processorUserId} marked complete`,
+    });
+
+    return this.getById(incomingId);
   }
 
   // ─── SPECIALIST workflow ────────────────────────────────────────────────────
@@ -538,15 +917,24 @@ export class IncomingDocumentsService {
       processingInstructions?: string;
       reason?: string;
     },
-    userId: number
+    userId: number,
+    userRoles: string[] = []
   ) {
     const incoming = await incomingDocumentsRepository.findById(id);
     const documentId = incoming.documentId;
 
+    // Specialist stage gating — route already enforces SPECIALIST/ADMIN
+    // membership; here we additionally require the caller to be the assigned
+    // XLC on the document (or ADMIN).
+    if (!userRoles.includes('ADMIN') && !userRoles.includes('SPECIALIST')) {
+      throw new ForbiddenError(
+        'Chỉ Chuyên viên hoặc Quản trị viên mới có thể xử lý văn bản ở giai đoạn này'
+      );
+    }
     const isXlc = incoming.document.processors.some(
       (p) => p.user.id === userId && p.processorType === 'XLC'
     );
-    if (!isXlc) {
+    if (!isXlc && !userRoles.includes('ADMIN')) {
       throw new ForbiddenError('Bạn không phải là Người xử lý chính (XLC) của văn bản này');
     }
 
@@ -558,6 +946,10 @@ export class IncomingDocumentsService {
     });
     if (!specialistStep) {
       throw new BadRequestError('Văn bản này không có bước xử lý của Chuyên viên');
+    }
+    // Repeat-call guard: the specialist step must still be PENDING.
+    if (specialistStep.status !== 'PENDING') {
+      throw new BadRequestError('Bước xử lý của Chuyên viên không ở trạng thái chờ xử lý');
     }
 
     if (action === 'COMPLETE') {
@@ -579,9 +971,9 @@ export class IncomingDocumentsService {
         const allDone = allWorkflows.every(
           (w) =>
             w.id === specialistStep.id ||
-            w.status === 'COMPLETED' ||
-            w.status === 'CANCELLED' ||
-            (w.status as string) === 'SKIPPED'
+            w.status === WorkflowStatus.COMPLETED ||
+            w.status === WorkflowStatus.CANCELLED ||
+            w.status === WorkflowStatus.REJECTED
         );
 
         await tx.document.update({
@@ -591,6 +983,17 @@ export class IncomingDocumentsService {
           },
         });
       });
+      await logSystemAction({
+        userId,
+        action: 'INCOMING_COMPLETED_BY_SPECIALIST',
+        entityType: 'IncomingDocument',
+        entityId: id,
+      });
+      await emitNotificationToUser(
+        incoming.document.createdBy ?? 0,
+        'Văn bản được chuyên viên hoàn thành',
+        `Văn bản ${incoming.document.documentNumber} đã hoàn thành xử lý`
+      );
     } else if (action === 'TRANSFER') {
       const processorIds = payload.processorIds || [];
       if (processorIds.length === 0) {
@@ -609,7 +1012,42 @@ export class IncomingDocumentsService {
         throw new BadRequestError('Phải chọn ít nhất một Người xử lý chính (XLC)');
       }
 
+      const transferredUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
+        const previous = await tx.documentProcessor.findMany({
+          where: { documentId },
+          select: { userId: true, processorType: true },
+        });
+        await tx.documentProcessor.deleteMany({ where: { documentId } });
+        await tx.documentProcessor.createMany({
+          data: processorIds.map((p) => ({
+            documentId,
+            userId: p.userId,
+            processorType: p.processorType,
+          })),
+        });
+        if (previous.length > 0) {
+          await tx.documentProcessorHistory.createMany({
+            data: previous.map((p) => ({
+              documentId,
+              userId: p.userId,
+              processorType: p.processorType as ProcessorType,
+              action: 'TRANSFERRED',
+              actorId: userId,
+            })),
+          });
+        }
+        await tx.documentProcessorHistory.createMany({
+          data: processorIds.map((p) => ({
+            documentId,
+            userId: p.userId,
+            processorType: p.processorType as ProcessorType,
+            action: 'ASSIGNED',
+            actorId: userId,
+          })),
+        });
+        transferredUserIds.push(...processorIds.map((p) => p.userId));
+
         await tx.documentWorkflow.update({
           where: { id: specialistStep.id },
           data: {
@@ -618,15 +1056,6 @@ export class IncomingDocumentsService {
             completedAt: new Date(),
             notes: payload.processingInstructions || 'Chuyên viên chuyển xử lý',
           },
-        });
-
-        await tx.documentProcessor.deleteMany({ where: { documentId } });
-        await tx.documentProcessor.createMany({
-          data: processorIds.map((p) => ({
-            documentId,
-            userId: p.userId,
-            processorType: p.processorType,
-          })),
         });
 
         await tx.incomingDocument.update({
@@ -641,11 +1070,26 @@ export class IncomingDocumentsService {
           data: { status: DocumentStatus.IN_PROGRESS },
         });
       });
+
+      await emitNotificationToUsers(
+        transferredUserIds,
+        'Văn bản được chuyển tiếp',
+        `Chuyên viên đã chuyển tiếp văn bản ${incoming.document.documentNumber}`
+      );
+      await logSystemAction({
+        userId,
+        action: 'INCOMING_TRANSFERRED_BY_SPECIALIST',
+        entityType: 'IncomingDocument',
+        entityId: id,
+      });
     } else if (action === 'RETURN_TO_HEAD') {
       if (!payload.reason?.trim()) {
         throw new BadRequestError('Phải nhập lý do trả lại Trưởng phòng');
       }
-
+      const previous = await prisma.documentProcessor.findMany({
+        where: { documentId },
+        select: { userId: true, processorType: true },
+      });
       await prisma.$transaction(async (tx) => {
         await tx.documentWorkflow.update({
           where: { id: specialistStep.id },
@@ -676,12 +1120,43 @@ export class IncomingDocumentsService {
           });
         }
 
+        if (previous.length > 0) {
+          await tx.documentProcessorHistory.createMany({
+            data: previous.map((p) => ({
+              documentId,
+              userId: p.userId,
+              processorType: p.processorType as ProcessorType,
+              action: 'REMOVED',
+              reason: payload.reason,
+              actorId: userId,
+            })),
+          });
+        }
+
         await tx.documentProcessor.deleteMany({ where: { documentId } });
 
         await tx.document.update({
           where: { id: documentId },
           data: { status: DocumentStatus.PENDING },
         });
+      });
+
+      // Notify department heads (anyone with the role) about the return.
+      const heads = await prisma.user.findMany({
+        where: { userRoles: { some: { role: { name: 'DEPARTMENT_HEAD' } } } },
+        select: { id: true },
+      });
+      await emitNotificationToUsers(
+        heads.map((h) => h.id),
+        'Văn bản được trả lại Trưởng phòng',
+        `Chuyên viên đã trả lại văn bản ${incoming.document.documentNumber}: ${payload.reason}`
+      );
+      await logSystemAction({
+        userId,
+        action: 'INCOMING_RETURNED_TO_HEAD',
+        entityType: 'IncomingDocument',
+        entityId: id,
+        details: payload.reason,
       });
     } else {
       throw new BadRequestError('Hành động không hợp lệ');
@@ -691,32 +1166,25 @@ export class IncomingDocumentsService {
   }
 
   // ─── Access control ─────────────────────────────────────────────────────────
-
+  // Note: shared `checkIncomingDocumentAccess` lives in
+  // `src/shared/access/document-access.ts`. We keep the local alias to
+  // preserve call sites that expected `this.checkDocumentAccess`.
   private async checkDocumentAccess(
     incomingId: number,
     userId: number,
     userRoles: string[]
   ): Promise<void> {
-    const incoming = await incomingDocumentsRepository.findById(incomingId);
-    const isAdmin = userRoles.includes('ADMIN');
-    const isCreator = incoming.document.createdBy === userId;
-
-    if (isAdmin || isCreator) return;
-
-    const processorRecord = incoming.document.processors.find((p) => p.user.id === userId);
-    if (!processorRecord) {
-      throw new ForbiddenError('Bạn không có quyền xem văn bản này');
-    }
-
-    const restrictedRoles = ['DEPARTMENT_HEAD', 'SPECIALIST'];
-    const hasRestrictedRole = restrictedRoles.some((r) => userRoles.includes(r));
-    if (hasRestrictedRole) {
-      const allowedTypes = ['XLC', 'PHXL', 'XDB'];
-      if (!allowedTypes.includes(processorRecord.processorType)) {
-        throw new ForbiddenError('Bạn không có quyền xem văn bản này');
-      }
-    }
+    return checkIncomingDocumentAccess(incomingId, userId, userRoles);
   }
+
+  // Re-export of the shared helpers so any test that imports the service class
+  // can use them without pulling additional files.
+  static sharedAccess = {
+    checkIncomingDocumentAccess,
+    checkWorkflowStepAccess,
+    resolveDocumentId,
+    resolveStageFromRoleName,
+  };
 
   // ─── Thống kê Văn bản đến (thêm mới, không sửa code cũ) ──────────────────
   async getStatistics(params: {

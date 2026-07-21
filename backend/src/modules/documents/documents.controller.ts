@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { documentsService } from './documents.service';
 import { successResponse, paginatedResponse } from '../../shared/utils/response.util';
+import { checkDocumentAccess } from '../../shared/access/document-access';
 
 // ─── Controller ─────────────────────────────────────────────────────────────
 
@@ -241,10 +242,12 @@ export class DocumentsController {
   /**
    * GET /documents/:id/preview
    * Stream the PDF file inline for in-browser viewing.
+   * Now requires access to the underlying document (incoming ACL applies).
    */
   async preview(req: Request, res: Response, next: NextFunction) {
     try {
       const id = Number(req.params.id);
+      await checkDocumentAccess(id, req.user!.userId, req.user!.roles ?? []);
       const doc = await documentsService.getById(id);
       const filePath = documentsService.getFilePath(doc);
 
@@ -252,6 +255,7 @@ export class DocumentsController {
       const contentType = doc.mimeType || 'application/octet-stream';
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', 'inline'); // display in browser
+      res.setHeader('Cache-Control', 'no-store');
       res.sendFile(filePath);
     } catch (error) {
       next(error);
@@ -261,16 +265,19 @@ export class DocumentsController {
   /**
    * GET /documents/:id/download
    * Force-download the original file as an attachment.
+   * Now requires access to the underlying document (incoming ACL applies).
    */
   async download(req: Request, res: Response, next: NextFunction) {
     try {
       const id = Number(req.params.id);
+      await checkDocumentAccess(id, req.user!.userId, req.user!.roles ?? []);
       const doc = await documentsService.getById(id);
       const filePath = documentsService.getFilePath(doc);
 
       // Use the original filename if available, otherwise the stored filename
       const downloadName = doc.originalFileName || path.basename(filePath);
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+      res.setHeader('Cache-Control', 'no-store');
       res.sendFile(filePath);
     } catch (error) {
       next(error);

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { documentsApi } from '../../../api';
+import api from '../../../api/axios';
 
 interface PdfPreviewProps {
   documentId: number;
@@ -37,47 +38,80 @@ function FileIcon() {
   );
 }
 
-function PdfIcon() {
-  return (
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <path d="M9 13h2a2 2 0 0 1 0 4H9v-4z" />
-      <path d="M14 13h1a2 2 0 0 1 0 4h-1v-4z" />
-    </svg>
-  );
-}
-
-function ImageIcon() {
-  return (
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-      <circle cx="8.5" cy="8.5" r="1.5" />
-      <polyline points="21 15 16 10 5 21" />
-    </svg>
-  );
+/**
+ * Download a binary blob via the API, taking advantage of the Authorization
+ * header that axios attaches automatically. Returns a short-lived object URL
+ * the caller must `URL.revokeObjectURL` when done. The previous implementation
+ * used `?token=` in the URL which leaked the JWT into server logs.
+ */
+async function fetchPreviewBlob(documentId: number): Promise<{ blob: Blob; revoke: () => void }> {
+  const path = documentsApi.getPreviewUrl(documentId).replace(/^\/api/, '');
+  const response = await api.get<Blob>(path, {
+    responseType: 'blob',
+  });
+  const blob = response.data;
+  const url = URL.createObjectURL(blob);
+  return { blob, revoke: () => URL.revokeObjectURL(url) };
 }
 
 export default function PdfPreview({ documentId, fileName, fileSize, mimeType, pageCount }: PdfPreviewProps) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const lastUrlRef = useRef<string | null>(null);
 
   const isImage = isImageType(mimeType);
   const isPdf = isPdfType(mimeType);
   const hasFile = !!fileName;
 
-  // The preview URL includes the auth token as a query param because the iframe
-  // cannot forward the Authorization header from the parent page.
-  const token = localStorage.getItem('token') ?? '';
-  const previewUrl = hasFile ? `${documentsApi.getPreviewUrl(documentId)}?token=${encodeURIComponent(token)}` : null;
-  const downloadUrl = hasFile ? `${documentsApi.getDownloadUrl(documentId)}?token=${encodeURIComponent(token)}` : null;
+  useEffect(() => {
+    if (!hasFile) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(false);
+    fetchPreviewBlob(documentId)
+      .then(({ blob, revoke }) => {
+        if (cancelled) {
+          revoke();
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        lastUrlRef.current = url;
+        setBlobUrl(url);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoadError(true);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      if (lastUrlRef.current) {
+        URL.revokeObjectURL(lastUrlRef.current);
+        lastUrlRef.current = null;
+      }
+    };
+  }, [documentId, hasFile]);
 
-  const handleDownload = () => {
-    if (!downloadUrl) return;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = fileName || 'document';
-    link.click();
+  const handleDownload = async () => {
+    // Use the same axios endpoint so the Authorization header is attached —
+    // never leak the JWT into the URL.
+    try {
+      const path = documentsApi.getDownloadUrl(documentId).replace(/^\/api/, '');
+      const response = await api.get<Blob>(path, { responseType: 'blob' });
+      const blob = response.data;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName || 'document';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      // The user can retry from the toolbar.
+    }
   };
 
   if (!hasFile) {
@@ -107,16 +141,14 @@ export default function PdfPreview({ documentId, fileName, fileSize, mimeType, p
           )}
         </div>
         <div className="pdf-preview-actions">
-          <a
-            href={downloadUrl || '#'}
-            download={fileName || 'document'}
+          <button
+            type="button"
             className="btn btn-sm btn-secondary"
-            onClick={(e) => {
-              if (!downloadUrl) e.preventDefault();
-            }}
+            onClick={handleDownload}
+            disabled={loading}
           >
             Tải về
-          </a>
+          </button>
         </div>
       </div>
 
@@ -124,13 +156,9 @@ export default function PdfPreview({ documentId, fileName, fileSize, mimeType, p
         {loadError ? (
           <div className="pdf-preview-error">
             <p>Không thể tải tệp xem trước</p>
-            <a
-              href={downloadUrl || '#'}
-              download={fileName || 'document'}
-              className="btn btn-primary"
-            >
+            <button type="button" className="btn btn-primary" onClick={handleDownload}>
               Tải về để xem
-            </a>
+            </button>
           </div>
         ) : (
           <>
@@ -140,45 +168,37 @@ export default function PdfPreview({ documentId, fileName, fileSize, mimeType, p
                 <span>Đang tải tài liệu...</span>
               </div>
             )}
-            {isPdf && previewUrl && (
+            {!loading && isPdf && blobUrl && (
               <iframe
                 key={`pdf-${documentId}`}
-                src={previewUrl}
+                src={blobUrl}
                 className="pdf-preview-iframe"
                 title={fileName || 'PDF Viewer'}
-                onLoad={() => setLoading(false)}
-                onError={() => {
-                  setLoadError(true);
-                  setLoading(false);
-                }}
+                onError={() => setLoadError(true)}
               />
             )}
-            {isImage && previewUrl && (
+            {!loading && isImage && blobUrl && (
               <img
                 key={`img-${documentId}`}
-                src={previewUrl}
+                src={blobUrl}
                 alt={fileName || 'Document preview'}
                 className="pdf-preview-image"
-                onLoad={() => setLoading(false)}
-                onError={() => {
-                  setLoadError(true);
-                  setLoading(false);
-                }}
+                onError={() => setLoadError(true)}
               />
             )}
-            {!isPdf && !isImage && (
+            {!loading && !isPdf && !isImage && (
               <div className="pdf-preview-unsupported">
                 <FileIcon />
                 <p>Định dạng không được hỗ trợ xem trước</p>
                 <p className="pdf-preview-unsupported-type">{mimeType || 'Không xác định'}</p>
-                <a
-                  href={downloadUrl || '#'}
-                  download={fileName || 'document'}
+                <button
+                  type="button"
                   className="btn btn-primary"
                   style={{ marginTop: 12 }}
+                  onClick={handleDownload}
                 >
                   Tải về tệp
-                </a>
+                </button>
               </div>
             )}
           </>

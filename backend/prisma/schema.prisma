@@ -81,7 +81,6 @@ enum StepStatus {
   PENDING
   APPROVED
   REJECTED
-  SKIPPED
 }
 
 model Department {
@@ -171,7 +170,8 @@ model User {
   outgoingAssignedApprover OutgoingDocument[] @relation("OutgoingAssignedApprover")
   outgoingAssignedClerk    OutgoingDocument[] @relation("OutgoingAssignedClerk")
 
-  incomingDocumentsCreated IncomingDocument[] @relation("IncomingDocumentClerk")
+  incomingDocumentsCreated IncomingDocument[]      @relation("IncomingDocumentClerk")
+  incomingDocumentComments IncomingDocumentComment[]
 
   // Document book relations
   createdDocumentBooks         DocumentBook[]      @relation("DocumentBookCreatedBy")
@@ -275,6 +275,7 @@ model Document {
   workflows         DocumentWorkflow[]
   processors        DocumentProcessor[]
   attachments       DocumentAttachment[]
+  incomingComments  IncomingDocumentComment[]
 
   @@index([documentStatus])
   @@index([type])
@@ -319,6 +320,8 @@ model IncomingDocument {
   createdByClerk   User? @relation("IncomingDocumentClerk", fields: [createdByClerkId], references: [id])
   createdByClerkId Int?
 
+  outgoingResponses   OutgoingDocument[]
+  comments            IncomingDocumentComment[]
   outgoingResponses OutgoingDocument[]
   bookEntry         IncomingBookEntry?
 
@@ -406,12 +409,44 @@ model DocumentProcessor {
   userId        Int
   processorType ProcessorType
   createdAt     DateTime      @default(now())
+  completedAt   DateTime?
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id])
 
   @@unique([documentId, userId, processorType])
   @@index([userId])
+}
+
+// History of every assignment per document — used for audit and undo.
+model DocumentProcessorHistory {
+  id            Int           @id @default(autoincrement())
+  documentId    Int
+  userId        Int
+  processorType ProcessorType
+  action        String        // ASSIGNED | TRANSFERRED | REMOVED | COMPLETED
+  reason        String?
+  actorId       Int?
+  createdAt     DateTime      @default(now())
+
+  @@index([documentId])
+  @@index([userId])
+}
+
+// Comment thread per incoming document — supports XLC / PHXL discussions.
+model IncomingDocumentComment {
+  id            Int      @id @default(autoincrement())
+  incomingId    Int
+  documentId    Int
+  userId        Int
+  body          String   @db.Text
+  createdAt     DateTime @default(now())
+
+  incoming IncomingDocument @relation(fields: [incomingId], references: [id], onDelete: Cascade)
+  document Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([incomingId, createdAt])
 }
 
 model DocumentAttachment {

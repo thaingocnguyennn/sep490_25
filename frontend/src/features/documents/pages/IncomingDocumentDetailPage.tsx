@@ -13,6 +13,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
 import { formatConfidentiality } from '../../../shared/constants/confidentiality';
 import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
+import ProcessorPicker from '../components/ProcessorPicker';
 import PdfPreview from '../components/PdfPreview';
 import { useProcessors } from '../../../shared/hooks';
 
@@ -22,7 +23,6 @@ const WORKFLOW_ACTION_LABELS: Record<string, string> = {
   PENDING: 'Chưa xử lý',
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
-  SKIPPED: 'Bỏ qua',
 };
 
 const WORKFLOW_STATUS_LABELS: Record<string, string> = {
@@ -37,7 +37,7 @@ export default function IncomingDocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, isDepartmentHead, isSpecialist, isAdmin } = useAuth();
+  const { user, isDepartmentHead, isSpecialist, isAdmin, isDocumentClerk } = useAuth();
   const { processors: availableProcessors, fetch: fetchProcessors } = useProcessors();
   const [doc, setDoc] = useState<IncomingDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +53,20 @@ export default function IncomingDocumentDetailPage() {
   
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [registering, setRegistering] = useState(false);
+
+  // Comments thread + PHXL supporting task state.
+  type Comment = {
+    id: number;
+    body: string;
+    createdAt: string;
+    user: { id: number; fullName: string; email: string };
+  };
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState('');
+  const [phxlCompleting, setPhxlCompleting] = useState(false);
 
   const fetchDoc = () => {
     if (!id) return;
@@ -74,6 +88,67 @@ export default function IncomingDocumentDetailPage() {
     }
   }, [searchParams, doc]);
 
+  const loadComments = () => {
+    if (!id) return;
+    setCommentsLoading(true);
+    incomingDocumentsApi
+      .listComments(Number(id))
+      .then(({ data }) => setComments(data.data ?? []))
+      .catch(() => {
+        // Silently fail — comments are non-critical.
+      })
+      .finally(() => setCommentsLoading(false));
+  };
+
+  useEffect(() => {
+    if (doc) {
+      loadComments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, doc?.id]);
+
+  const handleSubmitComment = async () => {
+    const trimmed = newComment.trim();
+    if (!trimmed) return;
+    setSubmittingComment(true);
+    setCommentError('');
+    try {
+      const { data } = await incomingDocumentsApi.addComment(doc!.id, trimmed);
+      const created = data.data!;
+      // Optimistically prepend so the user sees the new comment immediately.
+      setComments((prev) => [
+        ...prev,
+        {
+          id: created.id,
+          body: created.body,
+          createdAt: created.createdAt,
+          user: created.user,
+        },
+      ]);
+      setNewComment('');
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { message?: string } } };
+      setCommentError(apiError.response?.data?.message || 'Could not send comment.');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleCompletePhxl = async () => {
+    if (!user) return;
+    setPhxlCompleting(true);
+    try {
+      await incomingDocumentsApi.completeProcessorTask(doc!.id, user.id);
+      fetchDoc();
+      loadComments();
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { message?: string } } };
+      setCommentError(apiError.response?.data?.message || 'Could not complete the task.');
+    } finally {
+      setPhxlCompleting(false);
+    }
+  };
+
   const handleWorkflowStepAction = async (workflowId: number, action: string) => {
     if (!doc || !user) return;
     setUpdatingStep(workflowId);
@@ -93,9 +168,6 @@ export default function IncomingDocumentDetailPage() {
       } else if (action === 'reject') {
         stepStatus = 'REJECTED';
         newStatus = 'REJECTED';
-      } else if (action === 'skip') {
-        stepStatus = 'SKIPPED';
-        newStatus = 'PENDING';
       } else {
         return;
       }
@@ -170,22 +242,22 @@ export default function IncomingDocumentDetailPage() {
       setSpReason('');
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
-      setSpError(apiError.response?.data?.message || 'Xử lý thất bại. Vui lòng thử lại.');
+      setSpError(apiError.response?.data?.message || 'Action failed. Please try again.');
     } finally {
       setSpSubmitting(false);
     }
   };
 
   const validateSpecialistAction = (): string | null => {
-    if (!specialistAction) return 'Vui lòng chọn hành động xử lý';
+    if (!specialistAction) return 'Please select an action';
     if (specialistAction === 'TRANSFER') {
-      if (spProcessorIds.length === 0) return 'Phải chọn ít nhất một người xử lý';
+      if (spProcessorIds.length === 0) return 'Please select at least one processor';
       if (!spProcessorIds.some((p) => p.processorType === 'XLC')) {
-        return 'Phải chọn ít nhất một Người xử lý chính (XLC)';
+        return 'At least one Primary Handler (XLC) is required';
       }
     }
     if (specialistAction === 'RETURN_TO_HEAD' && !spReason.trim()) {
-      return 'Phải nhập lý do trả lại Trưởng phòng';
+      return 'A reason is required to return the document';
     }
     return null;
   };
@@ -230,6 +302,31 @@ export default function IncomingDocumentDetailPage() {
 
   const isProcessor = d.processors?.some((p) => p.user.id === user?.id);
   const canReply = isProcessor && d.status !== 'DRAFT' && d.status !== 'TRASHED';
+
+  // Permission helpers for the role-specific action blocks below.
+  const currentUserProcessorRecord = d.processors?.find(
+    (p) => p.user.id === user?.id
+  );
+  const currentUserProcessorType = currentUserProcessorRecord?.processorType;
+  const currentUserIsXlc = currentUserProcessorType === 'XLC';
+  const currentUserIsPhxl = currentUserProcessorType === 'PHXL';
+  const currentUserIsXdb = currentUserProcessorType === 'XDB';
+
+  // PHXL complete-task button: only visible to a PHXL on this document, and
+  // only while the task is still incomplete. The service marks the row as
+  // complete (DocumentProcessor.completedAt) — we keep the assignment visible
+  // but suppress the button once finished.
+  const phxlCanMarkComplete =
+    currentUserIsPhxl && isProcessor && d.status === 'IN_PROGRESS';
+  const phxlAlreadyCompleted =
+    currentUserIsPhxl && isProcessor && d.status === 'COMPLETED';
+
+  // Comment composer is available to any participant in the workflow
+  // (ADMIN bypasses). We require explicit access to the incoming document,
+  // which `getById` already enforces via the backend.
+  const canComment = isAdmin || isProcessor || isDocumentClerk;
+  // XDB is read-only — no PHXL actions, no specialist actions, no comments.
+  const isReadOnly = currentUserIsXdb;
 
   const handleProcessClose = () => {
     setProcessOpen(false);
@@ -502,14 +599,6 @@ export default function IncomingDocumentDetailPage() {
                             >
                               Từ chối
                             </button>
-                            <button
-                              className="btn btn-sm btn-secondary"
-                              onClick={() => handleWorkflowStepAction(wf.id, 'skip')}
-                              disabled={updatingStep === wf.id}
-                              title="Bỏ qua bước này"
-                            >
-                              Bỏ qua
-                            </button>
                           </div>
                         )}
                       </div>
@@ -548,7 +637,7 @@ export default function IncomingDocumentDetailPage() {
           {(isSpecialist || isAdmin) && isCurrentUserXlc(doc) && d.status === 'IN_PROGRESS' && (
             <div className="card" style={{ marginBottom: 24, border: '2px solid #667eea' }}>
               <div className="card-header">
-                <h2>Hành động của Chuyên viên</h2>
+                <h2>Hành động của Primary Handler (XLC)</h2>
               </div>
               <div className="card-body">
                 {spError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{spError}</div>}
@@ -560,8 +649,8 @@ export default function IncomingDocumentDetailPage() {
                     onClick={() => setSpecialistAction(specialistAction === 'COMPLETE' ? null : 'COMPLETE')}
                     style={{ padding: 14, border: specialistAction === 'COMPLETE' ? '2px solid #27ae60' : '1px solid #dfe6e9', borderRadius: 8, background: specialistAction === 'COMPLETE' ? '#f0fff4' : '#fff', cursor: 'pointer', textAlign: 'left' }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#27ae60' }}>Hoàn thành xử lý</div>
-                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Đánh dấu văn bản đã được xử lý xong</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#27ae60' }}>Process Document</div>
+                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Complete the Document</div>
                   </button>
                   <button
                     type="button"
@@ -569,8 +658,8 @@ export default function IncomingDocumentDetailPage() {
                     onClick={() => { setSpecialistAction(specialistAction === 'TRANSFER' ? null : 'TRANSFER'); if (specialistAction !== 'TRANSFER') fetchProcessors(); }}
                     style={{ padding: 14, border: specialistAction === 'TRANSFER' ? '2px solid #667eea' : '1px solid #dfe6e9', borderRadius: 8, background: specialistAction === 'TRANSFER' ? '#f0f3ff' : '#fff', cursor: 'pointer', textAlign: 'left' }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#667eea' }}>Chuyển tiếp xử lý</div>
-                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Giao việc cho người xử lý khác</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#667eea' }}>Forward for Processing</div>
+                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Assign XLC / PHXL / XDB processors</div>
                   </button>
                   <button
                     type="button"
@@ -578,20 +667,20 @@ export default function IncomingDocumentDetailPage() {
                     onClick={() => setSpecialistAction(specialistAction === 'RETURN_TO_HEAD' ? null : 'RETURN_TO_HEAD')}
                     style={{ padding: 14, border: specialistAction === 'RETURN_TO_HEAD' ? '2px solid #e74c3c' : '1px solid #dfe6e9', borderRadius: 8, background: specialistAction === 'RETURN_TO_HEAD' ? '#fff5f5' : '#fff', cursor: 'pointer', textAlign: 'left' }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#e74c3c' }}>Trả lại Trưởng phòng</div>
-                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Gửi văn bản về cho Trưởng phòng</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#e74c3c' }}>Return Document</div>
+                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Send back to the previous approver</div>
                   </button>
                 </div>
 
                 {specialistAction === 'COMPLETE' && (
                   <div style={{ marginTop: 8 }}>
                     <div className="form-group">
-                      <label>Ghi chú hoàn thành (tuỳ chọn)</label>
+                      <label>Completion notes (optional)</label>
                       <textarea
                         rows={3}
                         value={spInstructions}
                         onChange={(e) => setSpInstructions(e.target.value)}
-                        placeholder="Nhập ghi chú về việc hoàn thành xử lý..."
+                        placeholder="Add notes about completing the document..."
                       />
                     </div>
                     <button
@@ -601,7 +690,7 @@ export default function IncomingDocumentDetailPage() {
                       onClick={handleSpecialistAction}
                       disabled={spSubmitting}
                     >
-                      {spSubmitting ? 'Đang xử lý...' : 'Xác nhận hoàn thành'}
+                      {spSubmitting ? 'Processing...' : 'Complete the Document'}
                     </button>
                   </div>
                 )}
@@ -609,38 +698,16 @@ export default function IncomingDocumentDetailPage() {
                 {specialistAction === 'TRANSFER' && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ marginBottom: 8, fontWeight: 600 }}>
-                      Chọn người xử lý <span style={{ color: '#e74c3c' }}>*</span>
+                      Select processors <span style={{ color: '#e74c3c' }}>*</span>
                     </div>
-                    <div style={{ fontSize: 12, color: '#636e72', marginBottom: 10 }}>
-                      Phải chọn ít nhất 1 XLC (Người xử lý chính).
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
-                      {availableProcessors.map((processor) => {
-                        const current = spProcessorIds.find((p) => p.userId === processor.id);
-                        return (
-                          <div key={processor.id} style={{ padding: 10, border: current ? '2px solid #667eea' : '1px solid #dfe6e9', borderRadius: 8, background: current ? '#f0f3ff' : '#fff', cursor: 'pointer' }}
-                            onClick={() => {
-                              if (current) {
-                                setSpProcessorIds((prev) => prev.filter((p) => p.userId !== processor.id));
-                              } else {
-                                setSpProcessorIds((prev) => [...prev, { userId: processor.id, processorType: 'XLC' }]);
-                              }
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, fontSize: 13 }}>{processor.fullName}</div>
-                            <div style={{ fontSize: 11, color: '#636e72' }}>{processor.roles.join(', ')}</div>
-                            {current && <div style={{ fontSize: 11, color: '#667eea', fontWeight: 600, marginTop: 4 }}>{current.processorType}</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="form-group">
-                      <label>Hướng dẫn xử lý</label>
+                    <ProcessorPicker value={spProcessorIds} onChange={setSpProcessorIds} />
+                    <div className="form-group" style={{ marginTop: 12 }}>
+                      <label>Processing instructions</label>
                       <textarea
                         rows={2}
                         value={spInstructions}
                         onChange={(e) => setSpInstructions(e.target.value)}
-                        placeholder="Nhập nội dung hướng dẫn cho người xử lý mới..."
+                        placeholder="Add instructions for the new processors..."
                       />
                     </div>
                     <button
@@ -650,7 +717,7 @@ export default function IncomingDocumentDetailPage() {
                       onClick={handleSpecialistAction}
                       disabled={spSubmitting}
                     >
-                      {spSubmitting ? 'Đang xử lý...' : 'Xác nhận chuyển tiếp'}
+                      {spSubmitting ? 'Processing...' : 'Confirm Forward'}
                     </button>
                   </div>
                 )}
@@ -658,12 +725,12 @@ export default function IncomingDocumentDetailPage() {
                 {specialistAction === 'RETURN_TO_HEAD' && (
                   <div style={{ marginTop: 8 }}>
                     <div className="form-group">
-                      <label>Lý do trả lại <span style={{ color: '#e74c3c' }}>*</span></label>
+                      <label>Reason for return <span style={{ color: '#e74c3c' }}>*</span></label>
                       <textarea
                         rows={4}
                         value={spReason}
                         onChange={(e) => setSpReason(e.target.value)}
-                        placeholder="Nhập lý do cần trả lại cho Trưởng phòng..."
+                        placeholder="Explain why the document is being returned..."
                       />
                     </div>
                     <button
@@ -673,13 +740,119 @@ export default function IncomingDocumentDetailPage() {
                       onClick={handleSpecialistAction}
                       disabled={spSubmitting}
                     >
-                      {spSubmitting ? 'Đang xử lý...' : 'Xác nhận trả lại'}
+                      {spSubmitting ? 'Processing...' : 'Confirm Return'}
                     </button>
                   </div>
                 )}
               </div>
             </div>
           )}
+
+          {currentUserIsXdb && (
+            <div className="card" style={{ marginBottom: 24, border: '1px solid #dfe6e9' }}>
+              <div className="card-header">
+                <h2>Quyền của bạn</h2>
+              </div>
+              <div className="card-body">
+                <p style={{ color: '#636e72' }}>
+                  Bạn đang ở vai trò <strong>Để biết (XDB)</strong>. Quyền của bạn chỉ bao gồm
+                  xem thông tin văn bản và xem trước tệp đính kèm. Không thể chuyển trạng thái
+                  văn bản hay thay đổi phân công xử lý.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {phxlCanMarkComplete && (
+            <div className="card" style={{ marginBottom: 24, border: '2px solid #f39c12' }}>
+              <div className="card-header">
+                <h2>Hành động của Người phối hợp</h2>
+              </div>
+              <div className="card-body">
+                {commentError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{commentError}</div>}
+                <p style={{ marginBottom: 12, color: '#636e72' }}>
+                  Sau khi hoàn thành nhiệm vụ phối hợp, bấm xác nhận để thông báo cho Trưởng phòng
+                  và người xử lý chính.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-warning"
+                  onClick={handleCompletePhxl}
+                  disabled={phxlCompleting}
+                >
+                  {phxlCompleting ? 'Đang xử lý...' : 'Hoàn thành nhiệm vụ'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {phxlAlreadyCompleted && (
+            <div className="card" style={{ marginBottom: 24, border: '1px solid #dfe6e9' }}>
+              <div className="card-header">
+                <h2>Hành động của Người phối hợp</h2>
+              </div>
+              <div className="card-body">
+                <p style={{ color: '#27ae60', fontWeight: 600 }}>
+                  Bạn đã hoàn thành nhiệm vụ Người phối hợp (PHXL) cho văn bản này.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div className="card-header">
+              <h2>Thảo luận ({comments.length})</h2>
+            </div>
+            <div className="card-body">
+              {commentsLoading ? (
+                <LoadingSpinner />
+              ) : comments.length === 0 ? (
+                <p style={{ color: '#636e72' }}>Chưa có bình luận nào.</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {comments.map((c) => (
+                    <li
+                      key={c.id}
+                      style={{
+                        padding: '12px 0',
+                        borderBottom: '1px solid #f1f2f6',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <strong style={{ color: '#2d3436' }}>{c.user.fullName}</strong>
+                        <span style={{ fontSize: 12, color: '#95a5a6' }}>
+                          {new Date(c.createdAt).toLocaleString('vi-VN')}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#34495e' }}>{c.body}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!isReadOnly && canComment && (
+                <div style={{ marginTop: 16 }}>
+                  {commentError && <div className="alert alert-error" style={{ marginBottom: 8 }}>{commentError}</div>}
+                  <textarea
+                    rows={3}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Thêm bình luận..."
+                    style={{ width: '100%' }}
+                    disabled={submittingComment}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ marginTop: 8 }}
+                    onClick={handleSubmitComment}
+                    disabled={submittingComment || !newComment.trim()}
+                  >
+                    {submittingComment ? 'Đang gửi...' : 'Gửi bình luận'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
           {doc.notes && (
             <div className="card">
