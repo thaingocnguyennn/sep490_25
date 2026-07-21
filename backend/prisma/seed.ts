@@ -269,6 +269,46 @@ async function main() {
     console.log('Skipping document book seed: no departments or clerk user found');
   }
 
+  // Seed Document Categories
+  const categories = [
+    { name: 'Administration', normalizedName: 'administration', code: 'ADMINISTRATION', isSystem: true },
+    { name: 'Personnel', normalizedName: 'personnel', code: 'PERSONNEL', isSystem: true },
+    { name: 'Finance', normalizedName: 'finance', code: 'FINANCE', isSystem: true },
+    { name: 'Training', normalizedName: 'training', code: 'TRAINING', isSystem: true },
+    { name: 'Legal', normalizedName: 'legal', code: 'LEGAL', isSystem: true },
+    { name: 'Information Technology', normalizedName: 'information technology', code: 'INFORMATION_TECHNOLOGY', isSystem: true },
+    { name: 'Other', normalizedName: 'other', code: 'OTHER', isSystem: true },
+  ];
+
+  for (const category of categories) {
+    await prisma.documentCategory.upsert({
+      where: { code: category.code },
+      update: {},
+      create: {
+        ...category,
+        createdById: adminUser.id,
+      },
+    });
+  }
+  console.log('Document Categories seeded');
+
+  // Backfill existing documents
+  const otherCategory = await prisma.documentCategory.findUnique({
+    where: { code: 'OTHER' }
+  });
+
+  if (otherCategory) {
+    const incomingBackfill = await prisma.incomingDocument.updateMany({
+      where: { categoryId: null },
+      data: { categoryId: otherCategory.id }
+    });
+    const outgoingBackfill = await prisma.outgoingDocument.updateMany({
+      where: { categoryId: null },
+      data: { categoryId: otherCategory.id }
+    });
+    console.log(`Backfilled category for ${incomingBackfill.count} incoming and ${outgoingBackfill.count} outgoing documents`);
+  }
+
   console.log('Database seeding completed!');
 }
 
