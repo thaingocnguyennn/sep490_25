@@ -1,13 +1,8 @@
 import { DocumentCategoryStatus } from '@prisma/client';
 
-export interface DocumentCategoryQuery {
-  page?: number;
-  limit?: number;
-  search?: string;
-  status?: DocumentCategoryStatus;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
+// ──────────────────────────────────────────────────────────────────────────────
+// Query / Filter
+// ──────────────────────────────────────────────────────────────────────────────
 
 export interface DocumentCategoryFilterDto {
   page?: number;
@@ -18,6 +13,29 @@ export interface DocumentCategoryFilterDto {
   sortOrder?: 'asc' | 'desc';
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Request DTOs (chỉ nhận các field cho phép từ client)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface CreateDocumentCategoryDto {
+  name: string;
+  code: string;
+  description?: string;
+  /** Mặc định ACTIVE nếu không truyền */
+  status?: DocumentCategoryStatus;
+}
+
+export interface UpdateDocumentCategoryDto {
+  name?: string;
+  code?: string;
+  description?: string | null;
+  status?: DocumentCategoryStatus;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Response shapes
+// ──────────────────────────────────────────────────────────────────────────────
+
 export interface DocumentCategoryResponse {
   id: number;
   name: string;
@@ -27,11 +45,13 @@ export interface DocumentCategoryResponse {
   isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
   createdBy: {
     id: number;
     fullName: string;
   };
-  usageCount: number; // calculated field based on incoming/outgoing documents
+  /** Tổng số văn bản (đến + đi) đang sử dụng lĩnh vực này */
+  usageCount: number;
 }
 
 export interface PaginatedDocumentCategoryResponse {
@@ -46,4 +66,26 @@ export interface DocumentCategoryOption {
   id: number;
   name: string;
   code: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Usage count (dùng nội bộ service)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface DocumentCategoryUsage {
+  incoming: number;
+  outgoing: number;
+  total: number;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Delete result
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type DeleteDocumentCategoryOperation = 'SOFT_DELETED' | 'DEACTIVATED';
+
+export interface DeleteDocumentCategoryResult {
+  category: DocumentCategoryResponse;
+  operation: DeleteDocumentCategoryOperation;
+  usage: DocumentCategoryUsage;
 }
