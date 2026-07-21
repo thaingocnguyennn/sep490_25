@@ -69,6 +69,11 @@ enum DocumentLifecycleStatus {
   DELETED
 }
 
+enum DocumentCategoryStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum WorkflowStatus {
   PENDING
   IN_PROGRESS
@@ -178,6 +183,10 @@ model User {
   registeredIncomingEntries    IncomingBookEntry[] @relation("IncomingEntryRegisteredBy")
   acknowledgedIncomingEntries  IncomingBookEntry[] @relation("IncomingEntryAcknowledgedBy")
   registeredOutgoingEntries    OutgoingBookEntry[] @relation("OutgoingEntryRegisteredBy")
+
+  // Document category relations
+  createdDocumentCategories DocumentCategory[] @relation("DocumentCategoryCreatedBy")
+  updatedDocumentCategories DocumentCategory[] @relation("DocumentCategoryUpdatedBy")
 
   @@index([departmentId])
 }
@@ -320,11 +329,14 @@ model IncomingDocument {
   createdByClerk   User? @relation("IncomingDocumentClerk", fields: [createdByClerkId], references: [id])
   createdByClerkId Int?
 
+  categoryId Int?
+  category   DocumentCategory? @relation(fields: [categoryId], references: [id])
+
   outgoingResponses   OutgoingDocument[]
   comments            IncomingDocumentComment[]
-  outgoingResponses OutgoingDocument[]
-  bookEntry         IncomingBookEntry?
+  bookEntry           IncomingBookEntry?
 
+  @@index([categoryId])
   @@index([createdByClerkId])
   @@index([departmentId])
   @@index([dateReceived])
@@ -394,8 +406,12 @@ model OutgoingDocument {
   assignedClerkId    Int?
   assignedClerk      User? @relation("OutgoingAssignedClerk", fields: [assignedClerkId], references: [id])
 
+  categoryId Int?
+  category   DocumentCategory? @relation(fields: [categoryId], references: [id])
+
   bookEntry OutgoingBookEntry?
 
+  @@index([categoryId])
   @@index([relatedIncomingDocumentId])
   @@index([dispatchNumber])
   @@index([assignedApproverId])
@@ -651,4 +667,32 @@ model OutgoingBookEntry {
   @@index([issuanceDate])
   @@index([documentBookId])
   @@index([registeredById])
+}
+
+model DocumentCategory {
+  id             Int                    @id @default(autoincrement())
+  name           String
+  normalizedName String                 @unique
+  code           String                 @unique
+  description    String?
+  status         DocumentCategoryStatus @default(ACTIVE)
+
+  isSystem       Boolean                @default(false)
+  deletedAt      DateTime?
+
+  createdById    Int
+  updatedById    Int?
+
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  createdBy User @relation("DocumentCategoryCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("DocumentCategoryUpdatedBy", fields: [updatedById], references: [id])
+
+  incomingDocuments IncomingDocument[]
+  outgoingDocuments OutgoingDocument[]
+
+  @@index([status, deletedAt])
+  @@index([name])
+  @@index([code])
 }
