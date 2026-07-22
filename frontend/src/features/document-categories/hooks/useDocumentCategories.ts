@@ -4,6 +4,8 @@ import {
   DocumentCategoryFilter,
   DocumentCategoryOption,
   PaginatedDocumentCategoryResponse,
+  CreateDocumentCategoryDto,
+  UpdateDocumentCategoryDto,
 } from '../types/documentCategory.types';
 
 export const useDocumentCategories = () => {
@@ -18,18 +20,13 @@ export const useDocumentCategories = () => {
       const response = await documentCategoryApi.getAll(filter);
       setData(response);
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to fetch document categories');
+      setError(err.response?.data?.message || err.message || 'Không thể tải danh sách lĩnh vực văn bản');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  return {
-    data,
-    loading,
-    error,
-    fetchCategories,
-  };
+  return { data, loading, error, fetchCategories };
 };
 
 export const useDocumentCategoryOptions = () => {
@@ -44,16 +41,44 @@ export const useDocumentCategoryOptions = () => {
       const response = await documentCategoryApi.getActiveOptions();
       setOptions(response);
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to fetch options');
+      setError(err.response?.data?.message || err.message || 'Không thể tải danh sách lựa chọn');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  return {
-    options,
-    loading,
-    error,
-    fetchOptions,
-  };
+  return { options, loading, error, fetchOptions };
+};
+
+export const useDocumentCategoryActions = () => {
+  const [loading, setLoading] = useState(false);
+
+  const create = useCallback(async (dto: CreateDocumentCategoryDto) => {
+    setLoading(true);
+    try {
+      return await documentCategoryApi.create(dto);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const update = useCallback(async (id: number, dto: UpdateDocumentCategoryDto) => {
+    setLoading(true);
+    try {
+      return await documentCategoryApi.update(id, dto);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const remove = useCallback(async (id: number) => {
+    setLoading(true);
+    try {
+      return await documentCategoryApi.delete(id);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { create, update, remove, loading };
 };
