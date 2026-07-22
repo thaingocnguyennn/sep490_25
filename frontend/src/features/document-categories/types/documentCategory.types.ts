@@ -9,6 +9,7 @@ export interface DocumentCategoryResponse {
   isSystem: boolean;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
   createdBy: {
     id: number;
     fullName: string;
@@ -37,4 +38,32 @@ export interface DocumentCategoryOption {
   id: number;
   name: string;
   code: string;
+}
+
+export interface CreateDocumentCategoryDto {
+  name: string;
+  code: string;
+  description?: string;
+  status?: DocumentCategoryStatus;
+}
+
+export interface UpdateDocumentCategoryDto {
+  name?: string;
+  code?: string;
+  description?: string | null;
+  status?: DocumentCategoryStatus;
+}
+
+export interface DocumentCategoryUsage {
+  incoming: number;
+  outgoing: number;
+  total: number;
+}
+
+export type DeleteDocumentCategoryOperation = 'SOFT_DELETED' | 'DEACTIVATED';
+
+export interface DeleteDocumentCategoryResult {
+  category: DocumentCategoryResponse;
+  operation: DeleteDocumentCategoryOperation;
+  usage: DocumentCategoryUsage;
 }
