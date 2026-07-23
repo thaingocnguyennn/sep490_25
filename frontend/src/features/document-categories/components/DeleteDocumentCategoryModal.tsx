@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Trash2, X } from 'lucide-react';
 import { useDocumentCategoryActions } from '../hooks/useDocumentCategories';
 import { DocumentCategoryResponse } from '../types/documentCategory.types';
 
@@ -22,10 +21,7 @@ export const DeleteDocumentCategoryModal: React.FC<DeleteDocumentCategoryModalPr
   const handleConfirm = async () => {
     setApiError(null);
     try {
-      const result = await remove(category.id);
-      if (result.operation === 'DEACTIVATED') {
-        // Thông báo đặc biệt khi deactivate
-      }
+      await remove(category.id);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -35,98 +31,76 @@ export const DeleteDocumentCategoryModal: React.FC<DeleteDocumentCategoryModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal" style={{ maxWidth: 460 }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <h2 className="text-lg font-semibold text-slate-800">
+        <div className="modal-header">
+          <h2 style={{ fontSize: 18 }}>
             {hasUsage ? 'Vô hiệu hóa lĩnh vực văn bản' : 'Xóa lĩnh vực văn bản'}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-slate-200 transition-colors text-slate-500"
-            aria-label="Đóng"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <button className="modal-close" onClick={onClose}>&times;</button>
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          {/* Icon + Thông tin category */}
-          <div className="flex items-start space-x-4">
-            <div className={`p-3 rounded-full flex-shrink-0 ${hasUsage ? 'bg-amber-100' : 'bg-red-100'}`}>
-              {hasUsage ? (
-                <AlertTriangle className="h-6 w-6 text-amber-600" />
-              ) : (
-                <Trash2 className="h-6 w-6 text-red-600" />
-              )}
+        <div className="modal-body">
+          {/* Thông tin category */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', background: '#f8f9fa', borderRadius: 8, marginBottom: 16 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+              background: hasUsage ? '#fff3cd' : '#ffeaea', flexShrink: 0,
+            }}>
+              {hasUsage ? '⚠️' : '🗑️'}
             </div>
             <div>
-              <p className="font-medium text-slate-900">{category.name}</p>
-              <p className="text-sm text-slate-500 mt-0.5">Mã: {category.code}</p>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{category.name}</div>
+              <div style={{ fontSize: 13, color: '#636e72', marginTop: 2 }}>Mã: {category.code}</div>
             </div>
           </div>
 
           {/* Mô tả hành động */}
           {hasUsage ? (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
-              <p className="font-semibold">Lĩnh vực đang được sử dụng</p>
-              <p>
-                Lĩnh vực này đang được sử dụng bởi{' '}
-                <span className="font-semibold">{category.usageCount} văn bản</span>.
-              </p>
-              <p>
-                Hệ thống sẽ chuyển lĩnh vực sang trạng thái{' '}
-                <span className="font-semibold">Ngừng hoạt động</span> thay vì xóa. Văn bản cũ vẫn giữ lĩnh vực này.
+            <div className="alert" style={{ background: '#fff3cd', border: '1px solid #ffc107', color: '#856404', marginBottom: 0 }}>
+              <strong>Lĩnh vực đang được sử dụng</strong>
+              <p style={{ marginTop: 6, marginBottom: 0 }}>
+                Lĩnh vực này đang được sử dụng bởi <strong>{category.usageCount} văn bản</strong>.
+                Hệ thống sẽ chuyển sang trạng thái <strong>Ngừng hoạt động</strong> thay vì xóa.
+                Văn bản cũ vẫn giữ lĩnh vực này.
               </p>
             </div>
           ) : (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 space-y-1">
-              <p className="font-semibold">Xác nhận xóa</p>
-              <p>
-                Lĩnh vực này chưa được sử dụng và sẽ bị{' '}
-                <span className="font-semibold">xóa khỏi hệ thống</span>. Hành động này không thể hoàn tác.
+            <div className="alert alert-error" style={{ marginBottom: 0 }}>
+              <strong>Xác nhận xóa</strong>
+              <p style={{ marginTop: 6, marginBottom: 0 }}>
+                Lĩnh vực này chưa được sử dụng và sẽ bị <strong>xóa khỏi hệ thống</strong>.
+                Hành động này không thể hoàn tác.
               </p>
             </div>
           )}
 
           {/* Lỗi API */}
           {apiError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>
               {apiError}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-slate-200 bg-slate-50">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
-          >
+        <div className="modal-footer">
+          <button type="button" className="btn btn-cancel" onClick={onClose} disabled={loading}>
             Hủy
           </button>
           <button
             type="button"
+            className={`btn ${hasUsage ? 'btn-warning' : 'btn-danger'}`}
             onClick={handleConfirm}
             disabled={loading}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2 ${
-              hasUsage
-                ? 'bg-amber-500 hover:bg-amber-600'
-                : 'bg-red-600 hover:bg-red-700'
-            }`}
+            style={{ width: 'auto' }}
           >
-            {loading ? (
-              <>
-                <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Đang xử lý...</span>
-              </>
-            ) : (
-              <span>{hasUsage ? 'Vô hiệu hóa' : 'Xóa'}</span>
-            )}
+            {loading
+              ? 'Đang xử lý...'
+              : (hasUsage ? 'Vô hiệu hóa' : 'Xóa')}
           </button>
         </div>
       </div>
