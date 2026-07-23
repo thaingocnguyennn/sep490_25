@@ -1,5 +1,4 @@
 import React from 'react';
-import { Search, Plus } from 'lucide-react';
 
 interface DocumentCategoryToolbarProps {
   searchQuery: string;
@@ -17,24 +16,27 @@ export const DocumentCategoryToolbar: React.FC<DocumentCategoryToolbarProps> = (
   onAddClick,
 }) => {
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
       {/* Tìm kiếm + Lọc trạng thái */}
-      <div className="flex items-center gap-3 w-full sm:w-auto">
-        <div className="relative w-full sm:w-64">
+      <div className="doc-filter-bar">
+        <div style={{ position: 'relative' }}>
           <input
             type="text"
+            className="filter-input"
             placeholder="Tìm theo tên hoặc mã..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm transition-colors"
+            style={{ paddingLeft: 32, minWidth: 220 }}
           />
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#b2bec3', pointerEvents: 'none' }}>
+            🔍
+          </span>
         </div>
 
         <select
+          className="filter-select"
           value={statusFilter}
           onChange={(e) => onStatusChange(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm bg-white transition-colors"
         >
           <option value="">Tất cả trạng thái</option>
           <option value="ACTIVE">Đang hoạt động</option>
@@ -43,12 +45,8 @@ export const DocumentCategoryToolbar: React.FC<DocumentCategoryToolbarProps> = (
       </div>
 
       {/* Nút Thêm mới */}
-      <button
-        onClick={onAddClick}
-        className="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2 text-sm font-medium"
-      >
-        <Plus className="h-4 w-4" />
-        <span>Thêm Lĩnh vực</span>
+      <button className="btn btn-primary" onClick={onAddClick} style={{ width: 'auto' }}>
+        + Thêm Lĩnh vực
       </button>
     </div>
   );

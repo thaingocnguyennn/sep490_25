@@ -7,7 +7,7 @@ import { DeleteDocumentCategoryModal } from '../components/DeleteDocumentCategor
 import { DocumentCategoryResponse, DocumentCategoryStatus } from '../types/documentCategory.types';
 
 export const DocumentCategoriesPage: React.FC = () => {
-  const { data, loading, fetchCategories } = useDocumentCategories();
+  const { data, loading, error, fetchCategories } = useDocumentCategories();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -61,7 +61,6 @@ export const DocumentCategoriesPage: React.FC = () => {
   };
 
   const handleDeleteSuccess = () => {
-    // Nếu trang hiện tại trống sau khi xóa, quay về trang trước
     if (data && data.data.length === 1 && page > 1) {
       setPage((p) => p - 1);
     } else {
@@ -70,11 +69,11 @@ export const DocumentCategoriesPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="page-content">
       {/* Tiêu đề */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Quản lý Lĩnh vực văn bản</h1>
-        <p className="text-slate-500 mt-1">Quản lý danh sách các lĩnh vực phân loại văn bản trong hệ thống</p>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quản lý Lĩnh vực văn bản</h1>
+        <p style={{ color: '#636e72', fontSize: 14 }}>Quản lý danh sách các lĩnh vực phân loại văn bản trong hệ thống</p>
       </div>
 
       {/* Toolbar */}
@@ -86,6 +85,13 @@ export const DocumentCategoriesPage: React.FC = () => {
         onAddClick={handleAddClick}
       />
 
+      {/* Lỗi */}
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
+
       {/* Bảng dữ liệu */}
       <DocumentCategoryTable
         categories={data?.data || []}
@@ -96,31 +102,21 @@ export const DocumentCategoriesPage: React.FC = () => {
 
       {/* Phân trang */}
       {data && data.totalPages > 1 && (
-        <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-slate-200">
-          <p className="text-sm text-slate-500">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, padding: '12px 16px', background: '#fff', borderRadius: 8, border: '1px solid #dfe6e9' }}>
+          <p style={{ fontSize: 14, color: '#636e72', margin: 0 }}>
             Hiển thị{' '}
-            <span className="font-medium">{(page - 1) * limit + 1}</span>
+            <strong>{(page - 1) * limit + 1}</strong>
             {' '}–{' '}
-            <span className="font-medium">{Math.min(page * limit, data.total)}</span>
+            <strong>{Math.min(page * limit, data.total)}</strong>
             {' '}trong{' '}
-            <span className="font-medium">{data.total}</span> kết quả
+            <strong>{data.total}</strong> kết quả
           </p>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+          <div className="pagination" style={{ padding: 0 }}>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
               Trước
             </button>
-            <span className="px-3 py-1 text-sm text-slate-600">
-              {page} / {data.totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
-              disabled={page === data.totalPages}
-              className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+            <span style={{ padding: '6px 12px', fontSize: 14 }}>{page} / {data.totalPages}</span>
+            <button onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))} disabled={page === data.totalPages}>
               Sau
             </button>
           </div>
