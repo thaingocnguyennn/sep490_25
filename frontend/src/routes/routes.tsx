@@ -33,6 +33,7 @@ import OutgoingStatisticsPage from '../features/documents/pages/OutgoingStatisti
 import DocumentStatisticsPage from '../features/documents/pages/DocumentStatisticsPage';
 import { DocumentBooksPage } from '../features/document-books/pages/DocumentBooksPage';
 import { DocumentCategoriesPage } from '../features/document-categories/pages/DocumentCategoriesPage';
+import { DocumentTypesPage } from '../features/document-types/pages/DocumentTypesPage';
 
 
 export const routes: RouteObject[] = [
@@ -66,6 +67,7 @@ export const routes: RouteObject[] = [
       { path: 'document-books',                 element: <DocumentBooksPage /> },
       // Lĩnh vực văn bản
       { path: 'document-categories',            element: <DocumentCategoriesPage /> },
+      { path: 'document-types',                 element: <DocumentTypesPage /> },
       // Trang thống kê gộp
       { path: 'documents/statistics', element: <DocumentStatisticsPage /> },
     ],
