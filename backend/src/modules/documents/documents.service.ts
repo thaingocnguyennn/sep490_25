@@ -702,7 +702,20 @@ export class DocumentsService {
     // interpreter picked without leaking it into the regular
     // extractedFields JSON.
     const debug = process.env.OCR_FIELD_DEBUG === '1';
-    const extractedFields = extractFields(result.pages, mode, { debug });
+    // Combined embedded-text + OCR mode (July 2026 rewrite): for PDF
+    // inputs the OCR pipeline returns both the OCR pages (used for
+    // document number + date) and the embedded-text pages (used for
+    // issuer / documentType / summary). We forward both to the field
+    // extractor so it can apply the per-source routing. Image inputs
+    // have no embedded text layer, in which case the extractor's
+    // `sources` is omitted and routing falls back to `pages` (OCR).
+    const extractedFields = extractFields(result.pages, mode, {
+      debug,
+      sources: {
+        embeddedPages: result.embeddedPages,
+        ocrPages: result.ocrPages,
+      },
+    });
 
     // Stash the debug trace so callers can inspect it.
     const fieldTrace = (extractedFields as any).__trace;

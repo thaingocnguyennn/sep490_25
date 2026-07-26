@@ -248,7 +248,17 @@ export class OutgoingDocumentsService {
       // everything into a synthetic single-page and would cause the
       // layout-aware extractors to return undefined for every field
       // except pageCount.
-      const extractedFields = extractFields(ocrResult.pages);
+      //
+      // Combined embedded-text + OCR mode (July 2026): issuer /
+      // documentType / summary route through the embedded-text
+      // pages, while documentNumber / dateLetter stay on the OCR
+      // pages for highest digit accuracy.
+      const extractedFields = extractFields(ocrResult.pages, 'OUTGOING', {
+        sources: {
+          embeddedPages: ocrResult.embeddedPages,
+          ocrPages: ocrResult.ocrPages,
+        },
+      });
 
       // Lưu kết quả OCR vào database
       await prisma.document.update({

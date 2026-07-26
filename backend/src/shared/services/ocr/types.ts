@@ -85,6 +85,24 @@ export interface OcrResult {
   quality: OcrQuality;
   /** Whether text came from embedded PDF text or rasterised OCR. */
   textSource: OcrTextSource;
+  /**
+   * Per-source page arrays used by the field extractor for source-aware
+   * routing:
+   *   - `embeddedPages` — synthetic PageOcr built from the PDF's
+   *     embedded text layer (high confidence, no LSTM noise). Used
+   *     for issuer / documentType / summary where embedded text is
+   *     strictly more accurate than OCR.
+   *   - `ocrPages` — the rasterised+OCR pages. Used for
+   *     documentNumber and dateLetter, which require the highest
+   *     accuracy on digits and diacritics and benefit from the
+   *     300 DPI rasterisation step.
+   *
+   * Both arrays are populated only when the source produced data;
+   * either may be `undefined`. `pages` defaults to OCR when
+   * available, falling back to embedded.
+   */
+  embeddedPages?: PageOcr[];
+  ocrPages?: PageOcr[];
   /** Optional per-field debug trace (only populated when OCR_FIELD_DEBUG=1). */
   debug?: OcrResultDebug;
 }

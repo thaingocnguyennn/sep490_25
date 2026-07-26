@@ -41,7 +41,17 @@ export function removeDiacriticsForMatch(s: string): string {
   // Map Vietnamese 2-codepoint letters (LATIN BASE + COMBINING MARK)
   // to their base form. We only care about the specific marks that
   // Tesseract reliably drops (circumflex, horn, breve, dot below).
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  //
+  // CRITICAL: also map U+0110 / U+0111 (Đ / đ) to D / d. These
+  // single-codepoint letters are NOT decomposed by NFD — the stroke
+  // is a permanent feature of the codepoint, not a combining mark.
+  // Without this step, "đa" → "đa" (not "da"), and a lookup of the
+  // stripped form will falsely match a vocab entry that contains
+  // "đ" + combining mark (e.g. "đã" → "đa" key), corrupting inputs
+  // like "đa" / "đất" / "điều" / "Cần" by silently inserting the
+  // wrong diacritic. See the July-2026 bug report on the NQ
+  // trích-yếu extraction for the failure mode.
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[Đđ]/g, (c) => (c === 'Đ' ? 'D' : 'd'));
 }
 
 /**
