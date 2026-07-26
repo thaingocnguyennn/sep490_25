@@ -10,6 +10,7 @@ import outgoingDocumentsRoutes from '../modules/outgoing-documents/outgoing-docu
 import departmentsRoutes from '../modules/departments/departments.routes';
 import documentBooksRoutes from '../modules/document-books/document-books.routes';
 import documentCategoriesRoutes from '../modules/document-categories/document-categories.routes';
+import documentTypesRoutes from '../modules/document-types/document-types.routes';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use('/outgoing-documents', outgoingDocumentsRoutes);
 router.use('/departments', departmentsRoutes);
 router.use('/document-books', documentBooksRoutes);
 router.use('/document-categories', documentCategoriesRoutes);
+router.use('/document-types', documentTypesRoutes);
 
 
 export default router;
