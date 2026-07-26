@@ -74,6 +74,11 @@ enum DocumentCategoryStatus {
   INACTIVE
 }
 
+enum DocumentKindStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum WorkflowStatus {
   PENDING
   IN_PROGRESS
@@ -188,6 +193,10 @@ model User {
   // Document category relations
   createdDocumentCategories DocumentCategory[] @relation("DocumentCategoryCreatedBy")
   updatedDocumentCategories DocumentCategory[] @relation("DocumentCategoryUpdatedBy")
+
+  // Document type (kind) relations
+  createdDocumentKinds DocumentKind[] @relation("DocumentKindCreatedBy")
+  updatedDocumentKinds DocumentKind[] @relation("DocumentKindUpdatedBy")
 
   @@index([departmentId])
 }
@@ -305,7 +314,7 @@ model IncomingDocument {
   id                     Int       @id @default(autoincrement())
   documentId             Int       @unique
   issuer                 String? // Cơ quan ban hành
-  documentType           String? // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
+  documentType           String? // Loại văn bản cũ (String, giữ tạm trong giai đoạn chuyển đổi)
   documentNumber         String? // Số ký hiệu văn bản
   arrivalNumber          Int? // Số đến (do DocumentBook cấp, không gán thủ công)
   signerName             String? // Họ tên người ký
@@ -333,11 +342,16 @@ model IncomingDocument {
   categoryId Int?
   category   DocumentCategory? @relation(fields: [categoryId], references: [id])
 
+  // FK mới sang bảng DocumentKind (thay thế field String cũ)
+  documentTypeId  Int?
+  documentTypeRef DocumentKind? @relation("IncomingDocumentKind", fields: [documentTypeId], references: [id])
+
   outgoingResponses   OutgoingDocument[]
   comments            IncomingDocumentComment[]
   bookEntry           IncomingBookEntry?
 
   @@index([categoryId])
+  @@index([documentTypeId])
   @@index([createdByClerkId])
   @@index([departmentId])
   @@index([dateReceived])
@@ -350,7 +364,7 @@ model OutgoingDocument {
   documentId Int @unique
 
   // Thông tin cơ bản văn bản đi
-  documentType   String? // Loại văn bản (QUYẾT ĐỊNH, CÔNG VĂN,...)
+  documentType   String? // Loại văn bản cũ (String, giữ tạm trong giai đoạn chuyển đổi)
   documentNumber String? // Số ký hiệu văn bản gốc
   dispatchNumber String? // Số phát hành chính thức (officialNumber, do DocumentBook cấp)
   issuanceDate   DateTime? // Ngày ban hành chính thức
@@ -410,9 +424,14 @@ model OutgoingDocument {
   categoryId Int?
   category   DocumentCategory? @relation(fields: [categoryId], references: [id])
 
+  // FK mới sang bảng DocumentKind (thay thế field String cũ)
+  documentTypeId  Int?
+  documentTypeRef DocumentKind? @relation("OutgoingDocumentKind", fields: [documentTypeId], references: [id])
+
   bookEntry OutgoingBookEntry?
 
   @@index([categoryId])
+  @@index([documentTypeId])
   @@index([relatedIncomingDocumentId])
   @@index([dispatchNumber])
   @@index([assignedApproverId])
@@ -668,6 +687,34 @@ model OutgoingBookEntry {
   @@index([issuanceDate])
   @@index([documentBookId])
   @@index([registeredById])
+}
+
+model DocumentKind {
+  id             Int                @id @default(autoincrement())
+  name           String
+  normalizedName String             @unique
+  code           String             @unique
+  description    String?
+  status         DocumentKindStatus @default(ACTIVE)
+
+  isSystem       Boolean            @default(false)
+  deletedAt      DateTime?
+
+  createdById    Int
+  updatedById    Int?
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  createdBy User  @relation("DocumentKindCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("DocumentKindUpdatedBy", fields: [updatedById], references: [id])
+
+  incomingDocuments IncomingDocument[] @relation("IncomingDocumentKind")
+  outgoingDocuments OutgoingDocument[] @relation("OutgoingDocumentKind")
+
+  @@index([status, deletedAt])
+  @@index([name])
+  @@index([code])
 }
 
 model DocumentCategory {
