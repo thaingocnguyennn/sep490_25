@@ -2228,10 +2228,36 @@ const SUMMARY_STOP_PATTERNS: RegExp[] = [
   /^[^,]*,\s*ng[àa]y\s*\d/i,
 ];
 
-function extractSummary(pages: PageOcr[]): string | undefined {
+function extractSummary(
+  pages: PageOcr[],
+  source: 'embedded' | 'ocr' = 'ocr',
+): string | undefined {
   const firstPage = pages[0];
   if (!firstPage) return undefined;
   const lines = linesInReadingOrder(firstPage);
+
+  // Anchor the search on Box 5a. The doc-type line and the trích yếu
+  // lines both live in the centred Box 5a band (Decree 30, vertical
+  // center ≈ 0.22 ± 0.10). Without this restriction `fuzzyDocType`
+  // would happily false-positive on the top-band header labels
+  // ("TỈNH NINH BÌNH" matches NGHỊ ĐỊNH at score 0.71; "CỘNG HÒA …"
+  // matches NGHỊ QUYẾT at 0.67), which is acceptable for the
+  // dedicated `extractDocumentType` extractor (which only reports
+  // the strongest match per document) but catastrophic for the
+  // summary extractor — the candidate anchor would jump to a top-
+  // band line and walk the next 4 lines (the motto + số + date) into
+  // the summary field.
+  //
+  // The 0.10 tolerance mirrors `linesInVerticalBand` in layout.ts,
+  // and the [0.12, 0.32] band empirically covers all observed
+  // doc-type + summary line positions on the Vietnamese golden set
+  // while excluding the issuer (y < 0.10) and doc-number/date
+  // (y ≈ 0.13–0.15) bands.
+  const bandLines = lines.filter((l) => {
+    const cy = (l.bbox.y0 + l.bbox.y1) / 2;
+    return cy >= 0.12 && cy <= 0.32;
+  });
+  if (bandLines.length === 0) return undefined;
 
   // Lines that look like document-number or date lines — must not be
   // used as the doc-type anchor. These can produce false-positive
@@ -2262,7 +2288,7 @@ function extractSummary(pages: PageOcr[]): string | undefined {
   // than a body citation like "Căn cứ Luật Tổ chức …". We therefore
   // prefer strict matches and only fall back to wider fuzzy matches if
   // no strict match exists.
-  let typeIdx = lines.findIndex((l) => {
+  let typeIdx = bandLines.findIndex((l) => {
     const t = clean(l.text);
     if (isStructuralLine(t)) return false;
     if (CITATION_PREFIX_RE.test(t)) return false;
@@ -2272,7 +2298,7 @@ function extractSummary(pages: PageOcr[]): string | undefined {
     return fuzzyDocType(t) !== undefined;
   });
   if (typeIdx === -1) {
-    typeIdx = lines.findIndex((l) => {
+    typeIdx = bandLines.findIndex((l) => {
       const t = clean(l.text);
       if (isStructuralLine(t)) return false;
       if (CITATION_PREFIX_RE.test(t)) return false;
@@ -2282,10 +2308,20 @@ function extractSummary(pages: PageOcr[]): string | undefined {
   }
   if (typeIdx === -1) return undefined;
 
+  // Walk forward from the type line within the Box 5a band only.
+  // We translate `typeIdx` back to the absolute index in `lines` so
+  // the next/prev comparisons below stay correct; the band may be a
+  // strict subset of the page's lines.
+  const absoluteTypeIdx = lines.indexOf(bandLines[typeIdx]);
   const summaryLines: string[] = [];
-  for (let i = typeIdx + 1; i < Math.min(lines.length, typeIdx + 12); i++) {
-    const t = clean(lines[i].text);
+  for (let i = absoluteTypeIdx + 1; i < Math.min(lines.length, absoluteTypeIdx + 12); i++) {
+    const cand = lines[i];
+    const t = clean(cand.text);
     if (!t) continue;
+    // Stay inside Box 5a. Walking into Box 5b / the citation block
+    // would consume body text as the summary.
+    const cy = (cand.bbox.y0 + cand.bbox.y1) / 2;
+    if (cy > 0.32) break;
     if (SUMMARY_STOP_PATTERNS.some((p) => p.test(t))) break;
     summaryLines.push(t);
     // Most summaries fit in 2–3 lines; cap at 4 to be safe.
@@ -2298,8 +2334,21 @@ function extractSummary(pages: PageOcr[]): string | undefined {
   // "tiền", "biển", "địa". The corrections are anchored to
   // distinctive Vietnamese word-context pairs so they cannot fire on
   // unrelated text.
+  //
+  // CRITICAL: skip ALL lossy post-processing when the source is the
+  // embedded-text layer (digital PDFs with a glyph stream). The
+  // embedded text has perfect diacritic fidelity — running the
+  // dictionary-based diacritic restorer on it actively corrupts the
+  // output. The dictionary matches stripped forms (e.g. "da") to a
+  // single canonical entry (e.g. "đã"), so when the embedded text
+  // contains a valid alternative form with the same stripped key
+  // (e.g. "đa" itself, "đất" vs vocab-only "đặt"), the restorer
+  // silently substitutes the wrong form. See the July-2026 NQ
+  // trích-yếu bug for the failure mode.
+  const applyLossyCorrections = source === 'ocr';
   const normalized = summaryLines
     .map((line) => {
+      if (!applyLossyCorrections) return line;
       let out = line;
       for (const [re, repl] of SUMMARY_WORD_CORRECTIONS) {
         // The replacements array mixes string substitutions and
@@ -2309,7 +2358,7 @@ function extractSummary(pages: PageOcr[]): string | undefined {
       }
       return out;
     })
-    .map((s) => restoreVietnameseDiacritics(s))
+    .map((s) => (applyLossyCorrections ? restoreVietnameseDiacritics(s) : s))
     .map((s) => s.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
   return normalized.length > 0 ? normalized.join(' ') : undefined;
@@ -2603,47 +2652,151 @@ function extractRecipient(pages: PageOcr[]): string | undefined {
 /* ─── Orchestrator ────────────────────────────────────────────────────────── */
 
 /**
+ * Options accepted by `extractFields`.
+ *
+ * The contract introduced in July 2026 lets the caller pass per-source
+ * page arrays from the OCR pipeline. When `embeddedPages` is provided,
+ * the embedded-text source wins for fields where it is strictly more
+ * accurate than OCR (currently: issuer, documentType, summary). When
+ * it is absent (e.g. image input, or the OCR pipeline produced no
+ * embedded text), every field falls back to `pages` and the original
+ * pre-July-2026 behaviour applies.
+ */
+export interface ExtractFieldsOptions {
+  /** Populate the non-enumerable `__trace` array on the result. */
+  debug?: boolean;
+  /**
+   * Per-source page arrays for combined embedded-text + OCR mode.
+   * Either or both may be supplied; missing entries fall back to
+   * `pages`. The field extractor routes:
+   *   - issuer / documentType / summary ← `embeddedPages` if present
+   *   - documentNumber / dateLetter     ← `pages` (OCR)
+   *   - signerName / signerTitle / recipient / classification / pageCount
+   *                                       ← `pages` (OCR signatures
+   *                                          are never in the embedded
+   *                                          text layer)
+   */
+  sources?: {
+    embeddedPages?: PageOcr[];
+    ocrPages?: PageOcr[];
+  };
+}
+
+/**
  * Extract every supported field using the per-page layout information
- * returned by Tesseract. The mode controls whether the recipient or
- * the issuer should be returned under `recipientName`.
+ * returned by the OCR pipeline. The mode controls whether the
+ * recipient or the issuer should be returned under `recipientName`.
+ *
+ * Per-field source routing (since the July-2026 combined-mode rewrite):
+ *
+ *   ┌───────────────────┬───────────────────────┬───────────────────┐
+ *   │ Field             │ Source                │ Reason            │
+ *   ├───────────────────┼───────────────────────┼───────────────────┤
+ *   │ issuer            │ embeddedPages if any  │ perfect diacritics│
+ *   │ documentType      │ embeddedPages if any  │ no LSTM noise     │
+ *   │ summary           │ embeddedPages if any  │ no LSTM noise     │
+ *   │ documentNumber    │ ocrPages (fallback:   │ 300 DPI digit     │
+ *   │                   │ pages)                │ ensemble + region │
+ *   │ dateLetter        │ ocrPages (fallback:   │ 300 DPI digit +   │
+ *   │                   │ pages)                │ date region OCR   │
+ *   │ signerName        │ ocrPages/pages        │ signature block   │
+ *   │ signerTitle       │ ocrPages/pages        │ signature block   │
+ *   │ recipientName     │ ocrPages/pages        │ "Kính gửi" line   │
+ *   │ confidentiality   │ ocrPages/pages        │ header band       │
+ *   │ urgency           │ ocrPages/pages        │ header band       │
+ *   │ pageCount         │ pdfjs numPages        │ structural        │
+ *   └───────────────────┴───────────────────────┴───────────────────┘
  */
 export function extractFields(
   pages: PageOcr[],
   mode: string = 'INCOMING',
-  options?: { debug?: boolean },
+  options?: ExtractFieldsOptions,
 ): ExtractedFields {
   const fields: ExtractedFields = {};
   const traces: FieldTrace[] = [];
   const captureTrace = options?.debug ? (t: FieldTrace) => traces.push(t) : undefined;
 
-  // Compute column layout once at the top so every extractor can
-  // see the same boundaries and the debug trace can record them.
-  const columnLayout = pages[0] ? detectTopBandColumns(pages[0]) : undefined;
+  // Resolve per-source page arrays. Embedded text is preferred for
+  // the Vietnamese-heavy labels where the embedded text layer is
+  // strictly more accurate than OCR; the digit-heavy fields stay on
+  // OCR even when embedded pages are present.
+  const embeddedPages = options?.sources?.embeddedPages;
+  const ocrPages = options?.sources?.ocrPages;
+  const effectiveOcrPages = ocrPages && ocrPages.length > 0 ? ocrPages : pages;
+  const effectiveEmbeddedPages = embeddedPages && embeddedPages.length > 0 ? embeddedPages : undefined;
 
-  fields.issuer = extractIssuer(pages, captureTrace, columnLayout);
+  // Compute column layout from the page 1 of the OCR pipeline —
+  // that's where the two-column Decree-30 header lives. The embedded
+  // pages share the same layout coordinates (normalized to [0,1]),
+  // so a single compute is sufficient.
+  const columnLayout = effectiveOcrPages[0]
+    ? detectTopBandColumns(effectiveOcrPages[0])
+    : (effectiveEmbeddedPages?.[0] ? detectTopBandColumns(effectiveEmbeddedPages[0]) : undefined);
+
+  // Issuer — prefer embedded text. Issuer text (e.g. "ỦY BAN NHÂN DÂN
+  // THÀNH PHỐ …") is Vietnamese-heavy and embedded text has perfect
+  // diacritic fidelity.
+  fields.issuer = extractIssuer(
+    effectiveEmbeddedPages ?? effectiveOcrPages,
+    captureTrace,
+    columnLayout,
+  );
+
+  // Recipient (OUTGOING mode only) — the "Kính gửi ..." line sits in
+  // the body text on page 1 and is generally not part of the embedded
+  // text layer in a useful location (depending on the PDF producer
+  // it may be wrapped into the same glyph stream but with shifted
+  // coordinates). Source from OCR for safety.
   if (mode === 'OUTGOING') {
-    fields.recipientName = extractRecipient(pages);
+    fields.recipientName = extractRecipient(effectiveOcrPages);
   } else {
     fields.recipientName = undefined;
   }
-  // Extract the document type first so we can use it as a
-  // disambiguation hint for the doc-number prefix (e.g. NGHỊ QUYẾT
-  // → "NQ", QUYẾT ĐỊNH → "QĐ"). The doc-type line sits in Box 5a
-  // directly below the doc-number+date line, so it's reliable and
-  // cheap to compute first.
-  fields.documentType = extractDocumentType(pages);
-  fields.documentNumber = extractDocumentNumber(pages, fields.documentType, captureTrace, columnLayout);
-  fields.dateLetter = extractDate(pages, captureTrace, columnLayout);
-  fields.summary = extractSummary(pages);
-  fields.pageCount = extractPageCount(pages);
-  fields.signerName = extractSignerName(pages);
-  fields.signerTitle = extractSignerTitle(pages);
+
+  // Document type — prefer embedded text. The doc-type heading lives
+  // in Box 5a and is a short Vietnamese phrase ("QUYẾT ĐỊNH", "NGHỊ
+  // QUYẾT", "BÁO CÁO", "TỜ TRÌNH", "THÔNG BÁO", "CHỈ THỊ",
+  // "KẾ HOẠCH", ...) where diacritic accuracy is critical.
+  fields.documentType = extractDocumentType(effectiveEmbeddedPages ?? effectiveOcrPages);
+
+  // Document number and date — ALWAYS OCR. This is the highest-value
+  // extraction target and runs through the 300 DPI rasterisation
+  // pass plus the ensemble / region-specific re-OCR. Embedded text
+  // may be absent (scanned docs) or noisy (font-split per-glyph
+  // digital signatures), so we never source these from embedded.
+  fields.documentNumber = extractDocumentNumber(
+    effectiveOcrPages,
+    fields.documentType,
+    captureTrace,
+    columnLayout,
+  );
+  fields.dateLetter = extractDate(effectiveOcrPages, captureTrace, columnLayout);
+
+  // Summary — prefer embedded text. The trích yếu / "V/v ..." line is
+  // often a long Vietnamese sentence where LSTM noise tends to clip
+  // or merge adjacent lines; the embedded text layer reproduces the
+  // exact glyph sequence. We pass the source through so `extractSummary`
+  // can skip the lossy diacritic-restoration step on embedded input
+  // (the dictionary can't distinguish "đa" from "đã" by stripped form
+  // alone and would otherwise corrupt the perfect text).
+  fields.summary = extractSummary(
+    effectiveEmbeddedPages ?? effectiveOcrPages,
+    effectiveEmbeddedPages ? 'embedded' : 'ocr',
+  );
+
+  // Signature block + classification + page count — OCR. Signatures
+  // are not in the embedded layer, and the urgency/confidentiality
+  // banner is often styled (bold, italic) which embedded text
+  // reproduces inconsistently.
+  fields.pageCount = extractPageCount(effectiveOcrPages);
+  fields.signerName = extractSignerName(effectiveOcrPages);
+  fields.signerTitle = extractSignerTitle(effectiveOcrPages);
   // Confidentiality and urgency are surfaced as `null` in the API
   // when OCR cannot classify the doc — the routing layer rejects
   // distribution unless these are non-null. See extractConfidentiality
   // / extractUrgency for the rationale.
-  fields.confidentialityLevel = extractConfidentiality(pages) ?? null;
-  fields.urgencyLevel = extractUrgency(pages) ?? null;
+  fields.confidentialityLevel = extractConfidentiality(effectiveOcrPages) ?? null;
+  fields.urgencyLevel = extractUrgency(effectiveOcrPages) ?? null;
 
   // Drop empty values so the consumer can use plain JSON.stringify.
   // `confidentialityLevel` / `urgencyLevel` are exempt from this:
