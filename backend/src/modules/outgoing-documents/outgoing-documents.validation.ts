@@ -60,10 +60,9 @@ export const createOutgoingDocumentValidation = [
     .optional()
     .isInt({ min: 1 }).withMessage('ID phòng ban phải là số nguyên dương'),
 
-  body('documentType')
+  body('documentTypeId')
     .optional()
-    .trim()
-    .isString().withMessage('Loại văn bản phải là chuỗi ký tự'),
+    .isInt().withMessage('documentTypeId phải là số nguyên'),
 
   body('recipientName')
     .optional()
@@ -151,10 +150,9 @@ export const updateOutgoingMetadataValidation = [
     .optional({ nullable: true })
     .isInt({ min: 1 }).withMessage('ID phòng ban phải là số nguyên dương'),
 
-  body('documentType')
+  body('documentTypeId')
     .optional()
-    .trim()
-    .isString(),
+    .isInt(),
 
   body('documentNumber')
     .optional()
@@ -279,6 +277,10 @@ export const listOutgoingDocumentsValidation = [
   query('status')
     .optional()
     .isIn(VALID_STATUSES).withMessage('Trạng thái lọc không hợp lệ'),
+
+  query('documentTypeId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID thể loại văn bản phải là số nguyên dương'),
 
   query('urgency')
     .optional()

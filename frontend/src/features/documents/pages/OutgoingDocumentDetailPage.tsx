@@ -422,12 +422,17 @@ export default function OutgoingDocumentDetailPage() {
                       </span>
                     </div>
                   )}
-                  {doc.documentType && (
+                  {doc.documentTypeRef ? (
+                    <div className="detail-item">
+                      <label>Loại văn bản</label>
+                      <span>{doc.documentTypeRef.name}</span>
+                    </div>
+                  ) : doc.documentType ? (
                     <div className="detail-item">
                       <label>Loại văn bản</label>
                       <span>{doc.documentType}</span>
                     </div>
-                  )}
+                  ) : null}
                   {doc.pageCount && (
                     <div className="detail-item">
                       <label>Số trang</label>

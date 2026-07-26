@@ -7,6 +7,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgency';
 import { exportOutgoingExcel, exportOutgoingPdf } from '../../../api/modules/outgoing-documents';
 import type { OutgoingDocumentStatus, UrgencyName, ConfidentialityName } from '../../../types';
+import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 
 const OUTGOING_STATUSES: { value: OutgoingDocumentStatus | ''; label: string }[] = [
   { value: '',                 label: 'Tất cả trạng thái' },
@@ -34,11 +35,7 @@ const CONFIDENTIALITY_OPTIONS_LOCAL: { value: ConfidentialityName | ''; label: s
   { value: 'TUYET_MAT',label: 'Tuyệt mật (A)' },
 ];
 
-const DOC_TYPES = [
-  'QUYẾT ĐỊNH', 'CÔNG VĂN', 'THÔNG BÁO', 'TỜ TRÌNH', 'BÁO CÁO',
-  'KẾ HOẠCH', 'CHỈ THỊ', 'HƯỚNG DẪN', 'QUY ĐỊNH', 'QUY TRÌNH',
-  'BIÊN BẢN', 'HỢP ĐỒNG', 'GIẤY ỦY QUYỀN',
-];
+// Document kinds fetched dynamically
 
 export default function OutgoingDocumentsPage() {
   const navigate = useNavigate();
@@ -57,6 +54,7 @@ export default function OutgoingDocumentsPage() {
   const LIMIT = 10;
 
   const { departments } = useDepartments();
+  const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
 
   // Xác định quyền tạo văn bản đi
   const canCreate = user?.roles.some((r) => ['SPECIALIST', 'DOCUMENT_CLERK'].includes(r));
@@ -69,7 +67,7 @@ export default function OutgoingDocumentsPage() {
         search: search || undefined,
         status: statusFilter || undefined,
         urgency: urgencyFilter || undefined,
-        documentType: documentTypeFilter || undefined,
+        documentTypeId: documentTypeFilter ? Number(documentTypeFilter) : undefined,
         confidentialityLevel: confidentialityFilter || undefined,
         departmentId: departmentFilter ? Number(departmentFilter) : undefined,
         dateFrom: dateFromFilter || undefined,
@@ -80,8 +78,12 @@ export default function OutgoingDocumentsPage() {
   );
 
   useEffect(() => {
+    fetchDocumentTypes();
+  }, [fetchDocumentTypes]);
+
+  useEffect(() => {
     loadData(currentPage);
-  }, [currentPage, statusFilter, urgencyFilter, documentTypeFilter, confidentialityFilter, departmentFilter, dateFromFilter, dateToFilter]);
+  }, [currentPage, statusFilter, urgencyFilter, documentTypeFilter, confidentialityFilter, departmentFilter, dateFromFilter, dateToFilter, loadData]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +97,7 @@ export default function OutgoingDocumentsPage() {
         search: search || undefined,
         status: statusFilter || undefined,
         urgency: urgencyFilter || undefined,
-        documentType: documentTypeFilter || undefined,
+        documentType: documentTypeFilter || undefined, // Keep string for export or pass ID depending on backend export
         confidentialityLevel: confidentialityFilter || undefined,
         departmentId: departmentFilter ? Number(departmentFilter) : undefined,
         dateFrom: dateFromFilter || undefined,
@@ -191,7 +193,7 @@ export default function OutgoingDocumentsPage() {
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
                 <option value="">Tất cả loại VB</option>
-                {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                {documentTypeOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
               <select
                 value={confidentialityFilter}
@@ -281,7 +283,9 @@ export default function OutgoingDocumentsPage() {
                         </span>
                       </td>
                       <td>
-                        {item.documentType ? (
+                        {item.documentTypeRef ? (
+                          <span className="badge badge-type">{item.documentTypeRef.name}</span>
+                        ) : item.documentType ? (
                           <span className="badge badge-type">{item.documentType}</span>
                         ) : '—'}
                       </td>

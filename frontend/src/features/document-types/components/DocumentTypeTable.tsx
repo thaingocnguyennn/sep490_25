@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { DocumentKindResponse } from '../types/documentType.types';
 
 interface DocumentTypeTableProps {
@@ -84,36 +84,31 @@ export const DocumentTypeTable: React.FC<DocumentTypeTableProps> = ({
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   {!type.isSystem && type.status === 'INACTIVE' && !type.deletedAt && (
                     <button
-                      className="btn-icon"
+                      className="action-btn edit"
                       onClick={() => onReactivate(type)}
                       title="Kích hoạt lại"
-                      style={{ color: '#00b894' }}
                     >
-                      <span className="material-icons" style={{ fontSize: 18 }}>restore</span>
+                      ♻
                     </button>
                   )}
                   
                   {!type.isSystem && (
                     <button
-                      className="btn-icon"
+                      className="action-btn edit"
                       onClick={() => onEdit(type)}
                       title="Chỉnh sửa"
-                      style={{ color: '#0984e3' }}
                     >
-                      <span className="material-icons" style={{ fontSize: 18 }}>edit</span>
+                      ✏
                     </button>
                   )}
 
                   {!type.isSystem && (
                     <button
-                      className="btn-icon"
+                      className="action-btn delete"
                       onClick={() => onDelete(type)}
                       title={type.usageCount > 0 ? 'Ngừng hoạt động' : 'Xóa'}
-                      style={{ color: '#d63031' }}
                     >
-                      <span className="material-icons" style={{ fontSize: 18 }}>
-                        {type.usageCount > 0 ? 'block' : 'delete'}
-                      </span>
+                      {type.usageCount > 0 ? '🚫' : '🗑'}
                     </button>
                   )}
                 </div>

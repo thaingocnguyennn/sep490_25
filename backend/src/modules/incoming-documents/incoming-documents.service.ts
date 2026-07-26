@@ -357,7 +357,7 @@ export class IncomingDocumentsService {
 
   async create(data: {
     issuer?: string;
-    documentType?: string;
+    documentTypeId?: number;
     documentNumber?: string;
     arrivalNumber?: number;
     signerName?: string;
@@ -405,12 +405,19 @@ export class IncomingDocumentsService {
     const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
     const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
 
+    // Fetch document kind name for title if documentTypeId is provided
+    let documentKindName = '';
+    if (data.documentTypeId) {
+      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (typeDoc) documentKindName = typeDoc.name;
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const document = await tx.document.create({
         data: {
           documentNumber,
           title: data.summary
-            ? `${data.documentType || ''} ${data.summary}`.trim()
+            ? `${documentKindName} ${data.summary}`.trim()
             : data.issuer || `Văn bản đến số ${documentNumber}`,
           type: 'INCOMING',
           status: DocumentStatus.PENDING,
@@ -424,7 +431,7 @@ export class IncomingDocumentsService {
         data: {
           documentId: document.id,
           issuer: data.issuer,
-          documentType: data.documentType,
+          documentTypeId: data.documentTypeId,
           documentNumber: data.documentNumber,
           arrivalNumber: data.arrivalNumber,
           signerName: data.signerName,
@@ -493,6 +500,13 @@ export class IncomingDocumentsService {
     let resultDocId: number | null = null;
 
     try {
+      // Fetch document kind name for title if documentTypeId is provided
+      let documentKindName = '';
+      if (data.documentTypeId) {
+        const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+        if (typeDoc) documentKindName = typeDoc.name;
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
 
@@ -500,7 +514,7 @@ export class IncomingDocumentsService {
           data: {
             documentNumber,
             title: data.summary
-              ? `${data.documentType || ''} ${data.summary}`.trim()
+              ? `${documentKindName} ${data.summary}`.trim()
               : data.issuer || `Văn bản đến số ${documentNumber}`,
             type: 'INCOMING',
             status: DocumentStatus.PENDING,
@@ -522,7 +536,7 @@ export class IncomingDocumentsService {
           data: {
             documentId: document.id,
             issuer: data.issuer,
-            documentType: data.documentType,
+            documentTypeId: data.documentTypeId,
             documentNumber: data.documentNumber,
             arrivalNumber: data.arrivalNumber,
             signerName: data.signerName,
@@ -1228,13 +1242,22 @@ export class IncomingDocumentsService {
     }));
 
     const byDocTypeRaw = await prisma.incomingDocument.groupBy({
-      by: ['documentType'],
+      by: ['documentTypeId'],
       where: baseFilter as any,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
+    
+    // fetch document kind names
+    const typeIds = byDocTypeRaw.map(r => r.documentTypeId).filter((id): id is number => id !== null);
+    const typeDocs = await prisma.documentKind.findMany({
+      where: { id: { in: typeIds } },
+      select: { id: true, name: true },
+    });
+    const typeMap = new Map(typeDocs.map(d => [d.id, d.name]));
+
     const byDocumentType = byDocTypeRaw.map((r) => ({
-      documentType: r.documentType ?? 'Chưa phân loại',
+      documentType: r.documentTypeId ? (typeMap.get(r.documentTypeId) ?? 'Chưa phân loại') : 'Chưa phân loại',
       count: r._count.id,
     }));
 

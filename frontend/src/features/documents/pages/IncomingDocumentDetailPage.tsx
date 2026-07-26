@@ -421,7 +421,7 @@ export default function IncomingDocumentDetailPage() {
                 </div>
                 <div className="detail-item">
                   <label>Loại văn bản</label>
-                  <span>{doc.documentType || '—'}</span>
+                  <span>{doc.documentTypeRef?.name || doc.documentType || '—'}</span>
                 </div>
                 {doc.pageCount && (
                   <div className="detail-item">

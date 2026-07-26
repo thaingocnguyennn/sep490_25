@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDocumentTypeActions } from '../hooks/useDocumentTypes';
 import {
   DocumentKindResponse,
@@ -197,13 +197,11 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-cancel" onClick={onClose} disabled={loading}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
               Hủy
             </button>
-            <button type="submit" className="btn btn-submit" disabled={loading}>
-              {loading
-                ? (isEditing ? 'Đang cập nhật...' : 'Đang tạo...')
-                : (isEditing ? 'Cập nhật' : 'Tạo mới')}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Đang lưu...' : 'Lưu lại'}
             </button>
           </div>
         </form>

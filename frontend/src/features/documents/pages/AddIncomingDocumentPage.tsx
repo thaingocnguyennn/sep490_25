@@ -12,6 +12,7 @@ import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import DocumentViewer from '../components/DocumentViewer';
 import OrganizationAssignmentTree from '../components/OrganizationAssignmentTree';
+import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
 import type { ConfidentialityCodeOrName, OcrResult } from '../../../types';
 
@@ -64,6 +65,7 @@ export default function AddIncomingDocumentPage() {
   const { isDocumentClerk, isAdmin } = useAuth();
   const hasAccess = isDocumentClerk || isAdmin;
   const { processors, loading: loadingProcessors, fetch: fetchProcessors } = useProcessors();
+  const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -77,7 +79,7 @@ export default function AddIncomingDocumentPage() {
     issuer: '',
     documentNumber: '',
     dateLetter: '',
-    documentType: '',
+    documentTypeId: '',
     summary: '',
     pageCount: '',
     signerName: '',
@@ -98,7 +100,8 @@ export default function AddIncomingDocumentPage() {
 
   useEffect(() => {
     fetchProcessors();
-  }, [fetchProcessors]);
+    fetchDocumentTypes();
+  }, [fetchProcessors, fetchDocumentTypes]);
 
   // Auto-collapse sidebar when entering OCR workspace (step 1), restore on step 2
   useEffect(() => {
@@ -161,7 +164,7 @@ export default function AddIncomingDocumentPage() {
         issuer: fields.issuer || prev.issuer,
         documentNumber: fields.documentNumber || prev.documentNumber,
         dateLetter: fields.dateLetter || prev.dateLetter,
-        documentType: fields.documentType || prev.documentType,
+        // Optional: you can map documentType string to documentTypeId if you have the list
         summary: fields.summary || prev.summary,
         pageCount: fields.pageCount || prev.pageCount,
         signerName: fields.signerName || prev.signerName,
@@ -248,7 +251,7 @@ export default function AddIncomingDocumentPage() {
 
     const payload = {
       issuer: form.issuer || undefined,
-      documentType: form.documentType || undefined,
+      documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
       documentNumber: form.documentNumber || undefined,
       arrivalNumber: arrivalNumber ? Number(arrivalNumber) : undefined,
       signerName: form.signerName || undefined,
@@ -428,26 +431,17 @@ export default function AddIncomingDocumentPage() {
 
                   <div className="signer-row">
                     <div className="form-group">
-                      <label htmlFor="documentType">Loại văn bản</label>
-                      <input
-                        id="documentType"
-                        name="documentType"
-                        type="text"
-                        value={form.documentType}
+                      <label htmlFor="documentTypeId">Loại văn bản</label>
+                      <select
+                        id="documentTypeId"
+                        name="documentTypeId"
+                        value={form.documentTypeId}
                         onChange={handleChange}
-                        placeholder="QUYẾT ĐỊNH, CÔNG VĂN..."
-                        list="docTypeSuggestions"
-                      />
-                      <datalist id="docTypeSuggestions">
-                        <option value="QUYẾT ĐỊNH" />
-                        <option value="CÔNG VĂN" />
-                        <option value="THÔNG BÁO" />
-                        <option value="TỜ TRÌNH" />
-                        <option value="BÁO CÁO" />
-                        <option value="KẾ HOẠCH" />
-                        <option value="HƯỚNG DẪN" />
-                        <option value="CHỈ THỊ" />
-                      </datalist>
+                        style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
+                      >
+                        <option value="">-- Chọn loại văn bản --</option>
+                        {documentTypeOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
                     </div>
                     <div className="form-group">
                       <label htmlFor="pageCount">Số trang</label>
@@ -727,7 +721,9 @@ export default function AddIncomingDocumentPage() {
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Loại văn bản</span>
-                  <span className="summary-value">{form.documentType || '—'}</span>
+                  <span className="summary-value">
+                    {documentTypeOptions.find(t => t.id === Number(form.documentTypeId))?.name || '—'}
+                  </span>
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Ngày văn bản</span>

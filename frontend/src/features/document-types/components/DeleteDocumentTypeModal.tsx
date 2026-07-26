@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useDocumentTypeActions } from '../hooks/useDocumentTypes';
 import { DocumentKindResponse } from '../types/documentType.types';
 
@@ -73,12 +73,12 @@ export const DeleteDocumentTypeModal: React.FC<DeleteDocumentTypeModalProps> = (
         </div>
 
         <div className="modal-footer">
-          <button type="button" className="btn btn-cancel" onClick={onClose} disabled={loading}>
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
             Hủy
           </button>
           <button 
             type="button" 
-            className="btn btn-submit" 
+            className="btn btn-primary" 
             onClick={handleDelete} 
             disabled={loading}
             style={{ backgroundColor: hasUsage ? '#e67e22' : '#d63031' }}

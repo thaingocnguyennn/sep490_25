@@ -10,6 +10,8 @@ export interface OutgoingDocumentWithRelations {
   id: number;
   documentId: number;
   documentType: string | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: Date | null;
@@ -112,6 +114,7 @@ const OUTGOING_INCLUDE = {
       },
     },
   },
+  documentTypeRef: { select: { id: true, name: true } },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },
@@ -133,7 +136,7 @@ export class OutgoingDocumentsRepository {
     search?: string;
     status?: string;
     urgency?: string;
-    documentType?: string;
+    documentTypeId?: number;
     dateFrom?: string;
     dateTo?: string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy enum value */
@@ -147,7 +150,7 @@ export class OutgoingDocumentsRepository {
       departmentName?: string | null;
     };
   }) {
-    const { page, limit, search, status, urgency, documentType, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed, currentUser } = params;
+    const { page, limit, search, status, urgency, documentTypeId, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed, currentUser } = params;
     const skip = (page - 1) * limit;
 
     // Mặc định chỉ hiện văn bản ACTIVE (không ở thùng rác)
@@ -256,8 +259,8 @@ export class OutgoingDocumentsRepository {
       };
     }
 
-    if (documentType) {
-      where.documentType = documentType;
+    if (documentTypeId !== undefined) {
+      where.documentTypeId = documentTypeId;
     }
 
     if (dateFrom || dateTo) {

@@ -7,7 +7,7 @@ export const registerIncomingDocumentValidation = [
 ];
 export const createIncomingDocumentValidation = [
   body('issuer').optional().trim(),
-  body('documentType').optional().trim(),
+  body('documentTypeId').optional().isInt().withMessage('documentTypeId phải là số nguyên'),
   body('documentNumber').optional().trim(),
   body('arrivalNumber').optional().isInt({ min: 1 }).withMessage('Số đến phải là số nguyên dương'),
   body('signerName').optional().trim(),
@@ -77,7 +77,7 @@ export const createIncomingDocumentValidation = [
  */
 export const createIncomingDocumentWithFileValidation = [
   body('issuer').optional().trim(),
-  body('documentType').optional().trim(),
+  body('documentTypeId').optional().isInt().withMessage('documentTypeId phải là số nguyên'),
   body('documentNumber').optional().trim(),
   body('arrivalNumber').optional().isInt({ min: 1 }).withMessage('Số đến phải là số nguyên dương'),
   body('signerName').optional().trim(),

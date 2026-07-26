@@ -8,6 +8,8 @@ export interface IncomingDocumentWithRelations {
   documentId: number;
   issuer: string | null;
   documentType: string | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   arrivalNumber: number | null;
   signerName: string | null;
@@ -96,6 +98,7 @@ export class IncomingDocumentsRepository {
         { documentNumber: { contains: search, mode: 'insensitive' } },
         { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
         { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
@@ -130,6 +133,7 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           createdByClerk: { select: { id: true, fullName: true } },
+          documentTypeRef: { select: { id: true, name: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
@@ -161,6 +165,7 @@ export class IncomingDocumentsRepository {
       where: { id },
       include: {
         createdByClerk: { select: { id: true, fullName: true } },
+        documentTypeRef: { select: { id: true, name: true } },
         document: {
           include: {
             createdByUser: { select: { id: true, fullName: true } },
@@ -206,6 +211,7 @@ export class IncomingDocumentsRepository {
         { documentNumber: { contains: search, mode: 'insensitive' } },
         { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
         { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
@@ -220,6 +226,7 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           createdByClerk: { select: { id: true, fullName: true } },
+          documentTypeRef: { select: { id: true, name: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
@@ -266,6 +273,7 @@ export class IncomingDocumentsRepository {
         { documentNumber: { contains: search, mode: 'insensitive' } },
         { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
+        { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
         { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
@@ -280,6 +288,7 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           createdByClerk: { select: { id: true, fullName: true } },
+          documentTypeRef: { select: { id: true, name: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
