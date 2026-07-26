@@ -157,7 +157,9 @@ export default function PendingIncomingDocumentsPage() {
                         {item.issuer || '—'}
                       </td>
                       <td>
-                        {item.documentType ? (
+                        {item.documentTypeRef ? (
+                          <span className="badge badge-type">{item.documentTypeRef.name}</span>
+                        ) : item.documentType ? (
                           <span className="badge badge-type">{item.documentType}</span>
                         ) : '—'}
                       </td>

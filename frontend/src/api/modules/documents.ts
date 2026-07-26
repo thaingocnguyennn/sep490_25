@@ -53,6 +53,8 @@ export interface IncomingDocumentDetail {
   documentId: number;
   issuer: string | null;
   documentType: string | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   arrivalNumber: number | null;
   signerName: string | null;
@@ -73,6 +75,8 @@ export interface IncomingDocumentListItem {
   documentId: number;
   issuer: string | null;
   documentType: string | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   arrivalNumber: number | null;
   signerName: string | null;
@@ -93,6 +97,7 @@ export interface IncomingDocumentListItem {
 export interface CreateIncomingDocumentRequest {
   issuer?: string;
   documentType?: string;
+  documentTypeId?: number;
   documentNumber?: string;
   arrivalNumber?: number;
   signerName?: string;

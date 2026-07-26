@@ -121,7 +121,7 @@ export class OutgoingDocumentsService {
     /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
     confidentialityLevel?: string | number;
     departmentId?: number;
-    documentType?: string;
+    documentTypeId?: number;
     recipientName?: string;
     recipientAddress?: string;
     recipientEmail?: string;
@@ -157,7 +157,7 @@ export class OutgoingDocumentsService {
       const outgoing = await tx.outgoingDocument.create({
         data: {
           documentId: document.id,
-          documentType: data.documentType,
+          documentTypeId: data.documentTypeId,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
@@ -455,7 +455,7 @@ export class OutgoingDocumentsService {
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, legacy ConfidentialityLevel, or null to clear */
       confidentialityLevel?: string | number | null;
       departmentId?: number | null;
-      documentType?: string;
+      documentTypeId?: number;
       documentNumber?: string;
       signerName?: string;
       signerTitle?: string;
@@ -508,7 +508,7 @@ export class OutgoingDocumentsService {
       await tx.outgoingDocument.update({
         where: { id },
         data: {
-          documentType: data.documentType,
+          documentTypeId: data.documentTypeId,
           documentNumber: data.documentNumber,
           signerName: data.signerName,
           signerTitle: data.signerTitle,

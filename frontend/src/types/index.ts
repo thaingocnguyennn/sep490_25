@@ -254,6 +254,8 @@ export interface OutgoingDocument {
   id: number;
   documentId: number;
   documentType: string | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: string | null;
@@ -336,6 +338,7 @@ export interface CreateOutgoingDocumentRequest {
   confidentialityId?: ConfidentialityCodeOrName;
   departmentId?: number;
   documentType?: string;
+  documentTypeId?: number;
   recipientName?: string;
   recipientAddress?: string;
   recipientEmail?: string;
@@ -351,6 +354,7 @@ export interface UpdateOutgoingMetadataRequest {
   confidentialityId?: ConfidentialityCodeOrName | null;
   departmentId?: number | null;
   documentType?: string;
+  documentTypeId?: number;
   documentNumber?: string;
   signerName?: string;
   signerTitle?: string;
@@ -387,6 +391,7 @@ export interface OutgoingDocumentFilterParams {
   urgency?: UrgencyCodeOrName;
   urgencyId?: UrgencyCodeOrName;
   documentType?: string;
+  documentTypeId?: number;
   dateFrom?: string;
   dateTo?: string;
   confidentialityLevel?: ConfidentialityCodeOrName;

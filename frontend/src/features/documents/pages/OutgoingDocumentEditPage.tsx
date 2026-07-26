@@ -11,17 +11,14 @@ import type {
   UrgencyName,
   ConfidentialityName,
 } from '../../../types';
+import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 
 const URGENCY_OPTIONS: { value: UrgencyName; label: string }[] = URGENCY_LIST.map((o) => ({
   value: o.value,
   label: o.label,
 }));
 
-const DOC_TYPES = [
-  'QUYẾT ĐỊNH', 'CÔNG VĂN', 'THÔNG BÁO', 'TỜ TRÌNH', 'BÁO CÁO',
-  'KẾ HOẠCH', 'CHỈ THỊ', 'HƯỚNG DẪN', 'QUY ĐỊNH', 'QUY TRÌNH',
-  'BIÊN BẢN', 'HỢP ĐỒNG', 'GIẤY ỦY QUYỀN',
-];
+// Document kinds fetched dynamically
 
 export default function OutgoingDocumentEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +26,7 @@ export default function OutgoingDocumentEditPage() {
   const location = useLocation();
   const { loading: actionLoading, error: actionError, updateMetadata, clearError } = useOutgoingDocumentActions();
   const { departments } = useDepartments();
+  const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
 
   const [doc, setDoc] = useState<OutgoingDocument | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -42,7 +40,7 @@ export default function OutgoingDocumentEditPage() {
     description: '',
     urgency: 'THUONG' as UrgencyName,
     confidentialityLevel: 'THUONG',
-    documentType: '',
+    documentTypeId: undefined,
     documentNumber: '',
     signerName: '',
     signerTitle: '',
@@ -55,6 +53,7 @@ export default function OutgoingDocumentEditPage() {
   });
 
   useEffect(() => {
+    fetchDocumentTypes();
     if (!id) return;
     setPageLoading(true);
     getOutgoingDocumentById(parseInt(id))
@@ -69,8 +68,9 @@ export default function OutgoingDocumentEditPage() {
             (data.document.confidentiality?.code === 'A' ? 'TUYET_MAT'
               : data.document.confidentiality?.code === 'B' ? 'TOI_MAT'
               : data.document.confidentiality?.code === 'C' ? 'MAT'
+              : data.document.confidentiality?.code === 'C' ? 'MAT'
               : 'THUONG'),
-          documentType: data.documentType || '',
+          documentTypeId: data.documentTypeId || undefined,
           documentNumber: data.documentNumber || '',
           signerName: data.signerName || '',
           signerTitle: data.signerTitle || '',
@@ -81,7 +81,6 @@ export default function OutgoingDocumentEditPage() {
           notes: data.notes || '',
           departmentId: data.document.department?.id || undefined,
           ...(ocrFields ? {
-            documentType: ocrFields.documentType || data.documentType || '',
             documentNumber: ocrFields.documentNumber || data.documentNumber || '',
             signerName: ocrFields.signerName || data.signerName || '',
             signerTitle: ocrFields.signerTitle || data.signerTitle || '',
@@ -107,7 +106,7 @@ export default function OutgoingDocumentEditPage() {
     const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: name === 'pageCount' || name === 'departmentId' ? (value ? parseInt(value) : undefined) : value,
+      [name]: name === 'pageCount' || name === 'departmentId' || name === 'documentTypeId' ? (value ? parseInt(value) : undefined) : value,
     }));
     if (validationErrors[name]) {
       setValidationErrors((prev) => ({ ...prev, [name]: '' }));
@@ -123,7 +122,7 @@ export default function OutgoingDocumentEditPage() {
       ...form,
       title: form.title?.trim(),
       description: form.description?.trim() || undefined,
-      documentType: form.documentType?.trim() || undefined,
+      documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
       documentNumber: form.documentNumber?.trim() || undefined,
       signerName: form.signerName?.trim() || undefined,
       signerTitle: form.signerTitle?.trim() || undefined,
@@ -211,16 +210,16 @@ export default function OutgoingDocumentEditPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div className="form-group">
-                  <label htmlFor="documentType" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Loại văn bản</label>
+                  <label htmlFor="documentTypeId" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Loại văn bản</label>
                   <select
-                    id="documentType"
-                    name="documentType"
-                    value={form.documentType}
+                    id="documentTypeId"
+                    name="documentTypeId"
+                    value={form.documentTypeId || ''}
                     onChange={handleChange}
                     style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
                   >
                     <option value="">-- Chọn loại văn bản --</option>
-                    {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {documentTypeOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">

@@ -4,6 +4,7 @@ import { useOutgoingDocumentActions, useDepartments } from '../../../shared/hook
 import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgency';
 import { documentsApi } from '../../../api';
 import type { CreateOutgoingDocumentRequest, OcrResult, UrgencyName } from '../../../types';
+import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 import DocumentViewer from '../components/DocumentViewer';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
 
@@ -12,11 +13,7 @@ const URGENCY_OPTIONS: { value: UrgencyName; label: string }[] = URGENCY_LIST.ma
   label: o.label,
 }));
 
-const DOC_TYPES = [
-  'QUYẾT ĐỊNH', 'CÔNG VĂN', 'THÔNG BÁO', 'TỜ TRÌNH', 'BÁO CÁO',
-  'KẾ HOẠCH', 'CHỈ THỊ', 'HƯỚNG DẪN', 'QUY ĐỊNH', 'QUY TRÌNH',
-  'BIÊN BẢN', 'HỢP ĐỒNG', 'GIẤY ỦY QUYỀN',
-];
+// Document kinds fetched dynamically
 
 export default function CreateOutgoingDocumentPage() {
   const navigate = useNavigate();
@@ -25,6 +22,7 @@ export default function CreateOutgoingDocumentPage() {
 
   const { create, uploadFile, loading: creating } = useOutgoingDocumentActions();
   const { departments } = useDepartments();
+  const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
   const layout = useOutletContext<LayoutContextValue>();
 
   // State
@@ -40,7 +38,7 @@ export default function CreateOutgoingDocumentPage() {
     description: '',
     urgency: 'THUONG',
     confidentialityLevel: 'THUONG',
-    documentType: '',
+    documentTypeId: undefined,
     departmentId: undefined,
     recipientName: '',
     recipientAddress: '',
@@ -54,10 +52,11 @@ export default function CreateOutgoingDocumentPage() {
   // Collapse sidebar
   useEffect(() => {
     if (layout) layout.setSidebarCollapsed(true);
+    fetchDocumentTypes();
     return () => {
       if (layout) layout.setSidebarCollapsed(false);
     };
-  }, [layout]);
+  }, [layout, fetchDocumentTypes]);
 
   useEffect(() => {
     return () => {
@@ -109,8 +108,8 @@ export default function CreateOutgoingDocumentPage() {
       setForm((prev) => ({
         ...prev,
         title: fields.summary || prev.title,
-        documentType: fields.documentType || prev.documentType,
         recipientName: fields.recipientName || prev.recipientName,
+        // documentType string from OCR can optionally be matched against documentTypeOptions here if desired
       }));
 
       const extractedKeys = Object.keys(fields);
@@ -148,7 +147,7 @@ export default function CreateOutgoingDocumentPage() {
         ...form,
         title: form.title.trim(),
         description: form.description?.trim() || undefined,
-        documentType: form.documentType || undefined,
+        documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
         departmentId: form.departmentId ? Number(form.departmentId) : undefined,
         recipientName: form.recipientName?.trim() || undefined,
         recipientAddress: form.recipientAddress?.trim() || undefined,
@@ -275,15 +274,15 @@ export default function CreateOutgoingDocumentPage() {
 
               <div className="signer-row">
                 <div className="form-group">
-                  <label htmlFor="documentType">Loại văn bản</label>
+                  <label htmlFor="documentTypeId">Loại văn bản</label>
                   <select
-                    id="documentType"
-                    name="documentType"
-                    value={form.documentType}
+                    id="documentTypeId"
+                    name="documentTypeId"
+                    value={form.documentTypeId || ''}
                     onChange={handleChange}
                   >
                     <option value="">-- Chọn loại --</option>
-                    {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    {documentTypeOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
