@@ -138,6 +138,8 @@ model User {
   username     String     @unique
   email        String     @unique
   password     String
+  passwordChangedAt DateTime?
+  passwordResetTokens PasswordResetToken[]
   fullName     String
   phone        String?
   avatar       String?
@@ -199,6 +201,19 @@ model User {
   updatedDocumentKinds DocumentKind[] @relation("DocumentKindUpdatedBy")
 
   @@index([departmentId])
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Role {

@@ -264,6 +264,37 @@ button {
   border: 1px solid #2ecc71;
 }
 
+.auth-link {
+  display: inline-block;
+  margin-top: 18px;
+  color: #667eea;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.auth-link:hover {
+  color: #5568d3;
+  text-decoration: underline;
+}
+
+.forgot-password-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -8px;
+}
+
+.forgot-password-row .auth-link {
+  margin-top: 0;
+  font-size: 13px;
+}
+
+.password-hint {
+  margin: -8px 0 16px;
+  color: #636e72;
+  font-size: 12px;
+}
+
 .main-layout {
   display: flex;
   min-height: 100vh;

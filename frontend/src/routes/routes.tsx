@@ -3,6 +3,8 @@ import AuthLayout from '../layouts/AuthLayout';
 import MainLayout from '../layouts/MainLayout';
 import LoginPage from '../features/auth/pages/LoginPage';
 import ChangePasswordPage from '../features/auth/pages/ChangePasswordPage';
+import ForgotPasswordPage from '../features/auth/pages/ForgotPasswordPage';
+import ResetPasswordPage from '../features/auth/pages/ResetPasswordPage';
 import DashboardPage from '../features/dashboard/pages/DashboardPage';
 import ProfilePage from '../features/profile/pages/ProfilePage';
 import ProfileEditPage from '../features/profile/pages/ProfileEditPage';
@@ -41,6 +43,16 @@ export const routes: RouteObject[] = [
     path: '/login',
     element: <AuthLayout />,
     children: [{ index: true, element: <LoginPage /> }],
+  },
+  {
+    path: '/forgot-password',
+    element: <AuthLayout />,
+    children: [{ index: true, element: <ForgotPasswordPage /> }],
+  },
+  {
+    path: '/reset-password',
+    element: <AuthLayout />,
+    children: [{ index: true, element: <ResetPasswordPage /> }],
   },
   {
     path: '/',

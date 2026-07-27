@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Eye, EyeOff } from "lucide-react";
@@ -90,6 +90,12 @@ export default function LoginPage() {
               {showPassword ? <Eye /> : <EyeOff />}
             </button>
           </div>
+        </div>
+
+        <div className="forgot-password-row">
+          <Link to="/forgot-password" className="auth-link">
+            Forgot password?
+          </Link>
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
