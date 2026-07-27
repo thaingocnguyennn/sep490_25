@@ -4,51 +4,53 @@ export const loginValidation = [
   body('username')
     .trim()
     .notEmpty()
-    .withMessage('Username is required'),
+    .withMessage('Vui lòng nhập tên đăng nhập'),
   body('password')
     .notEmpty()
-    .withMessage('Password is required'),
+    .withMessage('Vui lòng nhập mật khẩu'),
 ];
 
 const passwordValidation = (field: string, label: string) =>
   body(field)
     .isString()
-    .withMessage(`${label} is required`)
+    .withMessage(`${label} không được để trống`)
     .isLength({ min: 8 })
-    .withMessage(`${label} must be at least 8 characters`)
+    .withMessage(`${label} phải có ít nhất 8 ký tự`)
     .matches(/[A-Z]/)
-    .withMessage(`${label} must contain at least one uppercase letter`)
+    .withMessage(`${label} phải chứa ít nhất một chữ cái viết hoa`)
     .matches(/[a-z]/)
-    .withMessage(`${label} must contain at least one lowercase letter`)
+    .withMessage(`${label} phải chứa ít nhất một chữ cái viết thường`)
     .matches(/[0-9]/)
-    .withMessage(`${label} must contain at least one number`);
+    .withMessage(`${label} phải chứa ít nhất một chữ số`);
 
 export const requestPasswordResetValidation = [
   body('email')
     .trim()
     .notEmpty()
-    .withMessage('Email is required')
+    .withMessage('Vui lòng nhập email')
     .isEmail()
-    .withMessage('Invalid email format')
+    .withMessage('Định dạng email không hợp lệ')
     .normalizeEmail(),
 ];
 
 export const resetPasswordValidation = [
   body('token')
     .isString()
-    .withMessage('Reset token is required')
+    .withMessage('Thiếu mã đặt lại mật khẩu')
     .isHexadecimal()
-    .withMessage('Invalid reset token')
+    .withMessage('Mã đặt lại mật khẩu không hợp lệ')
     .isLength({ min: 64, max: 64 })
-    .withMessage('Invalid reset token'),
-  passwordValidation('newPassword', 'New password'),
+    .withMessage('Mã đặt lại mật khẩu không hợp lệ'),
+  passwordValidation('newPassword', 'Mật khẩu mới'),
   body('confirmPassword')
     .notEmpty()
-    .withMessage('Confirm password is required'),
+    .withMessage('Vui lòng nhập xác nhận mật khẩu'),
 ];
 
 export const changePasswordValidation = [
-  body('currentPassword').notEmpty().withMessage('Current password is required'),
-  passwordValidation('newPassword', 'New password'),
-  body('confirmPassword').notEmpty().withMessage('Confirm password is required'),
+  body('currentPassword').notEmpty().withMessage('Vui lòng nhập mật khẩu hiện tại'),
+  passwordValidation('newPassword', 'Mật khẩu mới'),
+  body('confirmPassword')
+    .notEmpty()
+    .withMessage('Vui lòng nhập xác nhận mật khẩu'),
 ];

@@ -11,22 +11,25 @@ vi.mock('../../../../api', () => ({
 }));
 
 describe('ForgotPasswordPage', () => {
-  it('requires an email address', () => {
+  it('yêu cầu nhập địa chỉ email', () => {
     render(
       <MemoryRouter>
         <ForgotPasswordPage />
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi đường dẫn đặt lại' }));
 
-    expect(screen.getByText('Please enter your email address')).toBeInTheDocument();
+    expect(screen.getByText('Vui lòng nhập địa chỉ email')).toBeInTheDocument();
     expect(authApi.forgotPassword).not.toHaveBeenCalled();
   });
 
-  it('submits the email and displays the server response', async () => {
+  it('gửi email và hiển thị phản hồi từ máy chủ', async () => {
     vi.mocked(authApi.forgotPassword).mockResolvedValue({
-      data: { message: 'If an account with that email exists, a password reset link has been sent.' },
+      data: {
+        message:
+          'Nếu tài khoản với email này tồn tại, đường dẫn đặt lại mật khẩu đã được gửi.',
+      },
     } as never);
 
     render(
@@ -35,17 +38,17 @@ describe('ForgotPasswordPage', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText('Email address'), {
+    fireEvent.change(screen.getByLabelText('Địa chỉ email'), {
       target: { value: '  USER@EXAMPLE.COM ' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi đường dẫn đặt lại' }));
 
     await waitFor(() => {
       expect(authApi.forgotPassword).toHaveBeenCalledWith({ email: 'USER@EXAMPLE.COM' });
     });
     expect(
       await screen.findByText(
-        'If an account with that email exists, a password reset link has been sent.',
+        'Nếu tài khoản với email này tồn tại, đường dẫn đặt lại mật khẩu đã được gửi.',
       ),
     ).toBeInTheDocument();
   });

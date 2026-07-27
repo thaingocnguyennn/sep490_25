@@ -14,7 +14,7 @@ export default function ForgotPasswordPage() {
     setSuccess('');
 
     if (!email.trim()) {
-      setError('Please enter your email address');
+      setError('Vui lòng nhập địa chỉ email');
       return;
     }
 
@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
       setSuccess(response.data.message);
     } catch (err: unknown) {
       const errorResponse = err as { response?: { data?: { message?: string } } };
-      setError(errorResponse.response?.data?.message || 'Unable to send reset email');
+      setError(errorResponse.response?.data?.message || 'Không thể gửi email đặt lại mật khẩu');
     } finally {
       setLoading(false);
     }
@@ -38,9 +38,9 @@ export default function ForgotPasswordPage() {
         className="login-logo"
         style={{ display: 'block', margin: '0 auto 1.5rem', maxWidth: '120px', height: 'auto' }}
       />
-      <h1 className="login-title">Forgot password?</h1>
+      <h1 className="login-title">Quên mật khẩu?</h1>
       <p className="subtitle">
-        Enter your account email and we&apos;ll send you a link to reset your password.
+        Nhập email tài khoản của bạn, chúng tôi sẽ gửi cho bạn đường dẫn để đặt lại mật khẩu.
       </p>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -48,12 +48,12 @@ export default function ForgotPasswordPage() {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="email">Email address</label>
+          <label htmlFor="email">Địa chỉ email</label>
           <input
             id="email"
             name="email"
             type="email"
-            placeholder="you@example.com"
+            placeholder="ban@example.com"
             value={email}
             onChange={(event) => {
               setEmail(event.target.value);
@@ -65,12 +65,12 @@ export default function ForgotPasswordPage() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? 'Sending...' : 'Send reset link'}
+          {loading ? 'Đang gửi...' : 'Gửi đường dẫn đặt lại'}
         </button>
       </form>
 
       <Link to="/login" className="auth-link">
-        Back to login
+        Quay lại trang đăng nhập
       </Link>
     </div>
   );
