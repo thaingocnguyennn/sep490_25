@@ -29,6 +29,14 @@ function asInt(name: string, fallback: number): number {
   return parsed;
 }
 
+function positiveInt(name: string, fallback: number): number {
+  const value = asInt(name, fallback);
+  if (value <= 0) {
+    throw new Error(`Environment variable ${name} must be greater than zero, got: ${value}`);
+  }
+  return value;
+}
+
 function asBool(name: string, fallback: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined || raw === '') return fallback;
@@ -84,6 +92,10 @@ export const config = {
   },
 
   frontendUrl: optional('FRONTEND_URL', 'http://localhost:3000'),
+
+  passwordReset: {
+    tokenTtlMinutes: positiveInt('PASSWORD_RESET_TOKEN_TTL_MINUTES', 30),
+  },
 
   bcrypt: {
     saltRounds: asInt('BCRYPT_SALT_ROUNDS', 12),

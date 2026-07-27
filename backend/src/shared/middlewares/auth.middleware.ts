@@ -31,11 +31,18 @@ export async function authenticate(
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, status: true, departmentId: true },
+      select: { id: true, status: true, departmentId: true, passwordChangedAt: true },
     });
 
     if (!user) {
       throw new UnauthorizedError('User not found');
+    }
+
+    if (user.passwordChangedAt && decoded.iat) {
+      const passwordChangedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (decoded.iat < passwordChangedAtSeconds) {
+        throw new UnauthorizedError('Token was issued before the password changed');
+      }
     }
 
     if (user.status === UserStatus.LOCKED) {

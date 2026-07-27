@@ -28,6 +28,7 @@ DATABASE_URL=postgresql://postgres:password@localhost:5432/dms_db
 JWT_SECRET=your-super-secret-key
 PORT=5000
 FRONTEND_URL=http://localhost:3000
+PASSWORD_RESET_TOKEN_TTL_MINUTES=30
 ```
 
 ### 3. Create Database
@@ -87,6 +88,8 @@ http://localhost:5000/api
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/auth/login` | Login |
+| POST | `/api/auth/forgot-password` | Request a password reset link by email |
+| POST | `/api/auth/reset-password` | Set a new password with a one-time reset token |
 | POST | `/api/auth/logout` | Logout |
 | GET | `/api/auth/profile` | Get current user profile |
 | PATCH | `/api/auth/change-password` | Change password |
