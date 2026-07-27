@@ -85,7 +85,7 @@ export default function LoginPage() {
               type="button"
               className="password-toggle"
               onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
             >
               {showPassword ? <Eye /> : <EyeOff />}
             </button>
@@ -94,7 +94,7 @@ export default function LoginPage() {
 
         <div className="forgot-password-row">
           <Link to="/forgot-password" className="auth-link">
-            Forgot password?
+            Quên mật khẩu?
           </Link>
         </div>
 

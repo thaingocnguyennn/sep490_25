@@ -9,7 +9,7 @@ import { sendEmail } from '../../shared/services/email.service';
 import type { RoleName } from '../../shared/constants/roles';
 
 const PASSWORD_RESET_RESPONSE =
-  'If an account with that email exists, a password reset link has been sent.';
+  'Nếu tài khoản với email này tồn tại, đường dẫn đặt lại mật khẩu đã được gửi.';
 
 function hashResetToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -27,19 +27,19 @@ function escapeHtml(value: string): string {
 export class AuthService {
   private validateNewPassword(password: string): void {
     if (password.length < 8) {
-      throw new BadRequestError('New password must be at least 8 characters');
+      throw new BadRequestError('Mật khẩu mới phải có ít nhất 8 ký tự');
     }
 
     if (!/[A-Z]/.test(password)) {
-      throw new BadRequestError('New password must contain at least one uppercase letter');
+      throw new BadRequestError('Mật khẩu mới phải chứa ít nhất một chữ cái viết hoa');
     }
 
     if (!/[a-z]/.test(password)) {
-      throw new BadRequestError('New password must contain at least one lowercase letter');
+      throw new BadRequestError('Mật khẩu mới phải chứa ít nhất một chữ cái viết thường');
     }
 
     if (!/[0-9]/.test(password)) {
-      throw new BadRequestError('New password must contain at least one number');
+      throw new BadRequestError('Mật khẩu mới phải chứa ít nhất một chữ số');
     }
   }
 
@@ -51,11 +51,11 @@ export class AuthService {
     }
 
     if (user.status === UserStatus.LOCKED) {
-      throw new UnauthorizedError('Account is locked');
+      throw new UnauthorizedError('Tài khoản đã bị khoá');
     }
 
     if (user.status === UserStatus.INACTIVE) {
-      throw new UnauthorizedError('Account is inactive');
+      throw new UnauthorizedError('Tài khoản chưa được kích hoạt');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -80,7 +80,7 @@ export class AuthService {
   async getProfile(userId: number): Promise<UserProfile> {
     const user = await authRepository.findById(userId);
     if (!user) {
-      throw new UnauthorizedError('User not found');
+      throw new UnauthorizedError('Không tìm thấy người dùng');
     }
     return authRepository.formatProfile(user);
   }
@@ -105,28 +105,31 @@ export class AuthService {
     const safeResetUrl = escapeHtml(resetUrl);
     const safeName = escapeHtml(user.fullName);
 
+    const ttlMinutes = config.passwordReset.tokenTtlMinutes;
+
     try {
       await sendEmail({
         to: user.email,
-        subject: 'Reset your DMS password',
+        subject: 'Đặt lại mật khẩu DMS của bạn',
         html: `
           <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #2d3436;">
-            <h2>Password reset request</h2>
-            <p>Hello ${safeName},</p>
-            <p>Use the button below to set a new password for your DMS account.</p>
+            <h2>Yêu cầu đặt lại mật khẩu</h2>
+            <p>Xin chào ${safeName},</p>
+            <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản DMS của bạn. Nhấn vào nút bên dưới để thiết lập mật khẩu mới.</p>
             <p>
               <a href="${safeResetUrl}" style="display:inline-block;padding:10px 18px;background:#667eea;color:#fff;text-decoration:none;border-radius:6px;">
-                Reset password
+                Đặt lại mật khẩu
               </a>
             </p>
-            <p>This link expires in ${config.passwordReset.tokenTtlMinutes} minutes and can only be used once.</p>
-            <p>If you did not request this, you can safely ignore this email.</p>
+            <p>Đường dẫn có hiệu lực trong vòng ${ttlMinutes} phút và chỉ có thể sử dụng một lần.</p>
+            <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.</p>
+            <p>Trân trọng,<br/>Đội ngũ DMS</p>
           </div>
         `,
       });
     } catch (error) {
       await authRepository.deletePasswordResetToken(tokenHash);
-      console.error('[auth] password reset email delivery failed', error);
+      console.error('[auth] gửi email đặt lại mật khẩu thất bại', error);
     }
 
     return { message: PASSWORD_RESET_RESPONSE };
@@ -139,10 +142,10 @@ export class AuthService {
     const reset = await authRepository.resetPasswordWithToken(hashResetToken(token), hashedPassword);
 
     if (!reset) {
-      throw new BadRequestError('This password reset link is invalid or has expired');
+      throw new BadRequestError('Đường dẫn đặt lại mật khẩu không hợp lệ hoặc đã hết hạn');
     }
 
-    return { message: 'Password reset successfully' };
+    return { message: 'Đặt lại mật khẩu thành công' };
   }
 
   async changePassword(
@@ -154,28 +157,28 @@ export class AuthService {
 
     const user = await authRepository.findById(userId);
     if (!user) {
-      throw new UnauthorizedError('User not found');
+      throw new UnauthorizedError('Không tìm thấy người dùng');
     }
 
     const isCurrentValid = await bcrypt.compare(currentPassword, user.password);
     if (!isCurrentValid) {
-      throw new BadRequestError('Current password is incorrect');
+      throw new BadRequestError('Mật khẩu hiện tại không chính xác');
     }
 
     if (currentPassword === newPassword) {
-      throw new BadRequestError('New password must be different from current password');
+      throw new BadRequestError('Mật khẩu mới phải khác mật khẩu hiện tại');
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, config.bcrypt.saltRounds);
 
     await authRepository.updatePassword(userId, hashedPassword);
 
-    return { message: 'Password changed successfully' };
+    return { message: 'Đổi mật khẩu thành công' };
   }
 
   async logout(userId: number) {
     await authRepository.updateLastLogin(userId);
-    return { message: 'Logged out successfully' };
+    return { message: 'Đăng xuất thành công' };
   }
 }
 
