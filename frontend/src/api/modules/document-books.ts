@@ -27,6 +27,8 @@ export interface CreateDocumentBookRequest {
   code?: string;
   bookType: 'INCOMING' | 'OUTGOING';
   year: number;
+  // departmentId là bắt buộc theo backend validation (document-books.validation.ts)
+  departmentId: number;
   currentNumber?: number;
   isDefault?: boolean;
   description?: string;
