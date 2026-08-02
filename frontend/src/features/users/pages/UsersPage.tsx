@@ -9,7 +9,7 @@ import type { UserStatus } from '../../../types';
 export default function UsersPage() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
-  const { users, total, page, limit, loading, fetch, setPage } = useUsers({ pageSize: 10 });
+  const { users, total, page, limit, loading, fetch } = useUsers({ pageSize: 10 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -20,8 +20,12 @@ export default function UsersPage() {
   const handleSuccess = () => fetch({ search, status: statusFilter, role: roleFilter });
   const { lockUser, unlockUser, deleteUser, actionLoading } = useUserActions(handleSuccess);
 
+  const goToPage = (newPage: number) =>
+    fetch({ page: newPage, search, status: statusFilter, role: roleFilter });
+
   useEffect(() => {
     fetch({ search, status: statusFilter, role: roleFilter });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -74,7 +78,11 @@ export default function UsersPage() {
               />
               <select
                 value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value as UserStatus | ''); setPage(1); }}
+                onChange={(e) => {
+                  const value = e.target.value as UserStatus | '';
+                  setStatusFilter(value);
+                  fetch({ search, status: value, role: roleFilter });
+                }}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
                 <option value="">Tất cả trạng thái</option>
@@ -84,7 +92,11 @@ export default function UsersPage() {
               </select>
               <select
                 value={roleFilter}
-                onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRoleFilter(value);
+                  fetch({ search, status: statusFilter, role: value });
+                }}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
                 <option value="">Tất cả vai trò</option>
@@ -182,7 +194,7 @@ export default function UsersPage() {
 
           {totalPages > 1 && (
             <div className="pagination">
-              <button onClick={() => setPage(page - 1)} disabled={page === 1}>Trước</button>
+              <button onClick={() => goToPage(page - 1)} disabled={page === 1}>Trước</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
                 .reduce<(number | string)[]>((acc, p, idx, arr) => {
@@ -194,12 +206,12 @@ export default function UsersPage() {
                   p === '...' ? (
                     <span key={`ellipsis-${idx}`} style={{ padding: '6px 8px' }}>...</span>
                   ) : (
-                    <button key={p} onClick={() => setPage(p as number)} className={page === p ? 'active' : ''}>
+                    <button key={p} onClick={() => goToPage(p as number)} className={page === p ? 'active' : ''}>
                       {p}
                     </button>
                   )
                 )}
-              <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>Sau</button>
+              <button onClick={() => goToPage(page + 1)} disabled={page === totalPages}>Sau</button>
             </div>
           )}
         </div>

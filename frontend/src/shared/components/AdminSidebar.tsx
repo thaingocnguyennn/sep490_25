@@ -23,18 +23,11 @@ export default function AdminSidebar() {
     <aside className="sidebar">
       <div className="sidebar-header">
         <h2>Quản trị DMS</h2>
-        <p style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.75)', marginTop: 4 }}>Bảng điều khiển quản trị</p>
+        <p style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.75)', marginTop: 4 }}>Bảng điều khiển</p>
       </div>
 
       <nav className="sidebar-nav">
         <div className="nav-section-title">Quản lý</div>
-        <NavLink
-          to="/admin"
-          end
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span>🏠</span> Bảng điều khiển
-        </NavLink>
         <NavLink
           to="/admin/users"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
