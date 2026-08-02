@@ -147,8 +147,27 @@ export default function UserFormPage() {
       }
       navigate('/admin/users');
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Thao tác thất bại. Vui lòng thử lại.');
+      const error = err as {
+        response?: {
+          data?: {
+            message?: string;
+            errors?: Array<{ field?: string; message?: string }>;
+          };
+        };
+      };
+      const apiErrors = error.response?.data?.errors;
+      const fieldMessage =
+        apiErrors && apiErrors.length > 0
+          ? apiErrors
+              .map((e) => e.message)
+              .filter(Boolean)
+              .join('. ')
+          : '';
+      setError(
+        fieldMessage ||
+          error.response?.data?.message ||
+          'Thao tác thất bại. Vui lòng thử lại.'
+      );
     } finally {
       setLoading(false);
     }

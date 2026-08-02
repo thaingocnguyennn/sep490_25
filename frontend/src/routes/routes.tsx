@@ -10,7 +10,6 @@ import ProfilePage from '../features/profile/pages/ProfilePage';
 import ProfileEditPage from '../features/profile/pages/ProfileEditPage';
 import AdminLayout from '../shared/components/AdminLayout';
 import AdminSidebar from '../shared/components/AdminSidebar';
-import AdminDashboardPage from '../features/admin/pages/AdminDashboardPage';
 import UsersPage from '../features/users/pages/UsersPage';
 import UserFormPage from '../features/users/pages/UserFormPage';
 import UserDetailPage from '../features/users/pages/UserDetailPage';
@@ -88,7 +87,7 @@ export const routes: RouteObject[] = [
     path: '/admin',
     element: <AdminLayout />,
     children: [
-      { index: true, element: <AdminDashboardPage /> },
+      { index: true, element: <Navigate to="users" replace /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'users/new', element: <UserFormPage /> },
       { path: 'users/:id', element: <UserDetailPage /> },
