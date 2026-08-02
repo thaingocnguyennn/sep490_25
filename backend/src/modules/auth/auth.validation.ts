@@ -53,4 +53,10 @@ export const changePasswordValidation = [
   body('confirmPassword')
     .notEmpty()
     .withMessage('Vui lòng nhập xác nhận mật khẩu'),
+  body('newPassword').custom((value, { req }) => {
+    if (value && req.body?.currentPassword && value === req.body.currentPassword) {
+      throw new Error('Mật khẩu mới phải khác mật khẩu hiện tại');
+    }
+    return true;
+  }),
 ];
