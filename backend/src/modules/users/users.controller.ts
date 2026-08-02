@@ -15,7 +15,7 @@ export class UsersController {
       });
 
       res.status(200).json(
-        paginatedResponse(result.users, result.total, result.page, result.limit, 'Users retrieved')
+        paginatedResponse(result.users, result.total, result.page, result.limit, 'Lấy danh sách người dùng thành công')
       );
     } catch (error) {
       next(error);
@@ -34,7 +34,7 @@ export class UsersController {
       });
 
       res.status(200).json(
-        paginatedResponse(result.users, result.total, result.page, result.limit, 'Users retrieved')
+        paginatedResponse(result.users, result.total, result.page, result.limit, 'Lấy danh sách người dùng thành công')
       );
     } catch (error) {
       next(error);
@@ -50,7 +50,7 @@ export class UsersController {
         status: 'ACTIVE',
         ...(departmentId ? { departmentId } : {}),
       });
-      res.status(200).json(successResponse(result.users, 'Approvers retrieved'));
+      res.status(200).json(successResponse(result.users, 'Lấy danh sách người duyệt thành công'));
     } catch (error) {
       next(error);
     }
@@ -65,7 +65,7 @@ export class UsersController {
         status: 'ACTIVE',
         ...(departmentId ? { departmentId } : {}),
       });
-      res.status(200).json(successResponse(result.users, 'Clerks retrieved'));
+      res.status(200).json(successResponse(result.users, 'Lấy danh sách văn thư thành công'));
     } catch (error) {
       next(error);
     }
@@ -75,7 +75,7 @@ export class UsersController {
     try {
       const id = Number(req.params.id);
       const user = await usersService.getById(id);
-      res.status(200).json(successResponse(user, 'User retrieved'));
+      res.status(200).json(successResponse(user, 'Lấy thông tin người dùng thành công'));
     } catch (error) {
       next(error);
     }
@@ -87,7 +87,7 @@ export class UsersController {
         ...req.body,
         createdBy: req.user!.userId,
       });
-      res.status(201).json(successResponse(user, 'User created'));
+      res.status(201).json(successResponse(user, 'Tạo người dùng thành công'));
     } catch (error) {
       next(error);
     }
@@ -100,7 +100,7 @@ export class UsersController {
         ...req.body,
         updatedBy: req.user!.userId,
       });
-      res.status(200).json(successResponse(user, 'User updated'));
+      res.status(200).json(successResponse(user, 'Cập nhật người dùng thành công'));
     } catch (error) {
       next(error);
     }
@@ -113,13 +113,13 @@ export class UsersController {
       if (id === req.user!.userId) {
         res.status(400).json({
           success: false,
-          message: 'Cannot delete your own account',
+          message: 'Không thể xóa tài khoản của chính bạn',
         });
         return;
       }
 
       await usersService.delete(id);
-      res.status(200).json(successResponse(null, 'User deleted'));
+      res.status(200).json(successResponse(null, 'Xóa người dùng thành công'));
     } catch (error) {
       next(error);
     }
@@ -128,7 +128,7 @@ export class UsersController {
   async getRoles(_req: Request, res: Response, next: NextFunction) {
     try {
       const roles = await usersService.getRoles();
-      res.status(200).json(successResponse(roles, 'Roles retrieved'));
+      res.status(200).json(successResponse(roles, 'Lấy danh sách vai trò thành công'));
     } catch (error) {
       next(error);
     }
@@ -141,13 +141,13 @@ export class UsersController {
       if (id === req.user!.userId) {
         res.status(400).json({
           success: false,
-          message: 'Cannot lock your own account',
+          message: 'Không thể khóa tài khoản của chính bạn',
         });
         return;
       }
 
       await usersService.updateStatus(id, 'LOCKED', req.user!.userId);
-      res.status(200).json(successResponse(null, 'User locked'));
+      res.status(200).json(successResponse(null, 'Khóa người dùng thành công'));
     } catch (error) {
       next(error);
     }
@@ -156,7 +156,7 @@ export class UsersController {
     try {
       const id = Number(req.params.id);
       await usersService.updateStatus(id, 'ACTIVE', req.user!.userId);
-      res.status(200).json(successResponse(null, 'User unlocked'));
+      res.status(200).json(successResponse(null, 'Mở khóa người dùng thành công'));
     } catch (error) {
       next(error);
     }
@@ -165,7 +165,7 @@ export class UsersController {
   async getMe(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await usersService.getById(req.user!.userId);
-      res.status(200).json(successResponse(user, 'Profile retrieved'));
+      res.status(200).json(successResponse(user, 'Lấy thông tin cá nhân thành công'));
     } catch (error) {
       next(error);
     }
@@ -174,7 +174,7 @@ export class UsersController {
   async updateMe(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await usersService.updateMyProfile(req.user!.userId, req.body);
-      res.status(200).json(successResponse(user, 'Profile updated'));
+      res.status(200).json(successResponse(user, 'Cập nhật thông tin cá nhân thành công'));
     } catch (error) {
       next(error);
     }
