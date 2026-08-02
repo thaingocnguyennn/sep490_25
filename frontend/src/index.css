@@ -2394,6 +2394,89 @@ textarea:focus {
   /* Full width minus collapsed sidebar */
 }
 
+.admin-dashboard-subtitle {
+  color: #636e72;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.admin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.admin-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  min-height: 156px;
+  color: #2d3436;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.admin-summary-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.admin-summary-card__icon {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+}
+
+.admin-summary-card--users .admin-summary-card__icon { background: #eef0ff; color: #667eea; }
+.admin-summary-card--roles .admin-summary-card__icon { background: #fff3e8; color: #e67e22; }
+.admin-summary-card--departments .admin-summary-card__icon { background: #e8f8f1; color: #00a878; }
+
+.admin-summary-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-summary-card__title {
+  color: #636e72;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-summary-card__value {
+  color: #2d3436;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.admin-summary-card__label {
+  color: #b2bec3;
+  font-size: 12px;
+}
+
+.admin-dashboard-loading {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .admin-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .page-content { padding: 20px; }
+  .top-bar { padding: 16px 20px; }
+  .admin-summary-grid { grid-template-columns: 1fr; gap: 16px; }
+}
+
+
 /* ─── OCR Workspace Layout ───────────────────────────────────────────────── *
  *
  *  Scroll strategy — ONE scrollable region:
