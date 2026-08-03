@@ -3,6 +3,14 @@ import type { CSSProperties } from 'react';
 interface DocumentViewerProps {
   file: File | null;
   fileUrl: string | null;
+  /** When true, shows the existing file from URL even if no File object is provided */
+  isExistingFile?: boolean;
+  /** Original filename for existing files from server */
+  existingFileName?: string;
+  /** File size for existing files from server */
+  existingFileSize?: number;
+  /** MIME type for existing files from server */
+  existingMimeType?: string;
 }
 
 function formatFileSize(bytes: number): string {
@@ -19,7 +27,14 @@ function isPdfType(mimeType: string): boolean {
   return mimeType === 'application/pdf';
 }
 
-export default function DocumentViewer({ file, fileUrl }: DocumentViewerProps) {
+export default function DocumentViewer({
+  file,
+  fileUrl,
+  isExistingFile = false,
+  existingFileName,
+  existingFileSize,
+  existingMimeType
+}: DocumentViewerProps) {
   const containerStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -27,7 +42,10 @@ export default function DocumentViewer({ file, fileUrl }: DocumentViewerProps) {
     overflow: 'hidden',
   };
 
-  if (!file || !fileUrl) {
+  // Show file preview if we have either a new file or an existing file URL
+  const hasFile = file || (isExistingFile && fileUrl);
+
+  if (!hasFile || !fileUrl) {
     return (
       <div style={containerStyle}>
         <div className="document-viewer">
@@ -51,7 +69,9 @@ export default function DocumentViewer({ file, fileUrl }: DocumentViewerProps) {
     );
   }
 
-  const mimeType = file.type || '';
+  const mimeType = file?.type || existingMimeType || '';
+  const fileName = file?.name || existingFileName || 'Tài liệu';
+  const fileSize = file?.size || existingFileSize;
   const isImage = isImageType(mimeType);
   const isPdf = isPdfType(mimeType);
   const typeLabel = isPdf ? 'PDF' : 'Hình ảnh';
@@ -62,8 +82,8 @@ export default function DocumentViewer({ file, fileUrl }: DocumentViewerProps) {
         <div className="document-viewer-header">
           <div className="document-viewer-info">
             <span className="document-viewer-type-badge">{typeLabel}</span>
-            <span className="document-viewer-filename" title={file.name}>{file.name}</span>
-            <span className="document-viewer-filesize">{formatFileSize(file.size)}</span>
+            <span className="document-viewer-filename" title={fileName}>{fileName}</span>
+            {fileSize && <span className="document-viewer-filesize">{formatFileSize(fileSize)}</span>}
           </div>
         </div>
 
@@ -71,7 +91,7 @@ export default function DocumentViewer({ file, fileUrl }: DocumentViewerProps) {
           {isImage && (
             <img
               src={fileUrl}
-              alt={file.name}
+              alt={fileName}
               style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
               className="document-viewer-img"
             />

@@ -67,6 +67,7 @@ export const routes: RouteObject[] = [
       { path: 'incoming-documents/new', element: <AddIncomingDocumentPage /> },
       { path: 'incoming-documents/pending',    element: <PendingIncomingDocumentsPage /> },
       { path: 'incoming-documents/statistics',  element: <IncomingStatisticsPage /> }, // backward compat
+      { path: 'incoming-documents/:id/edit',   element: <AddIncomingDocumentPage editMode /> },
       { path: 'incoming-documents/:id',         element: <IncomingDocumentDetailPage /> },
       // Outgoing document routes
       { path: 'outgoing-documents',             element: <OutgoingDocumentsPage /> },

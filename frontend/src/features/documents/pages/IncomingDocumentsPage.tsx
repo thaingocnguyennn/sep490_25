@@ -6,10 +6,11 @@ import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
 
-type StatusTab = '' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+type StatusTab = '' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT';
 
 const TABS: { value: StatusTab; label: string }[] = [
   { value: '', label: 'Tất cả' },
+  { value: 'DRAFT', label: 'Bản nháp' },
   { value: 'PENDING', label: 'Chờ xử lý' },
   { value: 'IN_PROGRESS', label: 'Đang xử lý' },
   { value: 'COMPLETED', label: 'Đã xử lý' },
@@ -178,13 +179,23 @@ export default function IncomingDocumentsPage() {
                       </td>
                       <td><DocumentStatusBadge status={item.document.status} /></td>
                       <td>
-                        <button
-                          className="action-btn edit"
-                          title="Xem chi tiết"
-                          onClick={() => navigate(`/incoming-documents/${item.id}`)}
-                        >
-                          &#128065;
-                        </button>
+                        {item.document.status === 'DRAFT' ? (
+                          <button
+                            className="action-btn edit"
+                            title="Sửa bản nháp"
+                            onClick={() => navigate(`/incoming-documents/${item.id}/edit`)}
+                          >
+                            &#9998;
+                          </button>
+                        ) : (
+                          <button
+                            className="action-btn view"
+                            title="Xem chi tiết"
+                            onClick={() => navigate(`/incoming-documents/${item.id}`)}
+                          >
+                            &#128065;
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

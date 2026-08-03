@@ -481,6 +481,415 @@ export class IncomingDocumentsService {
   }
 
   /**
+   * Save an incoming document as a draft.
+   * Unlike create(), this does not require processors and allows partial data.
+   * The document is created with DRAFT status so it can be edited/submitted later.
+   */
+  async saveDraft(data: {
+    issuer?: string;
+    documentTypeId?: number;
+    documentNumber?: string;
+    arrivalNumber?: number;
+    signerName?: string;
+    signerTitle?: string;
+    dateLetter?: string;
+    dateReceived?: string;
+    summary?: string;
+    pageCount?: number;
+    urgency?: string;
+    notes?: string;
+    processingInstructions?: string;
+    attachments?: AttachmentInput[];
+    createdBy: number;
+    confidentialityLevel?: string;
+    confidentialityId?: string;
+  }) {
+    const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
+
+    // Resolve urgencyId and confidentialityId (use defaults if not provided)
+    const urgencyId = data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
+      ? await resolveUrgencyIdWithDefault(data.urgency)
+      : await resolveUrgencyIdWithDefault(null);
+
+    const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
+    const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
+
+    // Fetch document kind name for title if documentTypeId is provided
+    let documentKindName = '';
+    if (data.documentTypeId) {
+      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (typeDoc) documentKindName = typeDoc.name;
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const document = await tx.document.create({
+        data: {
+          documentNumber,
+          title: data.summary
+            ? `${documentKindName} ${data.summary}`.trim()
+            : data.issuer || `Văn bản đến số ${documentNumber}`,
+          type: 'INCOMING',
+          status: DocumentStatus.DRAFT, // Draft status - not processed yet
+          urgencyId,
+          confidentialityId,
+          createdBy: data.createdBy,
+        },
+      });
+
+      const incoming = await tx.incomingDocument.create({
+        data: {
+          documentId: document.id,
+          issuer: data.issuer,
+          documentTypeId: data.documentTypeId,
+          documentNumber: data.documentNumber,
+          arrivalNumber: data.arrivalNumber,
+          signerName: data.signerName,
+          signerTitle: data.signerTitle,
+          dateLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
+          summary: data.summary,
+          pageCount: data.pageCount,
+          notes: data.notes,
+          processingInstructions: data.processingInstructions,
+          createdByClerkId: data.createdBy,
+        },
+      });
+
+      if (data.attachments && data.attachments.length > 0) {
+        await tx.documentAttachment.createMany({
+          data: data.attachments.map((a) => ({
+            documentId: document.id,
+            fileName: a.fileName,
+            fileUrl: a.fileUrl,
+            fileSize: a.fileSize,
+            mimeType: a.mimeType,
+          })),
+        });
+      }
+
+      return { documentId: document.id, incomingId: incoming.id };
+    });
+
+    return this.getById(result.incomingId);
+  }
+
+  /**
+   * Save an incoming document as a draft with a file attached.
+   * The file is saved to disk by multer before this method is called. If the
+   * Prisma transaction fails, the uploaded file is deleted to avoid orphaned
+   * files on disk.
+   *
+   * @param file  - Multer file object from the multipart upload
+   * @param data  - Document metadata
+   * @param userId - Authenticated user id (passed separately instead of in data)
+   */
+  async saveDraftWithFile(
+    file: Express.Multer.File,
+    data: {
+      issuer?: string;
+      documentTypeId?: number;
+      documentNumber?: string;
+      arrivalNumber?: number;
+      signerName?: string;
+      signerTitle?: string;
+      dateLetter?: string;
+      dateReceived?: string;
+      summary?: string;
+      pageCount?: number;
+      urgency?: string;
+      notes?: string;
+      processingInstructions?: string;
+      attachments?: AttachmentInput[];
+      confidentialityLevel?: string;
+      confidentialityId?: string;
+    },
+    userId: number,
+  ) {
+    const fileUrl = `/uploads/${file.filename}`;
+    let resultDocId: number | null = null;
+
+    try {
+      // Fetch document kind name for title if documentTypeId is provided
+      let documentKindName = '';
+      if (data.documentTypeId) {
+        const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+        if (typeDoc) documentKindName = typeDoc.name;
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
+
+        const document = await tx.document.create({
+          data: {
+            documentNumber,
+            title: data.summary
+              ? `${documentKindName} ${data.summary}`.trim()
+              : data.issuer || `Văn bản đến số ${documentNumber}`,
+            type: 'INCOMING',
+            status: DocumentStatus.DRAFT, // Draft status
+            fileUrl,
+            originalFileName: file.originalname,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
+              ? await resolveUrgencyIdWithDefault(data.urgency)
+              : await resolveUrgencyIdWithDefault(null),
+            confidentialityId: await resolveConfidentialityIdWithDefault(
+              data.confidentialityId ?? data.confidentialityLevel ?? null,
+            ),
+            createdBy: userId,
+          },
+        });
+
+        const incoming = await tx.incomingDocument.create({
+          data: {
+            documentId: document.id,
+            issuer: data.issuer,
+            documentTypeId: data.documentTypeId,
+            documentNumber: data.documentNumber,
+            arrivalNumber: data.arrivalNumber,
+            signerName: data.signerName,
+            signerTitle: data.signerTitle,
+            dateLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
+            summary: data.summary,
+            pageCount: data.pageCount,
+            notes: data.notes,
+            processingInstructions: data.processingInstructions,
+            createdByClerkId: userId,
+          },
+        });
+
+        // Add additional attachments if any
+        if (data.attachments && data.attachments.length > 0) {
+          await tx.documentAttachment.createMany({
+            data: data.attachments.map((a) => ({
+              documentId: document.id,
+              fileName: a.fileName,
+              fileUrl: a.fileUrl,
+              fileSize: a.fileSize,
+              mimeType: a.mimeType,
+            })),
+          });
+        }
+
+        return { documentId: document.id, incomingId: incoming.id };
+      });
+
+      resultDocId = result.documentId;
+      return this.getById(result.incomingId);
+    } catch (error) {
+      const conflict = (error as { code?: string }).code === 'P2002';
+      if (conflict) {
+        throw new ConflictError('Mã văn bản đã tồn tại, vui lòng thử lại');
+      }
+      // Transaction failed — delete the uploaded file to avoid orphaned files
+      const filePath = path.join(config.uploadDir, file.filename);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          // best-effort cleanup; log but don't throw
+        }
+      }
+      throw error;
+    } finally {
+      void resultDocId;
+    }
+  }
+
+  /**
+   * Update an existing draft document.
+   */
+  async updateDraft(
+    id: number,
+    data: {
+      issuer?: string;
+      documentTypeId?: number;
+      documentNumber?: string;
+      arrivalNumber?: number;
+      signerName?: string;
+      signerTitle?: string;
+      dateLetter?: string;
+      dateReceived?: string;
+      summary?: string;
+      pageCount?: number;
+      urgency?: string;
+      notes?: string;
+      processingInstructions?: string;
+      attachments?: AttachmentInput[];
+      confidentialityLevel?: string;
+      confidentialityId?: string;
+      updatedBy: number;
+    }
+  ) {
+    // Verify the document is a draft
+    const incoming = await incomingDocumentsRepository.findById(id);
+    if (incoming.document.status !== DocumentStatus.DRAFT) {
+      throw new BadRequestError('Chỉ có thể cập nhật bản nháp');
+    }
+
+    // Resolve urgencyId and confidentialityId
+    const urgencyId = data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
+      ? await resolveUrgencyIdWithDefault(data.urgency)
+      : await resolveUrgencyIdWithDefault(null);
+
+    const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
+    const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
+
+    // Fetch document kind name for title if documentTypeId is provided
+    let documentKindName = '';
+    if (data.documentTypeId) {
+      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (typeDoc) documentKindName = typeDoc.name;
+    }
+
+    const title = data.summary
+      ? `${documentKindName} ${data.summary}`.trim()
+      : data.issuer || incoming.document.title;
+
+    await prisma.$transaction(async (tx) => {
+      // Update the document
+      await tx.document.update({
+        where: { id: incoming.documentId },
+        data: {
+          title,
+          urgencyId,
+          confidentialityId,
+          updatedBy: data.updatedBy,
+        },
+      });
+
+      // Update the incoming document
+      await tx.incomingDocument.update({
+        where: { id },
+        data: {
+          issuer: data.issuer,
+          documentTypeId: data.documentTypeId,
+          documentNumber: data.documentNumber,
+          arrivalNumber: data.arrivalNumber,
+          signerName: data.signerName,
+          signerTitle: data.signerTitle,
+          dateLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          dateReceived: data.dateReceived ? new Date(data.dateReceived) : undefined,
+          summary: data.summary,
+          pageCount: data.pageCount,
+          notes: data.notes,
+          processingInstructions: data.processingInstructions,
+        },
+      });
+    });
+
+    return this.getById(id);
+  }
+
+  /**
+   * Update an existing draft document with a new file.
+   */
+  async updateDraftWithFile(
+    id: number,
+    file: Express.Multer.File,
+    data: {
+      issuer?: string;
+      documentTypeId?: number;
+      documentNumber?: string;
+      arrivalNumber?: number;
+      signerName?: string;
+      signerTitle?: string;
+      dateLetter?: string;
+      dateReceived?: string;
+      summary?: string;
+      pageCount?: number;
+      urgency?: string;
+      notes?: string;
+      processingInstructions?: string;
+      attachments?: AttachmentInput[];
+      confidentialityLevel?: string;
+      confidentialityId?: string;
+      updatedBy: number;
+    },
+    userId: number,
+  ) {
+    // Verify the document is a draft
+    const incoming = await incomingDocumentsRepository.findById(id);
+    if (incoming.document.status !== DocumentStatus.DRAFT) {
+      throw new BadRequestError('Chỉ có thể cập nhật bản nháp');
+    }
+
+    const fileUrl = `/uploads/${file.filename}`;
+
+    // Resolve urgencyId and confidentialityId
+    const urgencyId = data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
+      ? await resolveUrgencyIdWithDefault(data.urgency)
+      : await resolveUrgencyIdWithDefault(null);
+
+    const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
+    const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
+
+    // Fetch document kind name for title if documentTypeId is provided
+    let documentKindName = '';
+    if (data.documentTypeId) {
+      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (typeDoc) documentKindName = typeDoc.name;
+    }
+
+    const title = data.summary
+      ? `${documentKindName} ${data.summary}`.trim()
+      : data.issuer || incoming.document.title;
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Update the document with new file
+        await tx.document.update({
+          where: { id: incoming.documentId },
+          data: {
+            title,
+            fileUrl,
+            originalFileName: file.originalname,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            urgencyId,
+            confidentialityId,
+            updatedBy: userId,
+          },
+        });
+
+        // Update the incoming document
+        await tx.incomingDocument.update({
+          where: { id },
+          data: {
+            issuer: data.issuer,
+            documentTypeId: data.documentTypeId,
+            documentNumber: data.documentNumber,
+            arrivalNumber: data.arrivalNumber,
+            signerName: data.signerName,
+            signerTitle: data.signerTitle,
+            dateLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            dateReceived: data.dateReceived ? new Date(data.dateReceived) : undefined,
+            summary: data.summary,
+            pageCount: data.pageCount,
+            notes: data.notes,
+            processingInstructions: data.processingInstructions,
+          },
+        });
+      });
+
+      return this.getById(id);
+    } catch (error) {
+      // Transaction failed — delete the uploaded file to avoid orphaned files
+      const filePath = path.join(config.uploadDir, file.filename);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          // best-effort cleanup; log but don't throw
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Create an incoming document with a file attached in a single request.
    *
    * The file is saved to disk by multer before this method is called. If the

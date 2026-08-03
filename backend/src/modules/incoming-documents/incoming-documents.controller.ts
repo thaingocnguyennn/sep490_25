@@ -82,6 +82,90 @@ export class IncomingDocumentsController {
   }
 
   /**
+   * POST /incoming-documents/draft
+   * Save an incoming document as a draft without requiring all fields or processors.
+   * The document is saved with DRAFT status and can be edited/submitted later.
+   */
+  async saveDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const draft = await incomingDocumentsService.saveDraft({
+        ...req.body,
+        createdBy: req.user!.userId,
+      });
+      res.status(201).json(successResponse(draft, 'Đã lưu bản nháp thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /incoming-documents/draft/with-file
+   * Save an incoming document as a draft with a file attached.
+   * The file is persisted to disk; if the database transaction fails, the
+   * uploaded file is cleaned up to avoid orphaned files on disk.
+   */
+  async saveDraftWithFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ success: false, message: 'No file uploaded' });
+        return;
+      }
+
+      const result = await incomingDocumentsService.saveDraftWithFile(
+        file,
+        { ...req.body },
+        req.user!.userId,
+      );
+      res.status(201).json(successResponse(result, 'Đã lưu bản nháp với tệp đính kèm'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PUT /incoming-documents/:id/draft
+   * Update an existing draft document.
+   */
+  async updateDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const result = await incomingDocumentsService.updateDraft(idParam, {
+        ...req.body,
+        updatedBy: req.user!.userId,
+      });
+      res.status(200).json(successResponse(result, 'Đã cập nhật bản nháp'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PUT /incoming-documents/:id/draft/with-file
+   * Update an existing draft document with a new file.
+   */
+  async updateDraftWithFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ success: false, message: 'No file uploaded' });
+        return;
+      }
+
+      const result = await incomingDocumentsService.updateDraftWithFile(
+        idParam,
+        file,
+        { ...req.body },
+        req.user!.userId,
+      );
+      res.status(200).json(successResponse(result, 'Đã cập nhật bản nháp với tệp đính kèm'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * POST /incoming-documents/with-file
    * Accepts a file (PDF/image) and document metadata in a single multipart request.
    * The file is persisted to disk; if the database transaction fails, the

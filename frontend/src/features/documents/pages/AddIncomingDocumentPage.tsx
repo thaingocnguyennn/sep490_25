@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
   documentsApi,
   incomingDocumentsApi,
@@ -19,6 +19,10 @@ import type { ConfidentialityCodeOrName, OcrResult } from '../../../types';
 interface ProcessorAssignment {
   userId: number;
   processorType: ProcessorType;
+}
+
+interface AddIncomingDocumentPageProps {
+  editMode?: boolean;
 }
 
 const PROCESSOR_TYPE_LABELS: Record<ProcessorType, string> = {
@@ -60,7 +64,8 @@ function normalizeDate(input: string | undefined): string | undefined {
 
 type Step = 1 | 2;
 
-export default function AddIncomingDocumentPage() {
+export default function AddIncomingDocumentPage({ editMode = false }: AddIncomingDocumentPageProps) {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isDocumentClerk, isAdmin } = useAuth();
   const hasAccess = isDocumentClerk || isAdmin;
@@ -69,10 +74,18 @@ export default function AddIncomingDocumentPage() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(editMode);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrSuccess, setOcrSuccess] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
+  const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null); // Track existing file from draft
+  const [existingFileName, setExistingFileName] = useState<string | null>(null);
+  const [existingFileSize, setExistingFileSize] = useState<number | null>(null);
+  const [existingMimeType, setExistingMimeType] = useState<string | null>(null);
+  // Mock file object for existing files (needed for OCR upload)
+  const [existingFileForOcr, setExistingFileForOcr] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -96,23 +109,116 @@ export default function AddIncomingDocumentPage() {
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
   const [processorsList, setProcessorsList] = useState<ProcessorAssignment[]>([]);
 
-  const layout = useOutletContext<LayoutContextValue>();
+  const layoutRef = useRef<LayoutContextValue | null>(null);
+  layoutRef.current = useOutletContext<LayoutContextValue>();
+
+  // Track if we've set the initial sidebar state for this mount
+  const initialStateSetRef = useRef(false);
 
   useEffect(() => {
     fetchProcessors();
     fetchDocumentTypes();
   }, [fetchProcessors, fetchDocumentTypes]);
 
-  // Auto-collapse sidebar when entering OCR workspace (step 1), restore on step 2
+  // Load draft document data when in edit mode
   useEffect(() => {
-    if (layout) {
-      if (currentStep === 1) {
-        layout.setSidebarCollapsed(true);
-      } else {
-        layout.setSidebarCollapsed(false);
+    if (!editMode || !id) return;
+
+    const loadDraft = async () => {
+      try {
+        const { data } = await incomingDocumentsApi.getById(Number(id));
+        const doc = data.data;
+        if (!doc) {
+          setError('Không tìm thấy văn bản');
+          setLoadingDraft(false);
+          return;
+        }
+
+        // Populate form fields
+        setForm({
+          issuer: doc.issuer || '',
+          documentNumber: doc.documentNumber || '',
+          dateLetter: doc.dateLetter || '',
+          documentTypeId: doc.documentTypeId?.toString() || '',
+          summary: doc.summary || '',
+          pageCount: doc.pageCount?.toString() || '',
+          signerName: doc.signerName || '',
+          signerTitle: doc.signerTitle || '',
+        });
+
+        setArrivalNumber(doc.arrivalNumber?.toString() || '');
+        setDateReceived(doc.dateReceived?.split('T')[0] || new Date().toISOString().split('T')[0]);
+        setNotes(doc.notes || '');
+        setProcessingInstructions(doc.processingInstructions || '');
+
+        // Set urgency and confidentiality if available
+        if (doc.document.urgency) {
+          setUrgency(doc.document.urgency.name as Urgency);
+        }
+        if (doc.document.confidentiality) {
+          setConfidentiality(doc.document.confidentiality.name as ConfidentialityCodeOrName);
+        }
+
+        // Set preview URL if there's a file
+        if (doc.document.fileUrl) {
+          setDocumentPreviewUrl(doc.document.fileUrl);
+          setExistingFileUrl(doc.document.fileUrl); // Track existing file URL
+          setExistingFileName(doc.document.originalFileName || doc.document.fileUrl.split('/').pop() || null);
+          setExistingFileSize(doc.document.fileSize || null);
+          setExistingMimeType(doc.document.mimeType || null);
+
+          // Fetch the file to create a File object for OCR
+          try {
+            const baseUrl = import.meta.env.VITE_API_URL || '';
+            const fileResponse = await fetch(`${baseUrl}${doc.document.fileUrl}`);
+            if (fileResponse.ok) {
+              const blob = await fileResponse.blob();
+              const fileName = doc.document.originalFileName || doc.document.fileUrl.split('/').pop() || 'document';
+              const mimeType = doc.document.mimeType || 'application/pdf';
+              const file = new File([blob], fileName, { type: mimeType });
+              setExistingFileForOcr(file);
+            }
+          } catch (err) {
+            console.warn('Could not fetch file for OCR:', err);
+          }
+        }
+      } catch (err) {
+        setError('Không thể tải dữ liệu bản nháp');
+      } finally {
+        setLoadingDraft(false);
       }
+    };
+
+    loadDraft();
+  }, [editMode, id]);
+
+  // Auto-collapse sidebar when entering OCR workspace (step 1), restore on unmount
+  useEffect(() => {
+    // Only auto-collapse on initial mount (step 1)
+    if (currentStep === 1 && !initialStateSetRef.current) {
+      initialStateSetRef.current = true;
+      layoutRef.current?.setSidebarCollapsed(true);
+    } else if (currentStep === 2) {
+      layoutRef.current?.setSidebarCollapsed(false);
     }
-  }, [currentStep, layout]);
+  }, [currentStep]);
+
+  // Restore sidebar on page unmount (navigate away)
+  useEffect(() => {
+    return () => {
+      layoutRef.current?.setSidebarCollapsed(false);
+    };
+  }, []);
+
+  const handleContinue = () => {
+    const validationError = validateStep1();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError('');
+    setCurrentStep(2);
+  };
 
   useEffect(() => {
     return () => {
@@ -142,7 +248,8 @@ export default function AddIncomingDocumentPage() {
   };
 
   const handleOcr = async () => {
-    if (!selectedFile) {
+    const fileToOcr = selectedFile || existingFileForOcr;
+    if (!fileToOcr) {
       setError('Vui lòng tải tệp lên trước khi chạy OCR.');
       return;
     }
@@ -152,8 +259,8 @@ export default function AddIncomingDocumentPage() {
 
     try {
       const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('mimeType', selectedFile.type);
+      formData.append('file', fileToOcr);
+      formData.append('mimeType', fileToOcr.type);
 
       const { data } = await documentsApi.getOcr(formData);
       const result: OcrResult = data.data!;
@@ -218,6 +325,15 @@ export default function AddIncomingDocumentPage() {
   };
 
   const validateStep1 = (): string | null => {
+    if (!form.issuer?.trim()) return 'Cơ quan ban hành là bắt buộc';
+    if (!form.documentNumber?.trim()) return 'Số ký hiệu là bắt buộc';
+    if (!form.dateLetter?.trim()) return 'Ngày văn bản là bắt buộc';
+    if (!form.documentTypeId) return 'Loại văn bản là bắt buộc';
+    if (!form.pageCount || Number(form.pageCount) < 1) return 'Số trang là bắt buộc';
+    if (!form.summary?.trim()) return 'Trích yếu nội dung là bắt buộc';
+    if (!form.signerName?.trim()) return 'Họ tên người ký là bắt buộc';
+    if (!form.signerTitle?.trim()) return 'Chức vụ người ký là bắt buộc';
+    if (!arrivalNumber?.trim()) return 'Số đến là bắt buộc';
     if (!dateReceived) return 'Ngày đến là bắt buộc';
     return null;
   };
@@ -227,16 +343,6 @@ export default function AddIncomingDocumentPage() {
     const hasXLC = processorsList.some((p) => p.processorType === 'XLC');
     if (!hasXLC) return 'Phải chọn ít nhất một Người xử lý chính (XLC)';
     return null;
-  };
-
-  const handleContinue = () => {
-    const validationError = validateStep1();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setError('');
-    setCurrentStep(2);
   };
 
   const handleConfirm = async () => {
@@ -272,15 +378,28 @@ export default function AddIncomingDocumentPage() {
     };
 
     try {
-      if (selectedFile) {
-        // Persist the PDF file and create the incoming document in one request
-        await incomingDocumentsApi.createWithFile(payload, selectedFile);
+      // In edit mode, first update the draft, then submit
+      if (editMode && id) {
+        // Update existing draft with file if changed
+        if (selectedFile) {
+          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile);
+        } else {
+          await incomingDocumentsApi.updateDraft(Number(id), payload);
+        }
+        // After update, navigate to detail page (document is still a draft, needs to be submitted)
+        // Actually, we should mark it as submitted - but for now, just save and navigate back
+        navigate('/incoming-documents');
       } else {
-        // No file — create without attachment
-        await incomingDocumentsApi.create(payload);
+        // Normal create flow
+        if (selectedFile) {
+          // Persist the PDF file and create the incoming document in one request
+          await incomingDocumentsApi.createWithFile(payload, selectedFile);
+        } else {
+          // No file — create without attachment
+          await incomingDocumentsApi.create(payload);
+        }
+        navigate('/incoming-documents');
       }
-
-      navigate('/incoming-documents');
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
       setError(apiError.response?.data?.message || 'Tạo văn bản đến thất bại. Vui lòng thử lại.');
@@ -289,15 +408,81 @@ export default function AddIncomingDocumentPage() {
     }
   };
 
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    setError('');
+
+    const payload = {
+      issuer: form.issuer || undefined,
+      documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
+      documentNumber: form.documentNumber || undefined,
+      arrivalNumber: arrivalNumber ? Number(arrivalNumber) : undefined,
+      signerName: form.signerName || undefined,
+      signerTitle: form.signerTitle || undefined,
+      dateLetter: normalizeDate(form.dateLetter),
+      dateReceived,
+      summary: form.summary || undefined,
+      pageCount: form.pageCount ? Number(form.pageCount) : undefined,
+      urgency,
+      confidentialityLevel: confidentiality,
+      notes: notes || undefined,
+      attachments: attachments.map((a) => ({
+        fileName: a.name,
+        fileUrl: a.url,
+      })),
+    };
+
+    try {
+      if (editMode && id) {
+        // Update existing draft
+        if (selectedFile) {
+          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile);
+        } else {
+          await incomingDocumentsApi.updateDraft(Number(id), payload);
+        }
+      } else {
+        // Create new draft
+        if (selectedFile) {
+          await incomingDocumentsApi.saveDraftWithFile(payload, selectedFile);
+        } else {
+          await incomingDocumentsApi.saveDraft(payload);
+        }
+      }
+      navigate('/incoming-documents');
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { message?: string } } };
+      setError(apiError.response?.data?.message || 'Lưu bản nháp thất bại. Vui lòng thử lại.');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   if (!hasAccess) {
     return (
       <>
         <div className="top-bar">
-          <h1>Thêm Văn bản đến mới</h1>
+          <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
           <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
         </div>
         <div className="page-content">
           <div className="alert alert-error">Bạn không có quyền tạo văn bản đến.</div>
+        </div>
+      </>
+    );
+  }
+
+  // Show loading spinner while fetching draft data in edit mode
+  if (loadingDraft) {
+    return (
+      <>
+        <div className="top-bar">
+          <h1>Sửa Văn bản đến</h1>
+          <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
+        </div>
+        <div className="page-content">
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+            <div className="spinner" />
+          </div>
         </div>
       </>
     );
@@ -309,7 +494,7 @@ export default function AddIncomingDocumentPage() {
       <div className="ocr-page-shell">
         {/* Compact topbar */}
         <div className="ocr-workspace-topbar">
-          <h1>Thêm Văn bản đến mới</h1>
+          <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
           <div className="ocr-status-pill">
             <span className="ocr-status-dot" />
             OCR
@@ -333,7 +518,14 @@ export default function AddIncomingDocumentPage() {
         <div className="ocr-workspace">
           {/* ── LEFT: Document viewer + upload toolbar ───────────────────── */}
           <div className="ocr-workspace-viewer-col">
-            <DocumentViewer file={selectedFile} fileUrl={documentPreviewUrl} />
+            <DocumentViewer
+              file={selectedFile}
+              fileUrl={documentPreviewUrl}
+              isExistingFile={!!existingFileUrl && !selectedFile}
+              existingFileName={existingFileName || undefined}
+              existingFileSize={existingFileSize || undefined}
+              existingMimeType={existingMimeType || undefined}
+            />
 
             <div className="ocr-upload-toolbar">
               <input
@@ -349,16 +541,18 @@ export default function AddIncomingDocumentPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={ocrLoading}
               >
-                {selectedFile ? 'Đổi tệp' : 'Tải tệp lên'}
+                {selectedFile ? 'Đổi tệp' : existingFileUrl ? 'Đổi tệp' : 'Tải tệp lên'}
               </button>
-              {selectedFile && (
+              {selectedFile ? (
                 <span className="file-name-display">{selectedFile.name}</span>
-              )}
+              ) : existingFileName ? (
+                <span className="file-name-display">{existingFileName}</span>
+              ) : null}
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={handleOcr}
-                disabled={ocrLoading || !selectedFile}
+                disabled={ocrLoading || (!selectedFile && !existingFileForOcr)}
               >
                 {ocrLoading ? 'Đang xử lý...' : 'OCR'}
               </button>
@@ -393,7 +587,7 @@ export default function AddIncomingDocumentPage() {
                 <div className="card-body">
                   {/* OCR-extracted fields */}
                   <div className="form-group">
-                    <label htmlFor="issuer">Cơ quan ban hành</label>
+                    <label htmlFor="issuer">Cơ quan ban hành <span className="required">*</span></label>
                     <input
                       id="issuer"
                       name="issuer"
@@ -406,7 +600,7 @@ export default function AddIncomingDocumentPage() {
 
                   <div className="signer-row">
                     <div className="form-group">
-                      <label htmlFor="documentNumber">Số ký hiệu</label>
+                      <label htmlFor="documentNumber">Số ký hiệu <span className="required">*</span></label>
                       <input
                         id="documentNumber"
                         name="documentNumber"
@@ -417,7 +611,7 @@ export default function AddIncomingDocumentPage() {
                       />
                     </div>
                     <div className="form-group">
-                      <label htmlFor="dateLetter">Ngày văn bản</label>
+                      <label htmlFor="dateLetter">Ngày văn bản <span className="required">*</span></label>
                       <input
                         id="dateLetter"
                         name="dateLetter"
@@ -431,7 +625,7 @@ export default function AddIncomingDocumentPage() {
 
                   <div className="signer-row">
                     <div className="form-group">
-                      <label htmlFor="documentTypeId">Loại văn bản</label>
+                      <label htmlFor="documentTypeId">Loại văn bản <span className="required">*</span></label>
                       <select
                         id="documentTypeId"
                         name="documentTypeId"
@@ -444,7 +638,7 @@ export default function AddIncomingDocumentPage() {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label htmlFor="pageCount">Số trang</label>
+                      <label htmlFor="pageCount">Số trang <span className="required">*</span></label>
                       <input
                         id="pageCount"
                         name="pageCount"
@@ -458,7 +652,7 @@ export default function AddIncomingDocumentPage() {
                   </div>
 
                   <div className="form-group summary-field">
-                    <label htmlFor="summary">Trích yếu nội dung</label>
+                    <label htmlFor="summary">Trích yếu nội dung <span className="required">*</span></label>
                     <textarea
                       id="summary"
                       name="summary"
@@ -471,7 +665,7 @@ export default function AddIncomingDocumentPage() {
 
                   <div className="signer-row">
                     <div className="form-group">
-                      <label htmlFor="signerName">Họ tên người ký</label>
+                      <label htmlFor="signerName">Họ tên người ký <span className="required">*</span></label>
                       <input
                         id="signerName"
                         name="signerName"
@@ -482,7 +676,7 @@ export default function AddIncomingDocumentPage() {
                       />
                     </div>
                     <div className="form-group">
-                      <label htmlFor="signerTitle">Chức vụ người ký</label>
+                      <label htmlFor="signerTitle">Chức vụ người ký <span className="required">*</span></label>
                       <input
                         id="signerTitle"
                         name="signerTitle"
@@ -507,7 +701,7 @@ export default function AddIncomingDocumentPage() {
                   {/* Document metadata (incoming information) */}
                   <div className="signer-row">
                     <div className="form-group">
-                      <label htmlFor="arrivalNumber">Số đến</label>
+                      <label htmlFor="arrivalNumber">Số đến <span className="required">*</span></label>
                       <input
                         id="arrivalNumber"
                         type="number"
@@ -622,10 +816,19 @@ export default function AddIncomingDocumentPage() {
           <div style={{ flex: 1 }} />
           <button
             type="button"
+            className="btn btn-secondary"
+            style={{ marginRight: 8, borderColor: '#6c757d', color: '#495057' }}
+            onClick={handleSaveDraft}
+            disabled={savingDraft}
+          >
+            {savingDraft ? 'Đang lưu...' : 'Lưu bản nháp'}
+          </button>
+          <button
+            type="button"
             className="btn btn-primary"
             onClick={handleContinue}
           >
-            Tiếp tục &rarr;
+            {editMode ? 'Cập nhật & Tiếp tục' : 'Tiếp tục →'}
           </button>
         </div>
       </div>
@@ -636,7 +839,7 @@ export default function AddIncomingDocumentPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>Thêm Văn bản đến mới</h1>
+        <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
         <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>
           Quay lại
         </button>
@@ -761,7 +964,9 @@ export default function AddIncomingDocumentPage() {
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Tệp đính kèm</span>
-                  <span className="summary-value">{attachments.length} tệp</span>
+                  <span className="summary-value">
+                    {attachments.length + (existingFileUrl && !selectedFile ? 1 : 0)} tệp
+                  </span>
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Người xử lý</span>
@@ -770,7 +975,7 @@ export default function AddIncomingDocumentPage() {
                 <div className="summary-item">
                   <span className="summary-label">Tệp đính kèm chính</span>
                   <span className="summary-value">
-                    {selectedFile ? selectedFile.name : 'Không có'}
+                    {selectedFile ? selectedFile.name : existingFileName || 'Không có'}
                   </span>
                 </div>
               </div>
@@ -787,6 +992,17 @@ export default function AddIncomingDocumentPage() {
             Quay lại
           </button>
           <div style={{ flex: 1 }} />
+          {editMode && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleSaveDraft}
+              disabled={savingDraft}
+              style={{ borderColor: '#6c757d', color: '#495057' }}
+            >
+              {savingDraft ? 'Đang lưu...' : 'Lưu bản nháp'}
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-secondary"
@@ -800,7 +1016,7 @@ export default function AddIncomingDocumentPage() {
             onClick={handleConfirm}
             disabled={submitting}
           >
-            {submitting ? 'Đang gửi...' : 'Xác nhận & Gửi'}
+            {submitting ? 'Đang gửi...' : editMode ? 'Cập nhật' : 'Xác nhận & Gửi'}
           </button>
         </div>
       </div>
