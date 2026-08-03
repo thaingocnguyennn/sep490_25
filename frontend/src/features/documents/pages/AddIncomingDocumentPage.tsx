@@ -386,8 +386,8 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         } else {
           await incomingDocumentsApi.updateDraft(Number(id), payload);
         }
-        // After update, navigate to detail page (document is still a draft, needs to be submitted)
-        // Actually, we should mark it as submitted - but for now, just save and navigate back
+        // Mark document as submitted (PENDING status)
+        await incomingDocumentsApi.updateStatus(Number(id), { status: 'PENDING' });
         navigate('/incoming-documents');
       } else {
         // Normal create flow
@@ -992,17 +992,6 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             Quay lại
           </button>
           <div style={{ flex: 1 }} />
-          {editMode && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleSaveDraft}
-              disabled={savingDraft}
-              style={{ borderColor: '#6c757d', color: '#495057' }}
-            >
-              {savingDraft ? 'Đang lưu...' : 'Lưu bản nháp'}
-            </button>
-          )}
           <button
             type="button"
             className="btn btn-secondary"
@@ -1016,7 +1005,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             onClick={handleConfirm}
             disabled={submitting}
           >
-            {submitting ? 'Đang gửi...' : editMode ? 'Cập nhật' : 'Xác nhận & Gửi'}
+            {submitting ? 'Đang gửi...' : 'Xác nhận & Gửi'}
           </button>
         </div>
       </div>
