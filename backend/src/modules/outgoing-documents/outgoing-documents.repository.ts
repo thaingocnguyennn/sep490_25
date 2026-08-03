@@ -43,6 +43,9 @@ export interface OutgoingDocumentWithRelations {
   assignedClerkId: number | null;
   createdAt: Date;
   updatedAt: Date;
+  // Lĩnh vực văn bản
+  categoryId: number | null;
+  category: { id: number; name: string; code: string } | null;
   document: {
     id: number;
     documentNumber: string;
@@ -115,6 +118,8 @@ const OUTGOING_INCLUDE = {
     },
   },
   documentTypeRef: { select: { id: true, name: true } },
+  // Include lĩnh vực văn bản (chỉ lấy ACTIVE, nhưng include không filter - filter ở service)
+  category: { select: { id: true, name: true, code: true } },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },

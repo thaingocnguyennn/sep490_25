@@ -122,6 +122,8 @@ export class OutgoingDocumentsService {
     confidentialityLevel?: string | number;
     departmentId?: number;
     documentTypeId?: number;
+    /** ID lĩnh vực văn bản (DocumentCategory) - chỉ chấp nhận lĩnh vực ACTIVE */
+    documentCategoryId?: number;
     recipientName?: string;
     recipientAddress?: string;
     recipientEmail?: string;
@@ -158,6 +160,8 @@ export class OutgoingDocumentsService {
         data: {
           documentId: document.id,
           documentTypeId: data.documentTypeId,
+          // Lĩnh vực văn bản (chỉ nhận ID hợp lệ, validation đã kiểm tra ACTIVE ở controller)
+          categoryId: data.documentCategoryId,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,

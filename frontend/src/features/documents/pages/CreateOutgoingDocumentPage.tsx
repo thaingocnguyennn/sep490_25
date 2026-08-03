@@ -5,6 +5,7 @@ import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgen
 import { documentsApi } from '../../../api';
 import type { CreateOutgoingDocumentRequest, OcrResult, UrgencyName } from '../../../types';
 import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
+import { useDocumentCategoryOptions } from '../../document-categories/hooks/useDocumentCategories';
 import DocumentViewer from '../components/DocumentViewer';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
 
@@ -23,6 +24,8 @@ export default function CreateOutgoingDocumentPage() {
   const { create, uploadFile, loading: creating } = useOutgoingDocumentActions();
   const { departments } = useDepartments();
   const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
+  // Lấy danh sách lĩnh vực đang ACTIVE để hiển thị dropdown
+  const { options: categoryOptions, fetchOptions: fetchCategories } = useDocumentCategoryOptions();
   const layout = useOutletContext<LayoutContextValue>();
 
   // State
@@ -40,6 +43,8 @@ export default function CreateOutgoingDocumentPage() {
     confidentialityLevel: 'THUONG',
     documentTypeId: undefined,
     departmentId: undefined,
+    // Lĩnh vực văn bản - mặc định chưa chọn
+    documentCategoryId: undefined,
     recipientName: '',
     recipientAddress: '',
     recipientEmail: '',
@@ -53,6 +58,8 @@ export default function CreateOutgoingDocumentPage() {
   useEffect(() => {
     if (layout) layout.setSidebarCollapsed(true);
     fetchDocumentTypes();
+    // Tải danh sách lĩnh vực ACTIVE khi component mount
+    fetchCategories();
     return () => {
       if (layout) layout.setSidebarCollapsed(false);
     };
@@ -149,6 +156,7 @@ export default function CreateOutgoingDocumentPage() {
         description: form.description?.trim() || undefined,
         documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
         departmentId: form.departmentId ? Number(form.departmentId) : undefined,
+        documentCategoryId: form.documentCategoryId ? Number(form.documentCategoryId) : undefined,
         recipientName: form.recipientName?.trim() || undefined,
         recipientAddress: form.recipientAddress?.trim() || undefined,
         recipientEmail: form.recipientEmail?.trim() || undefined,
@@ -300,6 +308,21 @@ export default function CreateOutgoingDocumentPage() {
               </div>
 
               <div className="signer-row">
+                <div className="form-group">
+                  <label htmlFor="documentCategoryId">Lĩnh vực</label>
+                  <select
+                    id="documentCategoryId"
+                    name="documentCategoryId"
+                    value={form.documentCategoryId || ''}
+                    onChange={handleChange}
+                  >
+                    <option value="">-- Chọn lĩnh vực --</option>
+                    {/* Chỉ hiển thị các lĩnh vực đang ACTIVE (do API /options trả về) */}
+                    {categoryOptions.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label htmlFor="urgency">Độ khẩn</label>
                   <select

@@ -349,6 +349,8 @@ export interface CreateOutgoingDocumentRequest {
   departmentId?: number;
   documentType?: string;
   documentTypeId?: number;
+  /** ID lĩnh vực văn bản (DocumentCategory) */
+  documentCategoryId?: number;
   recipientName?: string;
   recipientAddress?: string;
   recipientEmail?: string;
@@ -365,6 +367,8 @@ export interface UpdateOutgoingMetadataRequest {
   departmentId?: number | null;
   documentType?: string;
   documentTypeId?: number;
+  /** ID lĩnh vực văn bản (DocumentCategory) */
+  documentCategoryId?: number | null;
   documentNumber?: string;
   signerName?: string;
   signerTitle?: string;

@@ -269,28 +269,29 @@ async function main() {
     console.log('Skipping document book seed: no departments or clerk user found');
   }
 
-  // Seed Document Categories
+  // Seed Document Categories (tên tiếng Việt)
   const categories = [
-    { name: 'Administration', normalizedName: 'administration', code: 'ADMINISTRATION', isSystem: true },
-    { name: 'Personnel', normalizedName: 'personnel', code: 'PERSONNEL', isSystem: true },
-    { name: 'Finance', normalizedName: 'finance', code: 'FINANCE', isSystem: true },
-    { name: 'Training', normalizedName: 'training', code: 'TRAINING', isSystem: true },
-    { name: 'Legal', normalizedName: 'legal', code: 'LEGAL', isSystem: true },
-    { name: 'Information Technology', normalizedName: 'information technology', code: 'INFORMATION_TECHNOLOGY', isSystem: true },
-    { name: 'Other', normalizedName: 'other', code: 'OTHER', isSystem: true },
+    { name: 'Hành chính',          normalizedName: 'hanh chinh',          code: 'ADMINISTRATION',       isSystem: true },
+    { name: 'Nhân sự',             normalizedName: 'nhan su',             code: 'PERSONNEL',            isSystem: true },
+    { name: 'Tài chính',           normalizedName: 'tai chinh',           code: 'FINANCE',              isSystem: true },
+    { name: 'Đào tạo',             normalizedName: 'dao tao',             code: 'TRAINING',             isSystem: true },
+    { name: 'Pháp chế',            normalizedName: 'phap che',            code: 'LEGAL',                isSystem: true },
+    { name: 'Công nghệ thông tin', normalizedName: 'cong nghe thong tin', code: 'INFORMATION_TECHNOLOGY', isSystem: true },
+    { name: 'Khác',                normalizedName: 'khac',                code: 'OTHER',                isSystem: true },
   ];
 
   for (const category of categories) {
     await prisma.documentCategory.upsert({
       where: { code: category.code },
-      update: {},
+      // Cập nhật tên tiếng Việt nếu record đã tồn tại với tên cũ tiếng Anh
+      update: { name: category.name, normalizedName: category.normalizedName },
       create: {
         ...category,
         createdById: adminUser.id,
       },
     });
   }
-  console.log('Document Categories seeded');
+  console.log('Document Categories seeded (tên tiếng Việt)');
 
   // Backfill existing documents
   const otherCategory = await prisma.documentCategory.findUnique({

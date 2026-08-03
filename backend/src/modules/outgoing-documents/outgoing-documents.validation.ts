@@ -64,6 +64,10 @@ export const createOutgoingDocumentValidation = [
     .optional()
     .isInt().withMessage('documentTypeId phải là số nguyên'),
 
+  body('documentCategoryId')
+    .optional({ nullable: true })
+    .isInt({ min: 1 }).withMessage('ID lĩnh vực phải là số nguyên dương'),
+
   body('recipientName')
     .optional()
     .trim()
@@ -153,6 +157,10 @@ export const updateOutgoingMetadataValidation = [
   body('documentTypeId')
     .optional()
     .isInt(),
+
+  body('documentCategoryId')
+    .optional({ nullable: true })
+    .isInt({ min: 1 }).withMessage('ID lĩnh vực phải là số nguyên dương'),
 
   body('documentNumber')
     .optional()
