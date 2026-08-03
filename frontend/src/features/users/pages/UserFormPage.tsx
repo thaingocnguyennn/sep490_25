@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { usersApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { ROLES } from '../../../shared/constants/roles';
+import { validatePasswordPolicy, PASSWORD_POLICY_HINT } from '../../../shared/utils/passwordPolicy';
 import type { User, UserStatus, CreateUserRequest, UpdateUserRequest } from '../../../types';
 
 interface RoleOption {
@@ -46,6 +48,7 @@ export default function UserFormPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetchingUser, setFetchingUser] = useState(isEdit);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Pre-load roles from DB to get their IDs; fall back to static roles
   const [availableRoles, setAvailableRoles] = useState<RoleOption[]>(STATIC_ROLES);
@@ -107,7 +110,10 @@ export default function UserFormPage() {
     if (!form.email.trim()) return 'Email là bắt buộc';
     if (!form.fullName.trim()) return 'Họ và tên là bắt buộc';
     if (!isEdit && !form.password) return 'Mật khẩu là bắt buộc';
-    if (!isEdit && form.password.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
+    if (!isEdit) {
+      const passwordError = validatePasswordPolicy(form.password);
+      if (passwordError) return passwordError;
+    }
     if (form.roleIds.length === 0) return 'Phải chỉ định ít nhất một vai trò';
     return null;
   };
@@ -224,12 +230,58 @@ export default function UserFormPage() {
                     onChange={handleChange} placeholder="VD: 0901234567" />
                 </div>
 
-                <div className="form-group">
-                  <label htmlFor="password">Mật khẩu {isEdit ? '(để trống nếu giữ nguyên)' : '*'}</label>
-                  <input id="password" name="password" type="password" value={form.password}
-                    onChange={handleChange} placeholder={isEdit ? '••••••••' : 'Tối thiểu 8 ký tự'}
-                    autoComplete={isEdit ? 'new-password' : 'current-password'} />
-                </div>
+                {!isEdit && (
+                  <div className="form-group">
+                    <label htmlFor="password">Mật khẩu *</label>
+                    <div className="password-input-wrapper">
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={form.password}
+                        onChange={handleChange}
+                        placeholder="Nhập mật khẩu"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      >
+                        {showPassword ? <Eye /> : <EyeOff />}
+                      </button>
+                    </div>
+                    <small style={{ fontSize: 12, color: '#636e72' }}>
+                      {PASSWORD_POLICY_HINT}
+                    </small>
+                  </div>
+                )}
+
+                {isEdit && (
+                  <div className="form-group">
+                    <label htmlFor="password">Mật khẩu (để trống nếu giữ nguyên)</label>
+                    <div className="password-input-wrapper">
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={form.password}
+                        onChange={handleChange}
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      >
+                        {showPassword ? <Eye /> : <EyeOff />}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {isEdit && (
                   <div className="form-group">

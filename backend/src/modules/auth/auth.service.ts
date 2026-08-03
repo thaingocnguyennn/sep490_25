@@ -6,6 +6,7 @@ import { BadRequestError, UnauthorizedError } from '../../shared/exceptions/app-
 import { generateToken } from '../../shared/utils/jwt.util';
 import { authRepository, UserProfile } from './auth.repository';
 import { sendEmail } from '../../shared/services/email.service';
+import { ensurePasswordPolicy } from '../../shared/utils/password-policy';
 import type { RoleName } from '../../shared/constants/roles';
 
 const PASSWORD_RESET_RESPONSE =
@@ -26,21 +27,7 @@ function escapeHtml(value: string): string {
 
 export class AuthService {
   private validateNewPassword(password: string): void {
-    if (password.length < 8) {
-      throw new BadRequestError('Mật khẩu mới phải có ít nhất 8 ký tự');
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      throw new BadRequestError('Mật khẩu mới phải chứa ít nhất một chữ cái viết hoa');
-    }
-
-    if (!/[a-z]/.test(password)) {
-      throw new BadRequestError('Mật khẩu mới phải chứa ít nhất một chữ cái viết thường');
-    }
-
-    if (!/[0-9]/.test(password)) {
-      throw new BadRequestError('Mật khẩu mới phải chứa ít nhất một chữ số');
-    }
+    ensurePasswordPolicy(password, 'Mật khẩu mới');
   }
 
   async login(username: string, password: string) {

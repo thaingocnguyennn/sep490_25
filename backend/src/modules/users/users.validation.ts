@@ -1,4 +1,5 @@
 import { body, query, param } from 'express-validator';
+import { passwordPolicyValidation } from '../../shared/utils/password-policy';
 
 export const createUserValidation = [
   body('username')
@@ -16,17 +17,7 @@ export const createUserValidation = [
     .isEmail()
     .withMessage('Định dạng email không hợp lệ')
     .normalizeEmail(),
-  body('password')
-    .notEmpty()
-    .withMessage('Mật khẩu là bắt buộc')
-    .isLength({ min: 8 })
-    .withMessage('Mật khẩu phải có ít nhất 8 ký tự')
-    .matches(/[A-Z]/)
-    .withMessage('Mật khẩu phải chứa ít nhất một chữ cái viết hoa')
-    .matches(/[a-z]/)
-    .withMessage('Mật khẩu phải chứa ít nhất một chữ cái viết thường')
-    .matches(/[0-9]/)
-    .withMessage('Mật khẩu phải chứa ít nhất một chữ số'),
+  passwordPolicyValidation('password', 'Mật khẩu'),
   body('fullName')
     .trim()
     .notEmpty()

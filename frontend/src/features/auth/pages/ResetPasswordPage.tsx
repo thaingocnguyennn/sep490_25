@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../../../api';
+import {
+  PASSWORD_POLICY_HINT,
+  validatePasswordPolicy,
+} from '../../../shared/utils/passwordPolicy';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -31,8 +35,9 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (form.newPassword.length < 8 || !/[A-Z]/.test(form.newPassword) || !/[a-z]/.test(form.newPassword) || !/[0-9]/.test(form.newPassword)) {
-      setError('Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và chữ số');
+    const policyError = validatePasswordPolicy(form.newPassword);
+    if (policyError) {
+      setError(policyError);
       return;
     }
 
@@ -94,7 +99,7 @@ export default function ResetPasswordPage() {
           />
         </div>
 
-        <p className="password-hint">Ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và chữ số.</p>
+        <p className="password-hint">{PASSWORD_POLICY_HINT}</p>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
           {loading ? 'Đang lưu...' : 'Đặt lại mật khẩu'}
