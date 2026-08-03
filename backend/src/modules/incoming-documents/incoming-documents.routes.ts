@@ -176,7 +176,7 @@ router.put(
 router.patch(
   '/:id/status',
   authenticate,
-  requireRole(ROLES.ADMIN),
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   incomingDocumentsController.updateStatus.bind(incomingDocumentsController)
 );
 
