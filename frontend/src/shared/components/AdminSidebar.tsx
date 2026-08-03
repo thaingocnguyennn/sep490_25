@@ -90,7 +90,7 @@ export default function AdminSidebar() {
         <button
           className="btn btn-secondary"
           style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
-          onClick={() => navigate('/change-password')}
+          onClick={() => navigate('/admin/change-password')}
         >
           Đổi mật khẩu
         </button>

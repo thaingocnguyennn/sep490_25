@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
+import {
+  PASSWORD_POLICY_HINT,
+  validatePasswordPolicy,
+} from '../../../shared/utils/passwordPolicy';
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
@@ -34,8 +38,9 @@ export default function ChangePasswordPage() {
       return;
     }
 
-    if (form.newPassword.length < 8) {
-      setError('Mật khẩu mới phải có ít nhất 8 ký tự');
+    const policyError = validatePasswordPolicy(form.newPassword);
+    if (policyError) {
+      setError(policyError);
       return;
     }
 
@@ -100,7 +105,7 @@ export default function ChangePasswordPage() {
                   autoComplete="new-password"
                 />
                 <small style={{ fontSize: 12, color: '#636e72' }}>
-                  Ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và chữ số
+                  {PASSWORD_POLICY_HINT}
                 </small>
               </div>
 

@@ -89,6 +89,7 @@ export const routes: RouteObject[] = [
     element: <AdminLayout />,
     children: [
       { index: true, element: <AdminDashboardPage /> },
+      { path: 'change-password', element: <ChangePasswordPage /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'users/new', element: <UserFormPage /> },
       { path: 'users/:id', element: <UserDetailPage /> },
