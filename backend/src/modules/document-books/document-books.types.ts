@@ -16,8 +16,11 @@ export interface DocumentBookDto {
   createdBy?: { id: number; fullName: string };
   openedAt: Date;
   closedAt?: Date | null;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Số lượng văn bản đã đăng ký (trả về cùng getById) */
+  _count?: { incomingEntries: number; outgoingEntries: number };
 }
 
 export interface CreateDocumentBookInput {

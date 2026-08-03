@@ -15,19 +15,26 @@ export class DocumentBooksService {
     return book;
   }
 
+  /**
+   * Lấy danh sách văn bản đã đăng ký trong sổ (phân trang).
+   */
+  async getEntries(id: number, page: number = 1, limit: number = 20) {
+    const book = await documentBooksRepository.findById(id);
+    if (!book) throw new NotFoundError('Sổ văn bản không tồn tại');
+    return documentBooksRepository.findEntriesByBookId(book.id, book.bookType, page, limit);
+  }
+
   async create(input: CreateDocumentBookInput, createdById: number) {
-    // Check if name is unique within the same department, bookType, year
     const nameCount = await documentBooksRepository.countByNameAndDepartmentAndYearAndType(
       input.name,
       input.departmentId,
       input.year,
-      input.bookType
+      input.bookType,
     );
     if (nameCount > 0) {
       throw new ConflictError('Tên sổ văn bản đã tồn tại trong năm và loại này');
     }
 
-    // Handle isDefault logic
     if (input.isDefault) {
       await documentBooksRepository.unsetDefaultBook(input.departmentId, input.bookType, input.year);
     }
@@ -37,8 +44,15 @@ export class DocumentBooksService {
 
   async update(id: number, input: UpdateDocumentBookInput) {
     const book = await documentBooksRepository.findById(id);
-    if (!book) {
-      throw new NotFoundError('Sổ văn bản không tồn tại');
+    if (!book) throw new NotFoundError('Sổ văn bản không tồn tại');
+
+    // Sổ đã khóa không được chỉnh sửa (Report 3)
+    if (book.status === 'CLOSED') {
+      throw new BadRequestError('Không thể chỉnh sửa sổ đã khóa. Vui lòng mở lại sổ trước.');
+    }
+    // Sổ ngừng hoạt động không được chỉnh sửa
+    if (book.status === 'INACTIVE') {
+      throw new BadRequestError('Không thể chỉnh sửa sổ đang ngừng hoạt động.');
     }
 
     if (input.name && input.name !== book.name) {
@@ -47,7 +61,7 @@ export class DocumentBooksService {
         book.departmentId,
         book.year,
         book.bookType,
-        id
+        id,
       );
       if (nameCount > 0) {
         throw new ConflictError('Tên sổ văn bản đã tồn tại');
@@ -64,7 +78,8 @@ export class DocumentBooksService {
   async closeBook(id: number) {
     const book = await documentBooksRepository.findById(id);
     if (!book) throw new NotFoundError('Sổ văn bản không tồn tại');
-    if (book.status === 'CLOSED') throw new BadRequestError('Sổ đã được đóng');
+    if (book.status === 'CLOSED') throw new BadRequestError('Sổ văn bản đã được khóa.');
+    if (book.status === 'INACTIVE') throw new BadRequestError('Không thể khóa sổ đang ngừng hoạt động.');
 
     return documentBooksRepository.updateStatus(id, 'CLOSED');
   }
@@ -72,26 +87,45 @@ export class DocumentBooksService {
   async reopenBook(id: number) {
     const book = await documentBooksRepository.findById(id);
     if (!book) throw new NotFoundError('Sổ văn bản không tồn tại');
-    if (book.status === 'ACTIVE') throw new BadRequestError('Sổ đang ở trạng thái hoạt động');
+    if (book.status === 'ACTIVE') throw new BadRequestError('Sổ văn bản đang ở trạng thái hoạt động.');
+    if (book.status === 'INACTIVE') throw new BadRequestError('Không thể mở lại sổ đang ngừng hoạt động. Chức năng này chỉ áp dụng cho sổ đã khóa (CLOSED).');
 
     return documentBooksRepository.updateStatus(id, 'ACTIVE');
   }
 
+  /**
+   * Xóa sổ văn bản:
+   * - Sổ đang CLOSED → không cho xóa
+   * - Sổ chưa có văn bản → soft-delete (biến mất khỏi danh sách)
+   * - Sổ đã có văn bản → chuyển INACTIVE (văn bản cũ được giữ nguyên)
+   */
   async deleteOrInactive(id: number) {
     const book = await documentBooksRepository.findById(id);
     if (!book) throw new NotFoundError('Sổ văn bản không tồn tại');
 
-    const hasEntries = await documentBooksRepository.hasEntries(id);
-    if (hasEntries) {
-      // If there are entries, we cannot delete, only mark as INACTIVE
+    if (book.status === 'CLOSED') {
+      throw new BadRequestError('Không thể xóa sổ đã khóa. Vui lòng mở lại sổ trước nếu muốn xóa.');
+    }
+
+    if (book.status === 'INACTIVE') {
+      throw new BadRequestError('Sổ văn bản này đã ngừng hoạt động.');
+    }
+
+    const entriesCount = await documentBooksRepository.countEntries(id);
+    const totalEntries = entriesCount.incoming + entriesCount.outgoing;
+
+    if (totalEntries > 0) {
+      // Sổ đã có văn bản → không được xóa vật lý, chỉ chuyển INACTIVE
       if (book.isDefault) {
-        throw new BadRequestError('Không thể vô hiệu hóa sổ đang là mặc định. Vui lòng chọn sổ mặc định khác trước.');
+        throw new BadRequestError(
+          'Không thể vô hiệu hóa sổ đang là mặc định. Vui lòng chọn sổ mặc định khác trước.',
+        );
       }
       return documentBooksRepository.updateStatus(id, 'INACTIVE');
     }
 
-    // If no entries, we can physically delete or just set to INACTIVE (we'll set INACTIVE for safety)
-    return documentBooksRepository.updateStatus(id, 'INACTIVE');
+    // Sổ chưa có văn bản → soft-delete (ẩn khỏi danh sách)
+    return documentBooksRepository.softDelete(id);
   }
 }
 

@@ -4,12 +4,15 @@ import { CreateDocumentBookInput, UpdateDocumentBookInput, ListDocumentBooksQuer
 
 export class DocumentBooksRepository {
   async findById(id: number): Promise<DocumentBookDto | null> {
-    return prisma.documentBook.findUnique({
-      where: { id },
+    return prisma.documentBook.findFirst({
+      where: { id, deletedAt: null },
       include: {
         department: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, fullName: true } }
-      }
+        createdBy: { select: { id: true, fullName: true } },
+        _count: {
+          select: { incomingEntries: true, outgoingEntries: true },
+        },
+      },
     });
   }
 
@@ -18,6 +21,7 @@ export class DocumentBooksRepository {
     const skip = (page - 1) * limit;
 
     const where: Prisma.DocumentBookWhereInput = {
+      deletedAt: null, // ẩn các sổ đã soft-delete
       ...(bookType && { bookType }),
       ...(year && { year }),
       ...(departmentId && { departmentId }),
@@ -27,8 +31,8 @@ export class DocumentBooksRepository {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
           { code: { contains: search, mode: 'insensitive' } },
-        ]
-      })
+        ],
+      }),
     };
 
     const [items, total] = await Promise.all([
@@ -39,10 +43,13 @@ export class DocumentBooksRepository {
         orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
         include: {
           department: { select: { id: true, name: true } },
-          createdBy: { select: { id: true, fullName: true } }
-        }
+          createdBy: { select: { id: true, fullName: true } },
+          _count: {
+            select: { incomingEntries: true, outgoingEntries: true },
+          },
+        },
       }),
-      prisma.documentBook.count({ where })
+      prisma.documentBook.count({ where }),
     ]);
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
@@ -52,15 +59,15 @@ export class DocumentBooksRepository {
     return prisma.documentBook.create({
       data: {
         ...data,
-        createdById
-      }
+        createdById,
+      },
     });
   }
 
   async update(id: number, data: UpdateDocumentBookInput) {
     return prisma.documentBook.update({
       where: { id },
-      data
+      data,
     });
   }
 
@@ -73,28 +80,110 @@ export class DocumentBooksRepository {
     }
     return prisma.documentBook.update({
       where: { id },
-      data: updateData
+      data: updateData,
+    });
+  }
+
+  /**
+   * Soft-delete: sổ chưa có văn bản, ẩn khỏi danh sách nhưng giữ dữ liệu
+   */
+  async softDelete(id: number) {
+    return prisma.documentBook.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        isDefault: false, // bỏ cờ mặc định khi xóa
+      },
     });
   }
 
   async unsetDefaultBook(departmentId: number, bookType: DocumentBookType, year: number) {
     await prisma.documentBook.updateMany({
-      where: { departmentId, bookType, year, isDefault: true },
-      data: { isDefault: false }
+      where: { departmentId, bookType, year, isDefault: true, deletedAt: null },
+      data: { isDefault: false },
     });
   }
 
-  async hasEntries(id: number): Promise<boolean> {
+  async countEntries(id: number): Promise<{ incoming: number; outgoing: number }> {
     const book = await prisma.documentBook.findUnique({
       where: { id },
       include: {
         _count: {
-          select: { incomingEntries: true, outgoingEntries: true }
-        }
-      }
+          select: { incomingEntries: true, outgoingEntries: true },
+        },
+      },
     });
-    if (!book) return false;
-    return (book._count.incomingEntries > 0 || book._count.outgoingEntries > 0);
+    if (!book) return { incoming: 0, outgoing: 0 };
+    return {
+      incoming: book._count.incomingEntries,
+      outgoing: book._count.outgoingEntries,
+    };
+  }
+
+  async hasEntries(id: number): Promise<boolean> {
+    const count = await this.countEntries(id);
+    return count.incoming > 0 || count.outgoing > 0;
+  }
+
+  /**
+   * Lấy danh sách văn bản đã đăng ký trong sổ (phân trang).
+   * Trả về incoming entries hoặc outgoing entries tùy bookType.
+   */
+  async findEntriesByBookId(
+    id: number,
+    bookType: DocumentBookType,
+    page: number = 1,
+    limit: number = 20,
+  ) {
+    const skip = (page - 1) * limit;
+
+    if (bookType === 'INCOMING') {
+      const [items, total] = await Promise.all([
+        prisma.incomingBookEntry.findMany({
+          where: { documentBookId: id },
+          skip,
+          take: limit,
+          orderBy: { arrivalNumber: 'asc' },
+          include: {
+            incomingDocument: {
+              include: {
+                document: {
+                  include: {
+                    urgency: { select: { name: true } },
+                  },
+                },
+                documentTypeRef: { select: { name: true } },
+              },
+            },
+          },
+        }),
+        prisma.incomingBookEntry.count({ where: { documentBookId: id } }),
+      ]);
+      return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+    } else {
+      const [items, total] = await Promise.all([
+        prisma.outgoingBookEntry.findMany({
+          where: { documentBookId: id },
+          skip,
+          take: limit,
+          orderBy: { sequenceNumber: 'asc' },
+          include: {
+            outgoingDocument: {
+              include: {
+                document: {
+                  include: {
+                    urgency: { select: { name: true } },
+                  },
+                },
+                documentTypeRef: { select: { name: true } },
+              },
+            },
+          },
+        }),
+        prisma.outgoingBookEntry.count({ where: { documentBookId: id } }),
+      ]);
+      return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+    }
   }
 
   async countByNameAndDepartmentAndYearAndType(
@@ -102,7 +191,7 @@ export class DocumentBooksRepository {
     departmentId: number,
     year: number,
     bookType: DocumentBookType,
-    excludeId?: number
+    excludeId?: number,
   ): Promise<number> {
     return prisma.documentBook.count({
       where: {
@@ -110,8 +199,9 @@ export class DocumentBooksRepository {
         departmentId,
         year,
         bookType,
-        id: excludeId ? { not: excludeId } : undefined
-      }
+        deletedAt: null,
+        id: excludeId ? { not: excludeId } : undefined,
+      },
     });
   }
 }

@@ -33,6 +33,7 @@ import OutgoingDocumentEditPage from '../features/documents/pages/OutgoingDocume
 import OutgoingStatisticsPage from '../features/documents/pages/OutgoingStatisticsPage'; // giữ lại cho backward compat
 import DocumentStatisticsPage from '../features/documents/pages/DocumentStatisticsPage';
 import { DocumentBooksPage } from '../features/document-books/pages/DocumentBooksPage';
+import { DocumentBookDetailPage } from '../features/document-books/pages/DocumentBookDetailPage';
 import { DocumentCategoriesPage } from '../features/document-categories/pages/DocumentCategoriesPage';
 import { DocumentTypesPage } from '../features/document-types/pages/DocumentTypesPage';
 
@@ -77,6 +78,7 @@ export const routes: RouteObject[] = [
       { path: 'outgoing-documents/:id/edit',    element: <OutgoingDocumentEditPage /> },
       // Sổ văn bản
       { path: 'document-books',                 element: <DocumentBooksPage /> },
+      { path: 'document-books/:id',             element: <DocumentBookDetailPage /> },
       // Lĩnh vực văn bản
       { path: 'document-categories',            element: <DocumentCategoriesPage /> },
       { path: 'document-types',                 element: <DocumentTypesPage /> },
