@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useDocumentBooks, useDocumentBookActions } from '../../../shared/hooks';
 import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -133,7 +134,11 @@ export function DocumentBooksPage() {
                   ) : (
                     books.map((book) => (
                       <tr key={book.id}>
-                        <td style={{ fontWeight: 500 }}>{book.name}</td>
+                        <td style={{ fontWeight: 500 }}>
+                          <Link to={`/document-books/${book.id}`} style={{ color: '#0984e3', textDecoration: 'none' }}>
+                            {book.name}
+                          </Link>
+                        </td>
                         <td>{book.code || '—'}</td>
                         <td>
                           <span className={`badge ${book.bookType === 'INCOMING' ? 'badge-info' : 'badge-primary'}`}>
@@ -158,23 +163,36 @@ export function DocumentBooksPage() {
                         </td>
                         {canManage && (
                           <td>
-                            <button
-                              className="action-btn edit"
-                              title="Chỉnh sửa"
-                              onClick={() => handleEdit(book)}
-                            >
-                              &#9998;
-                            </button>
-                            <button
-                              className={`action-btn ${book.status === 'ACTIVE' ? 'delete' : 'edit'}`}
-                              title={book.status === 'ACTIVE' ? 'Đóng sổ' : 'Mở sổ'}
-                              onClick={() => handleToggleStatus(book)}
-                            >
-                              {book.status === 'ACTIVE' ? '🔒' : '🔓'}
-                            </button>
+                            {book.status === 'ACTIVE' && (
+                              <button
+                                className="action-btn edit"
+                                title="Chỉnh sửa"
+                                onClick={() => handleEdit(book)}
+                              >
+                                &#9998;
+                              </button>
+                            )}
+                            {book.status !== 'INACTIVE' && (
+                              <button
+                                className={`action-btn ${book.status === 'ACTIVE' ? 'delete' : 'edit'}`}
+                                title={book.status === 'ACTIVE' ? 'Đóng sổ' : 'Mở sổ'}
+                                onClick={() => handleToggleStatus(book)}
+                              >
+                                {book.status === 'ACTIVE' ? '🔒' : '🔓'}
+                              </button>
+                            )}
                             <button
                               className="action-btn delete"
-                              title="Xóa"
+                              title={
+                                book.status === 'CLOSED'
+                                  ? 'Không thể xóa sổ đã khóa'
+                                  : book.status === 'INACTIVE'
+                                  ? 'Sổ đã ngừng hoạt động'
+                                  : book.isDefault
+                                  ? 'Không thể xóa sổ mặc định'
+                                  : 'Xóa'
+                              }
+                              disabled={book.status === 'CLOSED' || book.status === 'INACTIVE' || book.isDefault}
                               onClick={() => handleDeleteClick(book)}
                             >
                               &#10006;
@@ -228,8 +246,12 @@ export function DocumentBooksPage() {
 
       <ConfirmModal
         open={deleteModalOpen}
-        title="Xác nhận xóa"
-        message={`Bạn có chắc chắn muốn xóa sổ văn bản "${bookToDelete?.name}"? Các văn bản đã đăng ký trong sổ này có thể bị mất liên kết.`}
+        title="Xác nhận xóa/ngừng sổ"
+        message={
+          bookToDelete && ((bookToDelete._count?.incomingEntries || 0) > 0 || (bookToDelete._count?.outgoingEntries || 0) > 0)
+            ? `Sổ văn bản "${bookToDelete.name}" đã có dữ liệu. Việc xóa sẽ chuyển sổ này sang trạng thái Ngừng hoạt động để bảo toàn lịch sử. Bạn có chắc chắn?`
+            : `Bạn có chắc chắn muốn xóa sổ văn bản "${bookToDelete?.name}"? Sổ chưa được sử dụng nên sẽ bị xóa hoàn toàn.`
+        }
         onConfirm={confirmDelete}
         onCancel={() => {
           setDeleteModalOpen(false);

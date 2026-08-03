@@ -598,6 +598,7 @@ model DocumentBook {
 
   openedAt  DateTime  @default(now())
   closedAt  DateTime?
+  deletedAt DateTime? // Soft-delete: sổ chưa dùng bị xóa sẽ set field này
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

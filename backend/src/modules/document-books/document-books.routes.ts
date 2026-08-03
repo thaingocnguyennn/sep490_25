@@ -37,6 +37,13 @@ router.get(
   documentBooksController.getById
 );
 
+router.get(
+  '/:id/entries',
+  bookIdParamValidation,
+  validateRequest,
+  documentBooksController.getEntries
+);
+
 router.patch(
   '/:id',
   updateDocumentBookValidation,

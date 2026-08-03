@@ -9,8 +9,7 @@ export function useDocumentBookActions() {
     setLoading(true);
     setError(null);
     try {
-      const book = await documentBooksApi.create(data);
-      return book;
+      return await documentBooksApi.create(data);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi khi tạo sổ văn bản');
       throw err;
@@ -23,8 +22,7 @@ export function useDocumentBookActions() {
     setLoading(true);
     setError(null);
     try {
-      const book = await documentBooksApi.update(id, data);
-      return book;
+      return await documentBooksApi.update(id, data);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi khi cập nhật sổ văn bản');
       throw err;
@@ -37,8 +35,7 @@ export function useDocumentBookActions() {
     setLoading(true);
     setError(null);
     try {
-      const book = await documentBooksApi.closeBook(id);
-      return book;
+      return await documentBooksApi.closeBook(id);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi khi đóng sổ văn bản');
       throw err;
@@ -51,8 +48,7 @@ export function useDocumentBookActions() {
     setLoading(true);
     setError(null);
     try {
-      const book = await documentBooksApi.reopenBook(id);
-      return book;
+      return await documentBooksApi.reopenBook(id);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi khi mở lại sổ văn bản');
       throw err;
@@ -65,7 +61,7 @@ export function useDocumentBookActions() {
     setLoading(true);
     setError(null);
     try {
-      await documentBooksApi.delete(id);
+      return await documentBooksApi.delete(id);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi khi xóa sổ văn bản');
       throw err;
@@ -74,5 +70,18 @@ export function useDocumentBookActions() {
     }
   };
 
-  return { create, update, closeBook, reopenBook, deleteBook, loading, error };
+  const getEntries = async (id: number, params?: { page?: number; limit?: number }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      return await documentBooksApi.getEntries(id, params);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Lỗi khi tải danh sách văn bản');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { create, update, closeBook, reopenBook, deleteBook, getEntries, loading, error };
 }

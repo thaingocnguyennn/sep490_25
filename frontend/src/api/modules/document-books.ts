@@ -14,11 +14,20 @@ export interface DocumentBook {
   createdById: number;
   openedAt: string;
   closedAt?: string | null;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   department?: {
     id: number;
     name: string;
+  };
+  createdBy?: {
+    id: number;
+    fullName: string;
+  };
+  _count?: {
+    incomingEntries: number;
+    outgoingEntries: number;
   };
 }
 
@@ -27,22 +36,76 @@ export interface CreateDocumentBookRequest {
   code?: string;
   bookType: 'INCOMING' | 'OUTGOING';
   year: number;
-  // departmentId là bắt buộc theo backend validation (document-books.validation.ts)
   departmentId: number;
-  currentNumber?: number;
   isDefault?: boolean;
   description?: string;
 }
 
 export interface UpdateDocumentBookRequest {
   name?: string;
-  code?: string;
-  description?: string;
+  code?: string | null;
+  description?: string | null;
   isDefault?: boolean;
 }
 
 export interface DocumentBooksListResponse {
   items: DocumentBook[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+/** Entry sổ văn bản đến */
+export interface IncomingBookEntryItem {
+  id: number;
+  arrivalNumber: number;
+  arrivalDate: string;
+  senderSnapshot: string;
+  documentNumberSnapshot?: string | null;
+  summarySnapshot: string;
+  documentTypeSnapshot?: string | null;
+  assignedDepartmentSnapshot?: string | null;
+  registeredAt: string;
+  incomingDocument: {
+    id: number;
+    document: {
+      id: number;
+      title: string;
+      status: string;
+      urgency?: { name: string } | null;
+    };
+    documentTypeRef?: { name: string } | null;
+  };
+}
+
+/** Entry sổ văn bản đi */
+export interface OutgoingBookEntryItem {
+  id: number;
+  sequenceNumber: number;
+  officialNumber: string;
+  documentSymbol?: string | null;
+  issuanceDate: string;
+  summarySnapshot: string;
+  signerSnapshot?: string | null;
+  recipientsSnapshot: string;
+  documentTypeSnapshot?: string | null;
+  registeredAt: string;
+  outgoingDocument: {
+    id: number;
+    recipientName?: string | null;
+    document: {
+      id: number;
+      title: string;
+      status: string;
+      urgency?: { name: string } | null;
+    };
+    documentTypeRef?: { name: string } | null;
+  };
+}
+
+export interface BookEntriesResponse {
+  items: (IncomingBookEntryItem | OutgoingBookEntryItem)[];
   total: number;
   page: number;
   limit: number;
@@ -67,6 +130,11 @@ export const documentBooksApi = {
     return response.data;
   },
 
+  getEntries: async (id: number, params?: { page?: number; limit?: number }) => {
+    const response = await api.get<BookEntriesResponse>(`/document-books/${id}/entries`, { params });
+    return response.data;
+  },
+
   create: async (data: CreateDocumentBookRequest) => {
     const response = await api.post<DocumentBook>('/document-books', data);
     return response.data;
@@ -88,7 +156,7 @@ export const documentBooksApi = {
   },
 
   delete: async (id: number) => {
-    const response = await api.delete(`/document-books/${id}`);
+    const response = await api.delete<{ success: boolean; data: DocumentBook }>(`/document-books/${id}`);
     return response.data;
   },
 };
