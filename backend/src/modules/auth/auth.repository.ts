@@ -45,6 +45,27 @@ export class AuthRepository {
     });
   }
 
+  async updateProfile(
+    id: number,
+    data: { fullName?: string; phone?: string | null }
+  ): Promise<UserProfile> {
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        ...data,
+        updatedBy: id,
+      },
+      include: {
+        userRoles: {
+          include: { role: true },
+        },
+        department: true,
+      },
+    });
+
+    return this.formatProfile(user);
+  }
+
   async findByEmail(email: string) {
     return prisma.user.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { usersService } from './users.service';
+import { authService } from '../auth/auth.service';
 import { successResponse, paginatedResponse } from '../../shared/utils/response.util';
 
 export class UsersController {
@@ -164,7 +165,7 @@ export class UsersController {
 
   async getMe(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await usersService.getById(req.user!.userId);
+      const user = await authService.getProfile(req.user!.userId);
       res.status(200).json(successResponse(user, 'Lấy thông tin cá nhân thành công'));
     } catch (error) {
       next(error);
@@ -173,7 +174,7 @@ export class UsersController {
 
   async updateMe(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await usersService.updateMyProfile(req.user!.userId, req.body);
+      const user = await authService.updateProfile(req.user!.userId, req.body);
       res.status(200).json(successResponse(user, 'Cập nhật thông tin cá nhân thành công'));
     } catch (error) {
       next(error);

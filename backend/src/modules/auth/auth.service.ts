@@ -72,6 +72,21 @@ export class AuthService {
     return authRepository.formatProfile(user);
   }
 
+  async updateProfile(
+    userId: number,
+    data: { fullName?: string; phone?: string | null }
+  ): Promise<UserProfile> {
+    const user = await authRepository.findById(userId);
+    if (!user) {
+      throw new UnauthorizedError('Không tìm thấy người dùng');
+    }
+
+    return authRepository.updateProfile(userId, {
+      ...(data.fullName !== undefined && { fullName: data.fullName.trim() }),
+      ...(data.phone !== undefined && { phone: data.phone?.trim() || null }),
+    });
+  }
+
   async requestPasswordReset(email: string): Promise<{ message: string }> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await authRepository.findByEmail(normalizedEmail);

@@ -9,7 +9,6 @@ import DashboardPage from '../features/dashboard/pages/DashboardPage';
 import ProfilePage from '../features/profile/pages/ProfilePage';
 import ProfileEditPage from '../features/profile/pages/ProfileEditPage';
 import AdminLayout from '../shared/components/AdminLayout';
-import AdminSidebar from '../shared/components/AdminSidebar';
 import AdminDashboardPage from '../features/dashboard/pages/AdminDashboardPage';
 import UsersPage from '../features/users/pages/UsersPage';
 import UserFormPage from '../features/users/pages/UserFormPage';
@@ -61,7 +60,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <DashboardPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/edit', element: <ProfileEditPage /> },
-      { path: 'change-password', element: <ChangePasswordPage /> },
+      { path: 'profile/change-password', element: <ChangePasswordPage /> },
 
       // Incoming document routes (from dev branch)
       { path: 'incoming-documents', element: <IncomingDocumentsPage /> },
@@ -89,7 +88,9 @@ export const routes: RouteObject[] = [
     element: <AdminLayout />,
     children: [
       { index: true, element: <AdminDashboardPage /> },
-      { path: 'change-password', element: <ChangePasswordPage /> },
+      { path: 'profile', element: <ProfilePage /> },
+      { path: 'profile/edit', element: <ProfileEditPage /> },
+      { path: 'profile/change-password', element: <ChangePasswordPage /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'users/new', element: <UserFormPage /> },
       { path: 'users/:id', element: <UserDetailPage /> },

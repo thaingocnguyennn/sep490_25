@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import { config } from '../../config';
-import { NotFoundError, ConflictError, BadRequestError } from '../../shared/exceptions/app-error';
+import { NotFoundError, ConflictError } from '../../shared/exceptions/app-error';
 import {
   usersRepository,
   UserDetail,
@@ -116,18 +116,6 @@ export class UsersService {
       throw new NotFoundError('Không tìm thấy người dùng');
     }
     return usersRepository.update(id, { status, updatedBy: updatedBy ?? 0 });
-  }
-
-  async updateMyProfile(id: number, data: { fullName?: string; phone?: string }) {
-    const existing = await usersRepository.findById(id);
-    if (!existing) {
-      throw new NotFoundError('Không tìm thấy người dùng');
-    }
-    return usersRepository.update(id, {
-      fullName: data.fullName,
-      phone: data.phone,
-      updatedBy: id,
-    });
   }
 }
 

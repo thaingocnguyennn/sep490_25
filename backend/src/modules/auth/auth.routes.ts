@@ -7,6 +7,7 @@ import {
   loginValidation,
   requestPasswordResetValidation,
   resetPasswordValidation,
+  updateProfileValidation,
 } from './auth.validation';
 
 const router = Router();
@@ -26,6 +27,13 @@ router.post(
 );
 router.post('/logout', authenticate, authController.logout.bind(authController));
 router.get('/profile', authenticate, authController.getProfile.bind(authController));
+router.patch(
+  '/profile',
+  authenticate,
+  updateProfileValidation,
+  validateRequest,
+  authController.updateProfile.bind(authController)
+);
 router.patch(
   '/change-password',
   authenticate,
