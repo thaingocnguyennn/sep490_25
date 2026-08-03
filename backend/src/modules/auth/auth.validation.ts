@@ -11,6 +11,35 @@ export const loginValidation = [
     .withMessage('Vui lòng nhập mật khẩu'),
 ];
 
+export const updateProfileValidation = [
+  body().custom((value) => {
+    const allowedFields = ['fullName', 'phone'];
+    const fields = Object.keys(value ?? {});
+
+    if (!allowedFields.some((field) => value?.[field] !== undefined)) {
+      throw new Error('Vui lòng cung cấp thông tin cần cập nhật');
+    }
+
+    if (fields.some((field) => !allowedFields.includes(field))) {
+      throw new Error('Chỉ có thể cập nhật họ tên và số điện thoại');
+    }
+
+    return true;
+  }),
+  body('fullName')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Họ và tên là bắt buộc')
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Họ và tên phải có từ 2 đến 100 ký tự'),
+  body('phone')
+    .optional({ nullable: true })
+    .trim()
+    .matches(/^[0-9]{10,15}$/)
+    .withMessage('Số điện thoại phải có từ 10 đến 15 chữ số'),
+];
+
 export const requestPasswordResetValidation = [
   body('email')
     .trim()

@@ -1,0 +1,85 @@
+Page 3 — OCR Debug Report
+Tesseract: vie+eng  confidence=89.0%  blocks=1  lines=35  words=389
+
+Field Extraction Results:
+──────────────────────────────────────────────────────────────────────
+  Box 2 (Tên cơ quan ban hành)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.030 ±0.080
+    H-Band   : [0.00, 0.55]
+    Extracted: "3 | Điều 2. Tổ chức thực hiện | | .  iao Ủy ban nhân dân Thành phố triển khai thực hiện Nghị quyết này."
+    Lines    : 3
+      line 1: "3
+" (conf=96.0%, y:[0.043,0.054] x:[0.520,0.526])
+      line 2: "Điều 2. Tổ chức thực hiện
+" (conf=96.0%, y:[0.068,0.086] x:[0.207,0.465])
+      line 3: "| .  iao Ủy ban nhân dân Thành phố triển khai thực hiện Nghị quyết này.
+" (conf=86.0%, y:[0.096,0.115] x:[0.208,0.893])
+
+  Box 3 (Số ký hiệu văn bản)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.100 ±0.050
+    H-Band   : [0.00, 0.55]
+    Extracted: "(empty)"
+    In band  : 3 line(s)
+      candidate: "Điều 2. Tổ chức thực hiện
+"
+      candidate: "| .  iao Ủy ban nhân dân Thành phố triển khai thực hiện Nghị quyết này.
+"
+      candidate: "Bảo đảm kinh phí phục vụ cho công tác bầu cử được quản lý chặt chẽ, chi
+"
+
+  Box 4 (Địa danh, ngày tháng năm)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.130 ±0.050
+    H-Band   : [0.50, 1.00]
+    Extracted: "(empty)"
+    In band  : 4 line(s)
+      candidate: "| .  iao Ủy ban nhân dân Thành phố triển khai thực hiện Nghị quyết này.
+"
+      candidate: "Bảo đảm kinh phí phục vụ cho công tác bầu cử được quản lý chặt chẽ, chi
+"
+      candidate: "tiêu theo đúng chê độ, đúng mục đích, có hiệu quả, công khai, minh bạch, không
+"
+
+  Box 5a (Tên loại văn bản / Trích yếu)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.220 ±0.100
+    H-Band   : [0.25, 0.75]
+    Extracted: "Bảo đảm kinh phí phục vụ cho công tác bầu cử được quản lý chặt chẽ, chi | tiêu theo đúng chê độ, đúng mục đích, có hiệu quả, công khai, minh bạch, không | 2. Thường trực Hội đồng nhân dân, các Ban của Hội đồng nhân dân, các | chức giám sat chặt chẽ quá trình tô chức triên khai, thực hiện Nghị quyêt này. | N ghị quyết này có hiệu lực thi hành từ ngày | 2 tháng 3 năm 2026."
+    Lines    : 5
+      line 1: "Bảo đảm kinh phí phục vụ cho công tác bầu cử được quản lý chặt chẽ, chi
+" (conf=96.0%, y:[0.122,0.141] x:[0.207,0.903])
+      line 2: "tiêu theo đúng chê độ, đúng mục đích, có hiệu quả, công khai, minh bạch, không
+" (conf=96.0%, y:[0.145,0.160] x:[0.143,0.903])
+      line 3: "2. Thường trực Hội đồng nhân dân, các Ban của Hội đồng nhân dân, các
+" (conf=96.0%, y:[0.206,0.224] x:[0.208,0.903])
+      ... and 2 more lines
+
+  Box 7a (Chức vụ người ký)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.820 ±0.100
+    H-Band   : [0.50, 1.00]
+    Extracted: "(empty)"
+    In band  : 0 line(s)
+
+  Box 7b (Họ tên người ký)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.870 ±0.100
+    H-Band   : [0.50, 1.00]
+    Extracted: "(empty)"
+    In band  : 0 line(s)
+
+  Box 10a (Độ mật)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.920 ±0.100
+    H-Band   : [0.00, 0.50]
+    Extracted: "(empty)"
+    In band  : 0 line(s)
+
+  Box 10b (Độ khẩn)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.950 ±0.100
+    H-Band   : [0.00, 0.50]
+    Extracted: "(empty)"
+    In band  : 0 line(s)

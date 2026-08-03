@@ -1,0 +1,114 @@
+Page 2 — OCR Debug Report
+Tesseract: vie+eng  confidence=91.0%  blocks=1  lines=34  words=363
+
+Field Extraction Results:
+──────────────────────────────────────────────────────────────────────
+  Box 2 (Tên cơ quan ban hành)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.030 ±0.080
+    H-Band   : [0.00, 0.55]
+    Extracted: "2 | phuc vu cong tac bau cir dai biéu Quốc hội khóa XVI và đại biểu Hội đồng nhân | dân các cấp nhiệm kỳ 2026 - 2031 trên địa bàn Thành phố Hồ Chí Minh."
+    Lines    : 3
+      line 1: "2
+" (conf=87.0%, y:[0.043,0.054] x:[0.520,0.526])
+      line 2: "phuc vu cong tac bau cir dai biéu Quốc hội khóa XVI và đại biểu Hội đồng nhân
+" (conf=94.0%, y:[0.068,0.086] x:[0.140,0.903])
+      line 3: "dân các cấp nhiệm kỳ 2026 - 2031 trên địa bàn Thành phố Hồ Chí Minh.
+
+" (conf=93.0%, y:[0.093,0.111] x:[0.143,0.827])
+
+  Box 3 (Số ký hiệu văn bản)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.100 ±0.050
+    H-Band   : [0.00, 0.55]
+    Extracted: "(empty)"
+    In band  : 3 line(s)
+      candidate: "phuc vu cong tac bau cir dai biéu Quốc hội khóa XVI và đại biểu Hội đồng nhân
+"
+      candidate: "dân các cấp nhiệm kỳ 2026 - 2031 trên địa bàn Thành phố Hồ Chí Minh.
+
+"
+      candidate: "Điều 1. Sira đổi, bồ sung một số điều của Nghị quyết số 63/2025/NQ-
+"
+
+  Box 4 (Địa danh, ngày tháng năm)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.130 ±0.050
+    H-Band   : [0.50, 1.00]
+    Extracted: "HĐND ngày 10 tháng 12 năm 2025 của Hội đồng nhân dân Thành phố về"
+    Lines    : 1
+      line 1: "HĐND ngày 10 tháng 12 năm 2025 của Hội đồng nhân dân Thành phố về
+" (conf=96.0%, y:[0.146,0.165] x:[0.144,0.903])
+
+  Box 5a (Tên loại văn bản / Trích yếu)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.220 ±0.100
+    H-Band   : [0.25, 0.75]
+    Extracted: "Điều 1. Sira đổi, bồ sung một số điều của Nghị quyết số 63/2025/NQ- | HĐND ngày 10 tháng 12 năm 2025 của Hội đồng nhân dân Thành phố về | quy định mức chi, thời gian hỗ trợ kinh phí phục vụ công tác bầu cử dai | biểu Quốc hội khóa XVI và đại biểu Hội đồng nhân dân các cấp nhiệm kỳ | 2026 - 2031 trên địa bàn Thành phố Hồ Chí Minh | | . Sửa đồi, bồ sung tên mục 3.1 Phụ lục đính kèm tại khoán 1 Điều 2 như sau: | Ngoài chế độ thanh toán công tác phí theo quy định hiện hành từ nguồn | 3.1 | kinh phí phục vụ công tác bầu cử của Thành phố bố trí cho các đơn vị, các"
+    Lines    : 8
+      line 1: "Điều 1. Sira đổi, bồ sung một số điều của Nghị quyết số 63/2025/NQ-
+" (conf=92.0%, y:[0.125,0.143] x:[0.207,0.903])
+      line 2: "HĐND ngày 10 tháng 12 năm 2025 của Hội đồng nhân dân Thành phố về
+" (conf=96.0%, y:[0.146,0.165] x:[0.144,0.903])
+      line 3: "quy định mức chi, thời gian hỗ trợ kinh phí phục vụ công tác bầu cử dai
+" (conf=96.0%, y:[0.168,0.186] x:[0.144,0.904])
+      ... and 5 more lines
+
+  Box 7a (Chức vụ người ký)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.820 ±0.100
+    H-Band   : [0.50, 1.00]
+    Extracted: "(empty)"
+    In band  : 7 line(s)
+      candidate: "Chi theo thực tế, chứng
+"
+      candidate: "Chi nhiên hệu phục vụ từ chi hợp pháp, hợp lệ
+"
+      candidate: "|7 |công tác bầu cử sớm và trên cơ sở dự toán được
+"
+
+  Box 7b (Họ tên người ký)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.870 ±0.100
+    H-Band   : [0.50, 1.00]
+    Extracted: "(empty)"
+    In band  : 6 line(s)
+      candidate: "|7 |công tác bầu cử sớm và trên cơ sở dự toán được
+"
+      candidate: "tại các xã đảo, đặc khu cấp có thẩm quyền phê
+
+"
+      candidate: "duyệt
+
+"
+
+  Box 10a (Độ mật)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.920 ±0.100
+    H-Band   : [0.00, 0.50]
+    Extracted: "(empty)"
+    In band  : 4 line(s)
+      candidate: "duyệt
+
+"
+      candidate: "4. Sửa đồi, bồ sung Điều 3 như sau:
+
+"
+      candidate: "“Điều 3. Nguồn kinh phí thực hiện
+
+"
+
+  Box 10b (Độ khẩn)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.950 ±0.100
+    H-Band   : [0.00, 0.50]
+    Extracted: "(empty)"
+    In band  : 3 line(s)
+      candidate: "4. Sửa đồi, bồ sung Điều 3 như sau:
+
+"
+      candidate: "“Điều 3. Nguồn kinh phí thực hiện
+
+"
+      candidate: "T ừ nguồn ngân sách nhà nước theo phân cấp hiện hành”.
+"

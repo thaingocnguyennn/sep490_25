@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
-import { usersApi } from '../../../api';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { authApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { User } from '../../../types';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user: authUser, isAuthenticated } = useAuth();
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  const profilePath = location.pathname.startsWith('/admin/') ? '/admin/profile' : '/profile';
   const [user, setUser] = useState<User | null>(null);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,10 +18,11 @@ export default function ProfilePage() {
 
     const loadProfile = async () => {
       try {
-        const { data } = await usersApi.getMe();
+        const { data } = await authApi.getProfile();
         setUser(data.data!);
-      } catch {
-        // handled by interceptor
+      } catch (err: unknown) {
+        const apiError = err as { response?: { data?: { message?: string } } };
+        setError(apiError.response?.data?.message || 'Không thể tải hồ sơ. Vui lòng thử lại.');
       } finally {
         setLoading(false);
       }
@@ -65,18 +69,35 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <>
+        <div className="top-bar"><h1>Hồ sơ của tôi</h1></div>
+        <div className="page-content">
+          <div className="alert alert-error">{error || 'Không tìm thấy thông tin hồ sơ.'}</div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <div className="top-bar">
         <h1>Hồ sơ của tôi</h1>
-        <button
-          className="btn btn-primary"
-          onClick={() => navigate('/profile/edit')}
-        >
-          Chỉnh sửa hồ sơ
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate(`${profilePath}/change-password`)}
+          >
+            Đổi mật khẩu
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate(`${profilePath}/edit`)}
+          >
+            Chỉnh sửa hồ sơ
+          </button>
+        </div>
       </div>
 
       <div className="page-content">

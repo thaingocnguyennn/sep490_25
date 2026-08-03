@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { usersController } from './users.controller';
 import { requireRole } from '../../shared/middlewares/require-role.middleware';
 import { ROLES } from '../../shared/constants/roles';
+import { validateRequest } from '../../shared/middlewares/validate.middleware';
+import { updateProfileValidation } from '../auth/auth.validation';
 
 const router = Router();
 
@@ -12,6 +14,8 @@ router.get(
 
 router.put(
   '/me',
+  updateProfileValidation,
+  validateRequest,
   usersController.updateMe.bind(usersController)
 );
 

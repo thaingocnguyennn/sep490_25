@@ -39,6 +39,17 @@ export default function AdminSidebar() {
           </svg>
           Trang chủ
         </NavLink>
+        <div className="nav-section-title">Tài khoản</div>
+        <NavLink
+          to="/admin/profile"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          Hồ sơ của tôi
+        </NavLink>
         <div className="nav-section-title">Quản lý</div>
         <NavLink
           to="/admin/users"
@@ -87,13 +98,6 @@ export default function AdminSidebar() {
             <div className="user-role">{user?.roles?.[0] || 'Người dùng'}</div>
           </div>
         </div>
-        <button
-          className="btn btn-secondary"
-          style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
-          onClick={() => navigate('/admin/change-password')}
-        >
-          Đổi mật khẩu
-        </button>
         <button
           className="btn btn-secondary"
           style={{ width: '100%', fontSize: 13 }}

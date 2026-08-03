@@ -23,6 +23,9 @@ export const authApi = {
 
   getProfile: () => api.get<ApiResponse<User>>('/auth/profile'),
 
+  updateProfile: (data: { fullName: string; phone: string | null }) =>
+    api.patch<ApiResponse<User>>('/auth/profile', data),
+
   changePassword: (data: ChangePasswordRequest) =>
     api.patch<ApiResponse>('/auth/change-password', data),
 };

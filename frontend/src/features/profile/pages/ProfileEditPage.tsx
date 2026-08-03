@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
-import { usersApi } from '../../../api';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { authApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { User } from '../../../types';
 
@@ -11,7 +11,10 @@ interface FormState {
 
 export default function ProfileEditPage() {
   const navigate = useNavigate();
-  const { user: authUser, updateUser, isAuthenticated } = useAuth();
+  const location = useLocation();
+  const { updateUser, isAuthenticated } = useAuth();
+  const profilePath = location.pathname.startsWith('/admin/') ? '/admin/profile' : '/profile';
+  const [profile, setProfile] = useState<User | null>(null);
   const [form, setForm] = useState<FormState>({ fullName: '', phone: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,18 +25,20 @@ export default function ProfileEditPage() {
 
     const loadProfile = async () => {
       try {
-        const { data } = await usersApi.getMe();
+        const { data } = await authApi.getProfile();
         const user: User = data.data!;
+        setProfile(user);
         setForm({ fullName: user.fullName, phone: user.phone || '' });
-      } catch {
-        navigate('/profile');
+      } catch (err: unknown) {
+        const apiError = err as { response?: { data?: { message?: string } } };
+        setError(apiError.response?.data?.message || 'Không thể tải hồ sơ. Vui lòng thử lại.');
       } finally {
         setFetchingProfile(false);
       }
     };
 
     loadProfile();
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -42,9 +47,13 @@ export default function ProfileEditPage() {
   };
 
   const validate = () => {
-    if (!form.fullName.trim()) return 'Vui lòng nhập họ và tên';
-    if (form.fullName.length < 2) return 'Họ và tên phải có ít nhất 2 ký tự';
-    if (form.phone && !/^[0-9]{10,15}$/.test(form.phone)) {
+    const fullName = form.fullName.trim();
+    const phone = form.phone.trim();
+    if (!fullName) return 'Vui lòng nhập họ và tên';
+    if (fullName.length < 2 || fullName.length > 100) {
+      return 'Họ và tên phải có từ 2 đến 100 ký tự';
+    }
+    if (phone && !/^[0-9]{10,15}$/.test(phone)) {
       return 'Số điện thoại phải có từ 10 đến 15 chữ số';
     }
     return null;
@@ -62,19 +71,13 @@ export default function ProfileEditPage() {
     setError('');
 
     try {
-      const { data } = await usersApi.updateMe({
-        fullName: form.fullName,
-        phone: form.phone || undefined,
+      const { data } = await authApi.updateProfile({
+        fullName: form.fullName.trim(),
+        phone: form.phone.trim() || null,
       });
-
-      const updatedUser: User = {
-        ...(authUser as User),
-        fullName: data.data!.fullName,
-        phone: data.data!.phone,
-      };
+      const updatedUser = data.data!;
       updateUser(updatedUser);
-
-      navigate('/profile');
+      navigate(profilePath);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       setError(error.response?.data?.message || 'Cập nhật hồ sơ thất bại. Vui lòng thử lại.');
@@ -98,11 +101,29 @@ export default function ProfileEditPage() {
     );
   }
 
+  if (!profile) {
+    return (
+      <>
+        <div className="top-bar">
+          <h1>Chỉnh sửa hồ sơ</h1>
+          <button className="btn btn-secondary" onClick={() => navigate(profilePath)}>
+            Quay lại
+          </button>
+        </div>
+        <div className="page-content">
+          <div className="alert alert-error">
+            {error || 'Không tìm thấy thông tin hồ sơ.'}
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="top-bar">
         <h1>Chỉnh sửa hồ sơ</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
+        <button className="btn btn-secondary" onClick={() => navigate(profilePath)}>
           Quay lại
         </button>
       </div>
@@ -119,7 +140,7 @@ export default function ProfileEditPage() {
                   <input
                     id="username"
                     type="text"
-                    value={(authUser as User)?.username || ''}
+                    value={profile?.username || ''}
                     disabled
                     style={{ backgroundColor: '#f5f6fa', cursor: 'not-allowed' }}
                   />
@@ -133,7 +154,7 @@ export default function ProfileEditPage() {
                   <input
                     id="email"
                     type="email"
-                    value={(authUser as User)?.email || ''}
+                    value={profile?.email || ''}
                     disabled
                     style={{ backgroundColor: '#f5f6fa', cursor: 'not-allowed' }}
                   />
@@ -171,7 +192,7 @@ export default function ProfileEditPage() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => navigate('/profile')}
+                  onClick={() => navigate(profilePath)}
                 >
                   Hủy
                 </button>

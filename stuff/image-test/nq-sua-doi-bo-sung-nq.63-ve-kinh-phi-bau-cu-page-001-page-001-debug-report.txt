@@ -1,0 +1,101 @@
+Page 1 — OCR Debug Report
+Tesseract: vie+eng  confidence=92.0%  blocks=1  lines=32  words=470
+
+Field Extraction Results:
+──────────────────────────────────────────────────────────────────────
+  Box 2 (Tên cơ quan ban hành)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.030 ±0.080
+    H-Band   : [0.00, 0.55]
+    Extracted: "HỘI ĐÔNG NHÂN DÂN CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM | THÀNH PHÓ HÒ CHÍ MINH Độc lập - Tự do - Hạnh phúc"
+    Lines    : 2
+      line 1: "HỘI ĐÔNG NHÂN DÂN CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+" (conf=90.0%, y:[0.068,0.088] x:[0.169,0.899])
+      line 2: "THÀNH PHÓ HÒ CHÍ MINH Độc lập - Tự do - Hạnh phúc
+" (conf=94.0%, y:[0.089,0.103] x:[0.136,0.804])
+
+  Box 3 (Số ký hiệu văn bản)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.100 ±0.050
+    H-Band   : [0.00, 0.55]
+    Extracted: "Sb: 05/2026A I-HĐND Thanh phố Hồ Chi Minh, ngày | 2 tháng 3 năm 2028"
+    Lines    : 1
+      line 1: "Sb: 05/2026A I-HĐND Thanh phố Hồ Chi Minh, ngày | 2 tháng 3 năm 2028
+" (conf=80.0%, y:[0.124,0.141] x:[0.173,0.898])
+
+  Box 4 (Địa danh, ngày tháng năm)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.130 ±0.050
+    H-Band   : [0.50, 1.00]
+    Extracted: "Sb: 05/2026A I-HĐND Thanh phố Hồ Chi Minh, ngày | 2 tháng 3 năm 2028"
+    Lines    : 1
+      line 1: "Sb: 05/2026A I-HĐND Thanh phố Hồ Chi Minh, ngày | 2 tháng 3 năm 2028
+" (conf=80.0%, y:[0.124,0.141] x:[0.173,0.898])
+
+  Box 5a (Tên loại văn bản / Trích yếu)
+    Status   : ✓ MATCHED
+    Band     : y-center=0.220 ±0.100
+    H-Band   : [0.25, 0.75]
+    Extracted: "Sb: 05/2026A I-HĐND Thanh phố Hồ Chi Minh, ngày | 2 tháng 3 năm 2028 | NGHỊ QUYẾT | Stra đôi, bô sung một sô điêu của Nghị quyết sô 63/2025/NQ-HĐND ngày 10 | tháng 12 năm 2025 của Hội dong nhân dân Thành phô về quy định mức chỉ, | thời gian ho trợ kinh phí phục vụ công tác bau cử đại biêu Quoc hội khóa | XVI và đại biêu Hội đông nhân dân các cap nhiệm kỳ 2026 - 2031"
+    Lines    : 6
+      line 1: "Sb: 05/2026A I-HĐND Thanh phố Hồ Chi Minh, ngày | 2 tháng 3 năm 2028
+" (conf=80.0%, y:[0.124,0.141] x:[0.173,0.898])
+      line 2: "NGHỊ QUYẾT
+" (conf=89.0%, y:[0.182,0.200] x:[0.448,0.599])
+      line 3: "Stra đôi, bô sung một sô điêu của Nghị quyết sô 63/2025/NQ-HĐND ngày 10
+" (conf=93.0%, y:[0.203,0.223] x:[0.152,0.883])
+      ... and 3 more lines
+
+  Box 7a (Chức vụ người ký)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.820 ±0.100
+    H-Band   : [0.50, 1.00]
+    Extracted: "(empty)"
+    In band  : 7 line(s)
+      candidate: "định mức chỉ, thời gian hỗ trợ kinh phí phục vụ công tác bầu cử đại biểu Quốc
+"
+      candidate: "hội khóa XVI và đại biểu Hội dong nhân dân các cấp nhiệm kỳ 2026 - 2031 trên
+"
+      candidate: "địa ban Thành phố Hồ Chi Minh; Báo cáo thẩm tra số DBB/U-BKTNS ngày 1?
+"
+
+  Box 7b (Họ tên người ký)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.870 ±0.100
+    H-Band   : [0.50, 1.00]
+    Extracted: "(empty)"
+    In band  : 6 line(s)
+      candidate: "địa ban Thành phố Hồ Chi Minh; Báo cáo thẩm tra số DBB/U-BKTNS ngày 1?
+"
+      candidate: "tháng 3 năm 2026 của Ban Kinh tế - Ngân sách Hội đồng nhân dân Thành phố;
+"
+      candidate: "ý kiến của đại biểu Hội đồng nhân dân Thành phố:
+
+"
+
+  Box 10a (Độ mật)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.920 ±0.100
+    H-Band   : [0.00, 0.50]
+    Extracted: "(empty)"
+    In band  : 4 line(s)
+      candidate: "ý kiến của đại biểu Hội đồng nhân dân Thành phố:
+
+"
+      candidate: "Hội đồng nhân dân Thành phố ban hành Nghị quyết sửa đổi, bồ sung một
+"
+      candidate: "số điều của Nghị quyết số §3/1025N 0 -HĐND ngày 10 tháng 12 năm 2025 của
+"
+
+  Box 10b (Độ khẩn)
+    Status   : ✗ NO MATCH
+    Band     : y-center=0.950 ±0.100
+    H-Band   : [0.00, 0.50]
+    Extracted: "(empty)"
+    In band  : 3 line(s)
+      candidate: "Hội đồng nhân dân Thành phố ban hành Nghị quyết sửa đổi, bồ sung một
+"
+      candidate: "số điều của Nghị quyết số §3/1025N 0 -HĐND ngày 10 tháng 12 năm 2025 của
+"
+      candidate: "Hội đồng nhân dân Thành phố về quy định mức chỉ, thời gian hỗ trợ kinh phí
+"
