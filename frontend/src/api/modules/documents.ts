@@ -292,6 +292,94 @@ export const incomingDocumentsApi = {
     api.post<ApiResponse<IncomingDocumentDetail>>('/incoming-documents', data),
 
   /**
+   * Save an incoming document as a draft.
+   * Unlike create(), this does not require processors and allows partial data.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  saveDraft: (data: any) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>('/incoming-documents/draft', data),
+
+  /**
+   * Save a draft incoming document with a PDF/image file attached.
+   * Sends metadata and the file in a single multipart request.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  saveDraftWithFile: (data: any, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const entries: [string, string | number | undefined][] = [
+      ['issuer', data.issuer],
+      ['documentType', data.documentType],
+      ['documentNumber', data.documentNumber],
+      ['arrivalNumber', data.arrivalNumber],
+      ['signerName', data.signerName],
+      ['signerTitle', data.signerTitle],
+      ['dateLetter', data.dateLetter],
+      ['dateReceived', data.dateReceived],
+      ['summary', data.summary],
+      ['pageCount', data.pageCount],
+      ['urgency', data.urgency],
+      ['confidentialityLevel', data.confidentialityLevel],
+      ['confidentialityId', data.confidentialityId],
+      ['notes', data.notes],
+    ];
+    for (const [key, value] of entries) {
+      if (value !== undefined) {
+        formData.append(key, String(value));
+      }
+    }
+    if (data.attachments && data.attachments.length > 0) {
+      formData.append('attachments', JSON.stringify(data.attachments));
+    }
+    return api.post<ApiResponse<IncomingDocumentDetail>>('/incoming-documents/draft/with-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  /**
+   * Update an existing draft incoming document.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateDraft: (id: number, data: any) =>
+    api.put<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/draft`, data),
+
+  /**
+   * Update an existing draft incoming document with a new file.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateDraftWithFile: (id: number, data: any, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const entries: [string, string | number | undefined][] = [
+      ['issuer', data.issuer],
+      ['documentType', data.documentType],
+      ['documentNumber', data.documentNumber],
+      ['arrivalNumber', data.arrivalNumber],
+      ['signerName', data.signerName],
+      ['signerTitle', data.signerTitle],
+      ['dateLetter', data.dateLetter],
+      ['dateReceived', data.dateReceived],
+      ['summary', data.summary],
+      ['pageCount', data.pageCount],
+      ['urgency', data.urgency],
+      ['confidentialityLevel', data.confidentialityLevel],
+      ['confidentialityId', data.confidentialityId],
+      ['notes', data.notes],
+    ];
+    for (const [key, value] of entries) {
+      if (value !== undefined) {
+        formData.append(key, String(value));
+      }
+    }
+    if (data.attachments && data.attachments.length > 0) {
+      formData.append('attachments', JSON.stringify(data.attachments));
+    }
+    return api.put<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/draft/with-file`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  /**
    * Create an incoming document with a PDF/image file attached.
    * Sends metadata and the file in a single multipart request.
    * Used when the user has already run OCR and wants to persist the PDF.

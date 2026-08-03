@@ -129,10 +129,48 @@ router.post(
   incomingDocumentsController.createWithFile.bind(incomingDocumentsController)
 );
 
+// POST /incoming-documents/draft — Save a draft document (no processors required)
+// Must be defined before /:id to avoid Express treating "draft" as an id
+router.post(
+  '/draft',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  incomingDocumentsController.saveDraft.bind(incomingDocumentsController)
+);
+
+// POST /incoming-documents/draft/with-file — Save a draft document with file attachment
+// Must be defined before /:id to avoid Express treating "with-file" as an id
+router.post(
+  '/draft/with-file',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  incomingUpload.single('file'),
+  parseJsonFields(['attachments']),
+  incomingDocumentsController.saveDraftWithFile.bind(incomingDocumentsController)
+);
+
 router.get(
   '/:id',
   authenticate,
   incomingDocumentsController.getById.bind(incomingDocumentsController)
+);
+
+// PUT /incoming-documents/:id/draft — Update an existing draft document
+router.put(
+  '/:id/draft',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  incomingDocumentsController.updateDraft.bind(incomingDocumentsController)
+);
+
+// PUT /incoming-documents/:id/draft/with-file — Update draft with new file
+router.put(
+  '/:id/draft/with-file',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  incomingUpload.single('file'),
+  parseJsonFields(['attachments']),
+  incomingDocumentsController.updateDraftWithFile.bind(incomingDocumentsController)
 );
 
 router.patch(
