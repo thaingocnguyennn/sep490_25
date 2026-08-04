@@ -123,7 +123,9 @@ export interface CreateIncomingDocumentRequest {
 }
 
 export type HeadAction = 'FINISH' | 'FORWARD' | 'RETURN';
-export type SpecialistAction = 'COMPLETE' | 'TRANSFER' | 'RETURN_TO_HEAD';
+/** Same set as HeadAction — kept as a separate alias for callers that
+ * historically distinguished specialist actions. */
+export type SpecialistAction = HeadAction;
 
 export interface ProcessIncomingDocumentRequest {
   action: HeadAction;

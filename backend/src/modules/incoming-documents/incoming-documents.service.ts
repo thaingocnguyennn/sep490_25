@@ -1394,6 +1394,15 @@ export class IncomingDocumentsService {
   }
 
   // ─── SPECIALIST workflow ────────────────────────────────────────────────────
+  //
+  // The specialist flow mirrors the department head flow (FORWARD / FINISH /
+  // RETURN) so the UI and API surface are identical for both roles. The only
+  // differences are:
+  //   • the step is constrained to stepOrder=3 (SPECIALIST),
+  //   • the caller must be the assigned XLC (or ADMIN),
+  //   • the RETURN action rolls the document back to the DEPT_HEAD step
+  //     instead of back to the document clerk,
+  //   • FORWARD does not accept deadline / attachments (kept simple).
 
   async listPendingForSpecialist(params: { page: number; limit: number; search?: string; userId: number }) {
     return incomingDocumentsRepository.findAllPendingForSpecialist(params);
@@ -1401,7 +1410,7 @@ export class IncomingDocumentsService {
 
   async processBySpecialist(
     id: number,
-    action: 'COMPLETE' | 'TRANSFER' | 'RETURN_TO_HEAD',
+    action: 'FINISH' | 'FORWARD' | 'RETURN',
     payload: {
       processorIds?: ProcessorInput[];
       processingInstructions?: string;
@@ -1437,54 +1446,13 @@ export class IncomingDocumentsService {
     if (!specialistStep) {
       throw new BadRequestError('Văn bản này không có bước xử lý của Chuyên viên');
     }
-    // Repeat-call guard: the specialist step must still be PENDING.
     if (specialistStep.status !== 'PENDING') {
       throw new BadRequestError('Bước xử lý của Chuyên viên không ở trạng thái chờ xử lý');
     }
 
-    if (action === 'COMPLETE') {
-      await prisma.$transaction(async (tx) => {
-        await tx.documentWorkflow.update({
-          where: { id: specialistStep.id },
-          data: {
-            status: WorkflowStatus.COMPLETED,
-            userId,
-            completedAt: new Date(),
-            notes: payload.processingInstructions || 'Chuyên viên hoàn thành xử lý',
-          },
-        });
+    await checkIncomingDocumentAccess(id, userId, userRoles);
 
-        const allWorkflows = await tx.documentWorkflow.findMany({
-          where: { documentId },
-          orderBy: { workflowStep: { stepOrder: 'asc' } },
-        });
-        const allDone = allWorkflows.every(
-          (w) =>
-            w.id === specialistStep.id ||
-            w.status === WorkflowStatus.COMPLETED ||
-            w.status === WorkflowStatus.CANCELLED ||
-            w.status === WorkflowStatus.REJECTED
-        );
-
-        await tx.document.update({
-          where: { id: documentId },
-          data: {
-            status: allDone ? DocumentStatus.COMPLETED : DocumentStatus.IN_PROGRESS,
-          },
-        });
-      });
-      await logSystemAction({
-        userId,
-        action: 'INCOMING_COMPLETED_BY_SPECIALIST',
-        entityType: 'IncomingDocument',
-        entityId: id,
-      });
-      await emitNotificationToUser(
-        incoming.document.createdBy ?? 0,
-        'Văn bản được chuyên viên hoàn thành',
-        `Văn bản ${incoming.document.documentNumber} đã hoàn thành xử lý`
-      );
-    } else if (action === 'TRANSFER') {
+    if (action === 'FORWARD') {
       const processorIds = payload.processorIds || [];
       if (processorIds.length === 0) {
         throw new BadRequestError('Phải chọn ít nhất một người xử lý');
@@ -1502,7 +1470,7 @@ export class IncomingDocumentsService {
         throw new BadRequestError('Phải chọn ít nhất một Người xử lý chính (XLC)');
       }
 
-      const transferredUserIds: number[] = [];
+      const forwardedUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
         const previous = await tx.documentProcessor.findMany({
           where: { documentId },
@@ -1536,7 +1504,7 @@ export class IncomingDocumentsService {
             actorId: userId,
           })),
         });
-        transferredUserIds.push(...processorIds.map((p) => p.userId));
+        forwardedUserIds.push(...processorIds.map((p) => p.userId));
 
         await tx.documentWorkflow.update({
           where: { id: specialistStep.id },
@@ -1544,7 +1512,9 @@ export class IncomingDocumentsService {
             status: WorkflowStatus.COMPLETED,
             userId,
             completedAt: new Date(),
-            notes: payload.processingInstructions || 'Chuyên viên chuyển xử lý',
+            notes:
+              payload.processingInstructions ||
+              'Chuyên viên chuyển xử lý',
           },
         });
 
@@ -1562,17 +1532,72 @@ export class IncomingDocumentsService {
       });
 
       await emitNotificationToUsers(
-        transferredUserIds,
-        'Văn bản được chuyển tiếp',
-        `Chuyên viên đã chuyển tiếp văn bản ${incoming.document.documentNumber}`
+        forwardedUserIds,
+        'Văn bản được chuyển xử lý',
+        `Chuyên viên đã chuyển văn bản ${incoming.document.documentNumber} cho bạn`
       );
       await logSystemAction({
         userId,
-        action: 'INCOMING_TRANSFERRED_BY_SPECIALIST',
+        action: 'INCOMING_FORWARDED_BY_SPECIALIST',
+        entityType: 'IncomingDocument',
+        entityId: id,
+        details: `Forwarded to ${processorIds.length} processor(s)`,
+      });
+    } else if (action === 'FINISH') {
+      // Mirror the head flow: complete the specialist step, cancel any
+      // remaining workflow steps (e.g. DOCUMENT_CLERK / ARCHIVE rows that
+      // never get acted on), and flip the document to COMPLETED. Without
+      // the cancel-loop the allDone check would keep returning false
+      // because the unreached steps stay PENDING forever.
+      await prisma.$transaction(async (tx) => {
+        await tx.documentWorkflow.update({
+          where: { id: specialistStep.id },
+          data: {
+            status: WorkflowStatus.COMPLETED,
+            userId,
+            completedAt: new Date(),
+            notes: payload.processingInstructions || 'Chuyên viên hoàn thành xử lý',
+          },
+        });
+
+        const remaining = await tx.documentWorkflow.findMany({
+          where: {
+            documentId,
+            id: { not: specialistStep.id },
+            status: { in: [WorkflowStatus.PENDING, WorkflowStatus.IN_PROGRESS] },
+          },
+        });
+        for (const wf of remaining) {
+          await tx.documentWorkflow.update({
+            where: { id: wf.id },
+            data: {
+              status: WorkflowStatus.CANCELLED,
+              completedAt: new Date(),
+              notes: 'Bỏ qua do Chuyên viên đã hoàn thành xử lý',
+            },
+          });
+        }
+
+        await tx.document.update({
+          where: { id: documentId },
+          data: { status: DocumentStatus.COMPLETED },
+        });
+      });
+      await logSystemAction({
+        userId,
+        action: 'INCOMING_FINISHED_BY_SPECIALIST',
         entityType: 'IncomingDocument',
         entityId: id,
       });
-    } else if (action === 'RETURN_TO_HEAD') {
+      await emitNotificationToUser(
+        incoming.document.createdBy ?? 0,
+        'Văn bản được chuyên viên hoàn thành',
+        `Văn bản ${incoming.document.documentNumber} đã hoàn thành xử lý`
+      ).catch(() => undefined);
+    } else if (action === 'RETURN') {
+      // RETURN here means "send back to the department head" — we cancel
+      // the specialist step, reopen the DEPT_HEAD step, and clear the
+      // processor assignments so the head can re-forward.
       if (!payload.reason?.trim()) {
         throw new BadRequestError('Phải nhập lý do trả lại Trưởng phòng');
       }

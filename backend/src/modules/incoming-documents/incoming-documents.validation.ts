@@ -190,23 +190,23 @@ export const processSpecialistDocumentValidation = [
   body('action')
     .notEmpty()
     .withMessage('Hành động là bắt buộc')
-    .isIn(['COMPLETE', 'TRANSFER', 'RETURN_TO_HEAD'])
-    .withMessage('Hành động không hợp lệ. Các giá trị hợp lệ: COMPLETE, TRANSFER, RETURN_TO_HEAD'),
+    .isIn(['FINISH', 'FORWARD', 'RETURN'])
+    .withMessage('Hành động không hợp lệ. Các giá trị hợp lệ: FINISH, FORWARD, RETURN'),
   body('processorIds')
-    .if(body('action').equals('TRANSFER'))
+    .if(body('action').equals('FORWARD'))
     .isArray({ min: 1 })
     .withMessage('Phải chọn ít nhất một người xử lý'),
   body('processorIds.*.userId')
-    .if(body('action').equals('TRANSFER'))
+    .if(body('action').equals('FORWARD'))
     .isInt({ min: 1 })
     .withMessage('ID người dùng không hợp lệ'),
   body('processorIds.*.processorType')
-    .if(body('action').equals('TRANSFER'))
+    .if(body('action').equals('FORWARD'))
     .isIn(['XLC', 'PHXL', 'XDB'])
     .withMessage('Loại xử lý không hợp lệ'),
-  // Enforce ≥1 XLC for TRANSFER at the validation layer (defense in depth).
+  // Enforce ≥1 XLC for FORWARD at the validation layer (defense in depth).
   body('processorIds')
-    .if(body('action').equals('TRANSFER'))
+    .if(body('action').equals('FORWARD'))
     .custom((value) => {
       if (!Array.isArray(value)) return true;
       return value.some((p) => p && p.processorType === 'XLC');
@@ -218,7 +218,7 @@ export const processSpecialistDocumentValidation = [
     .isLength({ max: 2000 })
     .withMessage('Hướng dẫn xử lý tối đa 2000 ký tự'),
   body('reason')
-    .if(body('action').equals('RETURN_TO_HEAD'))
+    .if(body('action').equals('RETURN'))
     .notEmpty()
     .withMessage('Lý do trả lại là bắt buộc')
     .isString()

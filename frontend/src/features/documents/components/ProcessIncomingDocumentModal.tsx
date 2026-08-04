@@ -5,12 +5,24 @@ import {
   type HeadAction,
   type ProcessorType,
   type ProcessIncomingDocumentRequest,
+  type ProcessSpecialistDocumentRequest,
 } from '../../../api';
 import { useProcessors } from '../../../shared/hooks';
+
+/**
+ * Mode controls which role's action set is exposed and how RETURN behaves.
+ *  • `head`        — Trưởng phòng (PENDING stage, stepOrder=2). RETURN rolls
+ *    the document back to the document clerk.
+ *  • `specialist`  — Chuyên viên (IN_PROGRESS stage, stepOrder=3). RETURN rolls
+ *    the document back to the department head, and the deadline/attachments
+ *    inputs are hidden to keep the form focused.
+ */
+export type ProcessMode = 'head' | 'specialist';
 
 interface ProcessIncomingDocumentModalProps {
   open: boolean;
   doc: IncomingDocumentDetail;
+  mode?: ProcessMode;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -22,7 +34,14 @@ interface LocalAttachment {
   mimeType?: string;
 }
 
-const ACTION_OPTIONS: { value: HeadAction; title: string; description: string; buttonClass: string }[] = [
+interface ActionOption {
+  value: HeadAction;
+  title: string;
+  description: string;
+  buttonClass: string;
+}
+
+const HEAD_ACTION_OPTIONS: ActionOption[] = [
   {
     value: 'FORWARD',
     title: 'Chuyển xử lý',
@@ -43,12 +62,47 @@ const ACTION_OPTIONS: { value: HeadAction; title: string; description: string; b
   },
 ];
 
+// Specialist shares FORWARD / FINISH with the head; RETURN rolls the document
+// back to the department head (no clerk involvement at this stage).
+const SPECIALIST_ACTION_OPTIONS: ActionOption[] = [
+  {
+    value: 'FORWARD',
+    title: 'Chuyển xử lý',
+    description: 'Chọn người xử lý chính, người phối hợp và/hoặc người để biết, nhập hướng dẫn xử lý.',
+    buttonClass: 'btn-primary',
+  },
+  {
+    value: 'FINISH',
+    title: 'Hoàn thành văn bản',
+    description: 'Đánh dấu văn bản đã được xử lý xong.',
+    buttonClass: 'btn-success',
+  },
+  {
+    value: 'RETURN',
+    title: 'Chuyển trả văn bản',
+    description: 'Chuyển trả văn bản cho Trưởng phòng xem xét lại.',
+    buttonClass: 'btn-warning',
+  },
+];
+
 export default function ProcessIncomingDocumentModal({
   open,
   doc,
+  mode = 'head',
   onClose,
   onSuccess,
 }: ProcessIncomingDocumentModalProps) {
+  const isSpecialist = mode === 'specialist';
+  const actionOptions = isSpecialist ? SPECIALIST_ACTION_OPTIONS : HEAD_ACTION_OPTIONS;
+  const modalTitle = isSpecialist ? 'Xử lý văn bản đến (Chuyên viên)' : 'Xử lý văn bản đến';
+  const returnReasonLabel = isSpecialist ? 'Lý do chuyển trả' : 'Lý do trả lại';
+  const returnReasonPlaceholder = isSpecialist
+    ? 'Nhập lý do cần chuyển trả cho Trưởng phòng...'
+    : 'Nhập lý do cần trả lại cho văn thư...';
+  const returnReasonRequiredMessage = isSpecialist
+    ? 'Vui lòng nhập lý do chuyển trả'
+    : 'Vui lòng nhập lý do trả lại';
+
   const { processors, loading: loadingProcessors, fetch: fetchProcessors } = useProcessors();
 
   const [action, setAction] = useState<HeadAction | null>(null);
@@ -124,7 +178,7 @@ export default function ProcessIncomingDocumentModal({
       }
     }
     if (action === 'RETURN' && !reason.trim()) {
-      return 'Vui lòng nhập lý do trả lại';
+      return returnReasonRequiredMessage;
     }
     return null;
   };
@@ -139,25 +193,39 @@ export default function ProcessIncomingDocumentModal({
     setSubmitting(true);
     setError('');
 
-    const payload: ProcessIncomingDocumentRequest = {
-      action: action!,
-    };
-
-    if (action === 'FORWARD') {
-      payload.processorIds = processorIds;
-      payload.processingInstructions = processingInstructions.trim() || undefined;
-      payload.deadline = deadline || undefined;
-      if (attachments.length > 0) {
-        payload.attachments = attachments;
-      }
-    } else if (action === 'RETURN') {
-      payload.reason = reason.trim();
-    } else if (action === 'FINISH') {
-      payload.processingInstructions = processingInstructions.trim() || undefined;
-    }
-
     try {
-      await incomingDocumentsApi.processByHead(doc.id, payload);
+      if (isSpecialist) {
+        const payload: ProcessSpecialistDocumentRequest = {
+          action: action!,
+        };
+        if (action === 'FORWARD') {
+          payload.processorIds = processorIds;
+          payload.processingInstructions = processingInstructions.trim() || undefined;
+        } else if (action === 'RETURN') {
+          payload.reason = reason.trim();
+        } else if (action === 'FINISH') {
+          payload.processingInstructions = processingInstructions.trim() || undefined;
+        }
+        await incomingDocumentsApi.processBySpecialist(doc.id, payload);
+      } else {
+        const payload: ProcessIncomingDocumentRequest = {
+          action: action!,
+        };
+        if (action === 'FORWARD') {
+          payload.processorIds = processorIds;
+          payload.processingInstructions = processingInstructions.trim() || undefined;
+          payload.deadline = deadline || undefined;
+          if (attachments.length > 0) {
+            payload.attachments = attachments;
+          }
+        } else if (action === 'RETURN') {
+          payload.reason = reason.trim();
+        } else if (action === 'FINISH') {
+          payload.processingInstructions = processingInstructions.trim() || undefined;
+        }
+        await incomingDocumentsApi.processByHead(doc.id, payload);
+      }
+
       attachments.forEach((a) => URL.revokeObjectURL(a.fileUrl));
       onSuccess();
     } catch (err: unknown) {
@@ -168,13 +236,13 @@ export default function ProcessIncomingDocumentModal({
     }
   };
 
-  const selectedAction = action ? ACTION_OPTIONS.find((a) => a.value === action) : null;
+  const selectedAction = action ? actionOptions.find((a) => a.value === action) : null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720, width: '95%' }}>
         <div className="modal-header">
-          <h2>Xử lý văn bản đến</h2>
+          <h2>{modalTitle}</h2>
           <button className="modal-close" onClick={onClose} disabled={submitting}>&times;</button>
         </div>
 
@@ -192,7 +260,7 @@ export default function ProcessIncomingDocumentModal({
 
           <div style={{ marginBottom: 8, fontWeight: 600 }}>Chọn hành động xử lý</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-            {ACTION_OPTIONS.map((opt) => (
+            {actionOptions.map((opt) => (
               <button
                 type="button"
                 key={opt.value}
@@ -272,60 +340,64 @@ export default function ProcessIncomingDocumentModal({
                     rows={3}
                     value={processingInstructions}
                     onChange={(e) => setProcessingInstructions(e.target.value)}
-                    placeholder="Nhập nội dung hướng dẫn xử lý cho chuyên viên..."
+                    placeholder="Nhập nội dung hướng dẫn xử lý cho người xử lý..."
                     disabled={submitting}
                   />
                 </div>
-                <div className="form-group">
-                  <label>Hạn xử lý</label>
-                  <input
-                    type="date"
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Tệp đính kèm bổ sung</label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    onChange={handleAddAttachments}
-                    disabled={submitting}
-                  />
-                </div>
-                {attachments.length > 0 && (
-                  <div className="form-group full-width">
-                    <label>Tệp đã chọn ({attachments.length})</label>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {attachments.map((a, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '6px 10px',
-                            background: '#f8f9fa',
-                            borderRadius: 6,
-                            fontSize: 13,
-                          }}
-                        >
-                          <span>{a.fileName}</span>
-                          <button
-                            type="button"
-                            className="action-btn delete"
-                            onClick={() => handleRemoveAttachment(idx)}
-                            disabled={submitting}
-                            title="Xoá"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      ))}
+                {!isSpecialist && (
+                  <>
+                    <div className="form-group">
+                      <label>Hạn xử lý</label>
+                      <input
+                        type="date"
+                        value={deadline}
+                        onChange={(e) => setDeadline(e.target.value)}
+                        disabled={submitting}
+                      />
                     </div>
-                  </div>
+                    <div className="form-group">
+                      <label>Tệp đính kèm bổ sung</label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        onChange={handleAddAttachments}
+                        disabled={submitting}
+                      />
+                    </div>
+                    {attachments.length > 0 && (
+                      <div className="form-group full-width">
+                        <label>Tệp đã chọn ({attachments.length})</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {attachments.map((a, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 10px',
+                                background: '#f8f9fa',
+                                borderRadius: 6,
+                                fontSize: 13,
+                              }}
+                            >
+                              <span>{a.fileName}</span>
+                              <button
+                                type="button"
+                                className="action-btn delete"
+                                onClick={() => handleRemoveAttachment(idx)}
+                                disabled={submitting}
+                                title="Xoá"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -346,12 +418,12 @@ export default function ProcessIncomingDocumentModal({
 
           {action === 'RETURN' && (
             <div className="form-group">
-              <label>Lý do trả lại <span style={{ color: '#e74c3c' }}>*</span></label>
+              <label>{returnReasonLabel} <span style={{ color: '#e74c3c' }}>*</span></label>
               <textarea
                 rows={4}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Nhập lý do cần trả lại cho văn thư..."
+                placeholder={returnReasonPlaceholder}
                 disabled={submitting}
               />
             </div>

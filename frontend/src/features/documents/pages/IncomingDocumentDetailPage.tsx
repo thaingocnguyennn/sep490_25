@@ -4,8 +4,6 @@ import {
   incomingDocumentsApi,
   type IncomingDocumentDetail,
   type WorkflowStatus,
-  type ProcessorType,
-  type SpecialistAction,
 } from '../../../api';
 import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
@@ -13,9 +11,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
 import { formatConfidentiality } from '../../../shared/constants/confidentiality';
 import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
-import ProcessorPicker from '../components/ProcessorPicker';
 import PdfPreview from '../components/PdfPreview';
-import { useProcessors } from '../../../shared/hooks';
 
 import RegisterDocumentModal from '../components/RegisterDocumentModal';
 
@@ -38,19 +34,13 @@ export default function IncomingDocumentDetailPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, isDepartmentHead, isSpecialist, isAdmin, isDocumentClerk } = useAuth();
-  const { processors: availableProcessors, fetch: fetchProcessors } = useProcessors();
   const [doc, setDoc] = useState<IncomingDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingStep, setUpdatingStep] = useState<number | null>(null);
   const [processOpen, setProcessOpen] = useState(false);
-  const [specialistAction, setSpecialistAction] = useState<SpecialistAction | null>(null);
-  const [spProcessorIds, setSpProcessorIds] = useState<{ userId: number; processorType: ProcessorType }[]>([]);
-  const [spInstructions, setSpInstructions] = useState('');
-  const [spReason, setSpReason] = useState('');
-  const [spSubmitting, setSpSubmitting] = useState(false);
-  const [spError, setSpError] = useState('');
-  
+  const [processMode, setProcessMode] = useState<'head' | 'specialist'>('head');
+
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [registering, setRegistering] = useState(false);
 
@@ -75,6 +65,8 @@ export default function IncomingDocumentDetailPage() {
   useEffect(() => {
     if (searchParams.get('process') === '1' && doc) {
       setProcessOpen(true);
+      const modeParam = searchParams.get('mode');
+      setProcessMode(modeParam === 'specialist' ? 'specialist' : 'head');
     }
   }, [searchParams, doc]);
 
@@ -154,59 +146,6 @@ export default function IncomingDocumentDetailPage() {
     return false;
   };
 
-  const handleSpecialistAction = async () => {
-    if (!doc || !user) return;
-    const validationError = validateSpecialistAction();
-    if (validationError) {
-      setSpError(validationError);
-      return;
-    }
-
-    setSpSubmitting(true);
-    setSpError('');
-
-    try {
-      const payload: { action: SpecialistAction; processorIds?: { userId: number; processorType: ProcessorType }[]; processingInstructions?: string; reason?: string } = {
-        action: specialistAction!,
-      };
-
-      if (specialistAction === 'TRANSFER') {
-        payload.processorIds = spProcessorIds;
-        payload.processingInstructions = spInstructions.trim() || undefined;
-      } else if (specialistAction === 'COMPLETE') {
-        payload.processingInstructions = spInstructions.trim() || undefined;
-      } else if (specialistAction === 'RETURN_TO_HEAD') {
-        payload.reason = spReason.trim();
-      }
-
-      await incomingDocumentsApi.processBySpecialist(doc.id, payload as Parameters<typeof incomingDocumentsApi.processBySpecialist>[1]);
-      fetchDoc();
-      setSpecialistAction(null);
-      setSpProcessorIds([]);
-      setSpInstructions('');
-      setSpReason('');
-    } catch (err: unknown) {
-      const apiError = err as { response?: { data?: { message?: string } } };
-      setSpError(apiError.response?.data?.message || 'Action failed. Please try again.');
-    } finally {
-      setSpSubmitting(false);
-    }
-  };
-
-  const validateSpecialistAction = (): string | null => {
-    if (!specialistAction) return 'Please select an action';
-    if (specialistAction === 'TRANSFER') {
-      if (spProcessorIds.length === 0) return 'Please select at least one processor';
-      if (!spProcessorIds.some((p) => p.processorType === 'XLC')) {
-        return 'At least one Primary Handler (XLC) is required';
-      }
-    }
-    if (specialistAction === 'RETURN_TO_HEAD' && !spReason.trim()) {
-      return 'A reason is required to return the document';
-    }
-    return null;
-  };
-
   if (loading) {
     return (
       <>
@@ -239,11 +178,24 @@ export default function IncomingDocumentDetailPage() {
   const isCompleted = d.status === 'COMPLETED';
 
   const headStep = d.workflows?.find((w) => w.workflowStep.stepOrder === 2);
-  const canProcess =
+  const specialistStep = d.workflows?.find((w) => w.workflowStep.stepOrder === 3);
+
+  const canProcessAsHead =
     (isDepartmentHead || isAdmin) &&
     d.status === 'PENDING' &&
     !!headStep &&
     headStep.status === 'PENDING';
+
+  // Specialist acts at the IN_PROGRESS stage on the stepOrder=3 row. The
+  // caller must be the assigned XLC processor (mirrors the backend gating).
+  const canProcessAsSpecialist =
+    (isSpecialist || isAdmin) &&
+    d.status === 'IN_PROGRESS' &&
+    !!specialistStep &&
+    specialistStep.status === 'PENDING' &&
+    isCurrentUserXlc(doc);
+
+  const canProcess = canProcessAsHead || canProcessAsSpecialist;
 
   const isProcessor = d.processors?.some((p) => p.user.id === user?.id);
   const canReply = isProcessor && d.status !== 'DRAFT' && d.status !== 'TRASHED';
@@ -277,8 +229,14 @@ export default function IncomingDocumentDetailPage() {
     if (searchParams.get('process') === '1') {
       const next = new URLSearchParams(searchParams);
       next.delete('process');
+      next.delete('mode');
       setSearchParams(next, { replace: true });
     }
+  };
+
+  const openProcessModal = (mode: 'head' | 'specialist') => {
+    setProcessMode(mode);
+    setProcessOpen(true);
   };
 
   const handleRegister = async (data: { documentBookId: number; customDate?: string }) => {
@@ -328,7 +286,7 @@ export default function IncomingDocumentDetailPage() {
           {canProcess && (
             <button
               className="btn btn-primary"
-              onClick={() => setProcessOpen(true)}
+              onClick={() => openProcessModal(canProcessAsHead ? 'head' : 'specialist')}
               title="Xử lý văn bản này"
             >
               Xử lý
@@ -578,120 +536,6 @@ export default function IncomingDocumentDetailPage() {
             </div>
           )}
 
-          {(isSpecialist || isAdmin) && isCurrentUserXlc(doc) && d.status === 'IN_PROGRESS' && (
-            <div className="card" style={{ marginBottom: 24, border: '2px solid #667eea' }}>
-              <div className="card-header">
-                <h2>Hành động của Primary Handler (XLC)</h2>
-              </div>
-              <div className="card-body">
-                {spError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{spError}</div>}
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
-                  <button
-                    type="button"
-                    className={`specialist-action-btn ${specialistAction === 'COMPLETE' ? 'active' : ''}`}
-                    onClick={() => setSpecialistAction(specialistAction === 'COMPLETE' ? null : 'COMPLETE')}
-                    style={{ padding: 14, border: specialistAction === 'COMPLETE' ? '2px solid #27ae60' : '1px solid #dfe6e9', borderRadius: 8, background: specialistAction === 'COMPLETE' ? '#f0fff4' : '#fff', cursor: 'pointer', textAlign: 'left' }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#27ae60' }}>Process Document</div>
-                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Complete the Document</div>
-                  </button>
-                  <button
-                    type="button"
-                    className={`specialist-action-btn ${specialistAction === 'TRANSFER' ? 'active' : ''}`}
-                    onClick={() => { setSpecialistAction(specialistAction === 'TRANSFER' ? null : 'TRANSFER'); if (specialistAction !== 'TRANSFER') fetchProcessors(); }}
-                    style={{ padding: 14, border: specialistAction === 'TRANSFER' ? '2px solid #667eea' : '1px solid #dfe6e9', borderRadius: 8, background: specialistAction === 'TRANSFER' ? '#f0f3ff' : '#fff', cursor: 'pointer', textAlign: 'left' }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#667eea' }}>Forward for Processing</div>
-                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Assign XLC / PHXL / XDB processors</div>
-                  </button>
-                  <button
-                    type="button"
-                    className={`specialist-action-btn ${specialistAction === 'RETURN_TO_HEAD' ? 'active' : ''}`}
-                    onClick={() => setSpecialistAction(specialistAction === 'RETURN_TO_HEAD' ? null : 'RETURN_TO_HEAD')}
-                    style={{ padding: 14, border: specialistAction === 'RETURN_TO_HEAD' ? '2px solid #e74c3c' : '1px solid #dfe6e9', borderRadius: 8, background: specialistAction === 'RETURN_TO_HEAD' ? '#fff5f5' : '#fff', cursor: 'pointer', textAlign: 'left' }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: '#e74c3c' }}>Return Document</div>
-                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>Send back to the previous approver</div>
-                  </button>
-                </div>
-
-                {specialistAction === 'COMPLETE' && (
-                  <div style={{ marginTop: 8 }}>
-                    <div className="form-group">
-                      <label>Completion notes (optional)</label>
-                      <textarea
-                        rows={3}
-                        value={spInstructions}
-                        onChange={(e) => setSpInstructions(e.target.value)}
-                        placeholder="Add notes about completing the document..."
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-success"
-                      style={{ marginTop: 8 }}
-                      onClick={handleSpecialistAction}
-                      disabled={spSubmitting}
-                    >
-                      {spSubmitting ? 'Processing...' : 'Complete the Document'}
-                    </button>
-                  </div>
-                )}
-
-                {specialistAction === 'TRANSFER' && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ marginBottom: 8, fontWeight: 600 }}>
-                      Select processors <span style={{ color: '#e74c3c' }}>*</span>
-                    </div>
-                    <ProcessorPicker value={spProcessorIds} onChange={setSpProcessorIds} />
-                    <div className="form-group" style={{ marginTop: 12 }}>
-                      <label>Processing instructions</label>
-                      <textarea
-                        rows={2}
-                        value={spInstructions}
-                        onChange={(e) => setSpInstructions(e.target.value)}
-                        placeholder="Add instructions for the new processors..."
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      style={{ marginTop: 8 }}
-                      onClick={handleSpecialistAction}
-                      disabled={spSubmitting}
-                    >
-                      {spSubmitting ? 'Processing...' : 'Confirm Forward'}
-                    </button>
-                  </div>
-                )}
-
-                {specialistAction === 'RETURN_TO_HEAD' && (
-                  <div style={{ marginTop: 8 }}>
-                    <div className="form-group">
-                      <label>Reason for return <span style={{ color: '#e74c3c' }}>*</span></label>
-                      <textarea
-                        rows={4}
-                        value={spReason}
-                        onChange={(e) => setSpReason(e.target.value)}
-                        placeholder="Explain why the document is being returned..."
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      style={{ marginTop: 8 }}
-                      onClick={handleSpecialistAction}
-                      disabled={spSubmitting}
-                    >
-                      {spSubmitting ? 'Processing...' : 'Confirm Return'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {currentUserIsXdb && (
             <div className="card" style={{ marginBottom: 24, border: '1px solid #dfe6e9' }}>
               <div className="card-header">
@@ -805,6 +649,7 @@ export default function IncomingDocumentDetailPage() {
         <ProcessIncomingDocumentModal
           open={processOpen}
           doc={doc}
+          mode={processMode}
           onClose={handleProcessClose}
           onSuccess={() => {
             handleProcessClose();
