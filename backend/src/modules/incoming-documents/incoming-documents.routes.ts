@@ -196,21 +196,6 @@ router.patch(
 );
 
 router.post(
-  '/:id/comments',
-  authenticate,
-  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  addCommentValidation,
-  validateRequest,
-  incomingDocumentsController.addComment.bind(incomingDocumentsController)
-);
-
-router.get(
-  '/:id/comments',
-  authenticate,
-  incomingDocumentsController.listComments.bind(incomingDocumentsController)
-);
-
-router.post(
   '/:id/processors/:userId/complete',
   authenticate,
   requireRole(ROLES.SPECIALIST, ROLES.ADMIN),

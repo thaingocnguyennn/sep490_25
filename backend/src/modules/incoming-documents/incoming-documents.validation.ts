@@ -223,16 +223,3 @@ export const processSpecialistDocumentValidation = [
     .isLength({ max: 1000 })
     .withMessage('Lý do trả lại tối đa 1000 ký tự'),
 ];
-
-/**
- * Validation for the comment-thread endpoint used by XLC/PHXL processors and
- * the originating clerk.
- */
-export const addCommentValidation = [
-  body('body')
-    .notEmpty()
-    .withMessage('Nội dung bình luận là bắt buộc')
-    .isString()
-    .isLength({ min: 1, max: 4000 })
-    .withMessage('Nội dung bình luận phải từ 1 đến 4000 ký tự'),
-];

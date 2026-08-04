@@ -54,19 +54,9 @@ export default function IncomingDocumentDetailPage() {
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [registering, setRegistering] = useState(false);
 
-  // Comments thread + PHXL supporting task state.
-  type Comment = {
-    id: number;
-    body: string;
-    createdAt: string;
-    user: { id: number; fullName: string; email: string };
-  };
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [commentError, setCommentError] = useState('');
   const [phxlCompleting, setPhxlCompleting] = useState(false);
+  const [phxlNote, setPhxlNote] = useState('');
+  const [phxlError, setPhxlError] = useState('');
 
   const fetchDoc = () => {
     if (!id) return;
@@ -88,62 +78,17 @@ export default function IncomingDocumentDetailPage() {
     }
   }, [searchParams, doc]);
 
-  const loadComments = () => {
-    if (!id) return;
-    setCommentsLoading(true);
-    incomingDocumentsApi
-      .listComments(Number(id))
-      .then(({ data }) => setComments(data.data ?? []))
-      .catch(() => {
-        // Silently fail — comments are non-critical.
-      })
-      .finally(() => setCommentsLoading(false));
-  };
-
-  useEffect(() => {
-    if (doc) {
-      loadComments();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, doc?.id]);
-
-  const handleSubmitComment = async () => {
-    const trimmed = newComment.trim();
-    if (!trimmed) return;
-    setSubmittingComment(true);
-    setCommentError('');
-    try {
-      const { data } = await incomingDocumentsApi.addComment(doc!.id, trimmed);
-      const created = data.data!;
-      // Optimistically prepend so the user sees the new comment immediately.
-      setComments((prev) => [
-        ...prev,
-        {
-          id: created.id,
-          body: created.body,
-          createdAt: created.createdAt,
-          user: created.user,
-        },
-      ]);
-      setNewComment('');
-    } catch (err: unknown) {
-      const apiError = err as { response?: { data?: { message?: string } } };
-      setCommentError(apiError.response?.data?.message || 'Could not send comment.');
-    } finally {
-      setSubmittingComment(false);
-    }
-  };
-
   const handleCompletePhxl = async () => {
     if (!user) return;
     setPhxlCompleting(true);
+    setPhxlError('');
     try {
-      await incomingDocumentsApi.completeProcessorTask(doc!.id, user.id);
+      await incomingDocumentsApi.completeProcessorTask(doc!.id, user.id, phxlNote);
+      setPhxlNote('');
       fetchDoc();
-      loadComments();
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
-      setCommentError(apiError.response?.data?.message || 'Could not complete the task.');
+      setPhxlError(apiError.response?.data?.message || 'Could not complete the task.');
     } finally {
       setPhxlCompleting(false);
     }
@@ -317,14 +262,13 @@ export default function IncomingDocumentDetailPage() {
   // complete (DocumentProcessor.completedAt) — we keep the assignment visible
   // but suppress the button once finished.
   const phxlCanMarkComplete =
-    currentUserIsPhxl && isProcessor && d.status === 'IN_PROGRESS';
+    currentUserIsPhxl && isProcessor && !currentUserProcessorRecord?.completedAt;
   const phxlAlreadyCompleted =
-    currentUserIsPhxl && isProcessor && d.status === 'COMPLETED';
+    currentUserIsPhxl && isProcessor && !!currentUserProcessorRecord?.completedAt;
 
   // Comment composer is available to any participant in the workflow
   // (ADMIN bypasses). We require explicit access to the incoming document,
   // which `getById` already enforces via the backend.
-  const canComment = isAdmin || isProcessor || isDocumentClerk;
   // XDB is read-only — no PHXL actions, no specialist actions, no comments.
   const isReadOnly = currentUserIsXdb;
 
@@ -766,21 +710,31 @@ export default function IncomingDocumentDetailPage() {
           {phxlCanMarkComplete && (
             <div className="card" style={{ marginBottom: 24, border: '2px solid #f39c12' }}>
               <div className="card-header">
-                <h2>Hành động của Người phối hợp</h2>
+                <h2>Hành động của Người phối hợp (PHXL)</h2>
               </div>
               <div className="card-body">
-                {commentError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{commentError}</div>}
+                {phxlError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{phxlError}</div>}
                 <p style={{ marginBottom: 12, color: '#636e72' }}>
-                  Sau khi hoàn thành nhiệm vụ phối hợp, bấm xác nhận để thông báo cho Trưởng phòng
-                  và người xử lý chính.
+                  Bạn có thể ghi một ghi chú cho văn bản này. Ghi chú sẽ được lưu lại để XLC và XDB có thể xem.
                 </p>
+                <div className="form-group">
+                  <label>Ghi chú của bạn</label>
+                  <textarea
+                    rows={3}
+                    value={phxlNote}
+                    onChange={(e) => setPhxlNote(e.target.value)}
+                    placeholder="Nhập ghi chú của bạn (không bắt buộc)..."
+                    style={{ width: '100%' }}
+                    disabled={phxlCompleting}
+                  />
+                </div>
                 <button
                   type="button"
                   className="btn btn-warning"
                   onClick={handleCompletePhxl}
                   disabled={phxlCompleting}
                 >
-                  {phxlCompleting ? 'Đang xử lý...' : 'Hoàn thành nhiệm vụ'}
+                  {phxlCompleting ? 'Đang xử lý...' : 'Xác nhận và đóng'}
                 </button>
               </div>
             </div>
@@ -789,68 +743,48 @@ export default function IncomingDocumentDetailPage() {
           {phxlAlreadyCompleted && (
             <div className="card" style={{ marginBottom: 24, border: '1px solid #dfe6e9' }}>
               <div className="card-header">
-                <h2>Hành động của Người phối hợp</h2>
+                <h2>Hành động của Người phối hợp (PHXL)</h2>
               </div>
               <div className="card-body">
                 <p style={{ color: '#27ae60', fontWeight: 600 }}>
                   Bạn đã hoàn thành nhiệm vụ Người phối hợp (PHXL) cho văn bản này.
                 </p>
+                {currentUserProcessorRecord?.notes && (
+                  <div style={{ marginTop: 12, padding: 12, background: '#f8f9fa', borderRadius: 6 }}>
+                    <strong>Ghi chú của bạn:</strong>
+                    <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{currentUserProcessorRecord.notes}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           <div className="card" style={{ marginBottom: 24 }}>
             <div className="card-header">
-              <h2>Thảo luận ({comments.length})</h2>
+              <h2>Ghi chú PHXL ({d.processors?.filter(p => p.processorType === 'PHXL' && p.notes).length || 0})</h2>
             </div>
             <div className="card-body">
-              {commentsLoading ? (
-                <LoadingSpinner />
-              ) : comments.length === 0 ? (
-                <p style={{ color: '#636e72' }}>Chưa có bình luận nào.</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {comments.map((c) => (
-                    <li
-                      key={c.id}
-                      style={{
-                        padding: '12px 0',
-                        borderBottom: '1px solid #f1f2f6',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <strong style={{ color: '#2d3436' }}>{c.user.fullName}</strong>
-                        <span style={{ fontSize: 12, color: '#95a5a6' }}>
-                          {new Date(c.createdAt).toLocaleString('vi-VN')}
-                        </span>
-                      </div>
-                      <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#34495e' }}>{c.body}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {!isReadOnly && canComment && (
-                <div style={{ marginTop: 16 }}>
-                  {commentError && <div className="alert alert-error" style={{ marginBottom: 8 }}>{commentError}</div>}
-                  <textarea
-                    rows={3}
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Thêm bình luận..."
-                    style={{ width: '100%' }}
-                    disabled={submittingComment}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ marginTop: 8 }}
-                    onClick={handleSubmitComment}
-                    disabled={submittingComment || !newComment.trim()}
-                  >
-                    {submittingComment ? 'Đang gửi...' : 'Gửi bình luận'}
-                  </button>
-                </div>
-              )}
+              {(() => {
+                const phxlProcessors = d.processors?.filter(p => p.processorType === 'PHXL' && p.notes) || [];
+                if (phxlProcessors.length === 0) {
+                  return <p style={{ color: '#636e72' }}>Chưa có ghi chú PHXL nào.</p>;
+                }
+                return (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {phxlProcessors.map((p) => (
+                      <li key={p.id} style={{ padding: '12px 0', borderBottom: '1px solid #f1f2f6' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <strong style={{ color: '#2d3436' }}>{p.user.fullName}</strong>
+                          <span style={{ fontSize: 12, color: '#95a5a6' }}>
+                            {p.completedAt ? new Date(p.completedAt).toLocaleString('vi-VN') : ''}
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#34495e' }}>{p.notes}</p>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </div>
           </div>
 

@@ -230,45 +230,17 @@ export class IncomingDocumentsController {
     }
   }
 
-  async addComment(req: Request, res: Response, next: NextFunction) {
-    try {
-      const idParam = req.params.id as string;
-      const { body } = req.body;
-      const incoming = await incomingDocumentsService.addComment(
-        parseInt(idParam),
-        req.user!.userId,
-        req.user!.roles ?? [],
-        body
-      );
-      res.status(201).json(successResponse(incoming, 'Đã thêm bình luận'));
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async listComments(req: Request, res: Response, next: NextFunction) {
-    try {
-      const idParam = req.params.id as string;
-      const incoming = await incomingDocumentsService.listComments(
-        parseInt(idParam),
-        req.user!.userId,
-        req.user!.roles ?? []
-      );
-      res.status(200).json(successResponse(incoming, 'Danh sách bình luận'));
-    } catch (error) {
-      next(error);
-    }
-  }
-
   async completeProcessorTask(req: Request, res: Response, next: NextFunction) {
     try {
       const idParam = req.params.id as string;
       const userIdParam = req.params.userId as string;
+      const { notes } = req.body as { notes?: string };
       const incoming = await incomingDocumentsService.completeProcessorTask(
         parseInt(idParam),
         parseInt(userIdParam),
         req.user!.userId,
-        req.user!.roles ?? []
+        req.user!.roles ?? [],
+        notes
       );
       res.status(200).json(successResponse(incoming, 'Đã hoàn thành nhiệm vụ'));
     } catch (error) {

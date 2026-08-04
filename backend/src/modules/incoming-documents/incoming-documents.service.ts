@@ -608,11 +608,17 @@ export class IncomingDocumentsService {
     const fileUrl = `/uploads/${file.filename}`;
     let resultDocId: number | null = null;
 
+    const documentTypeId = data.documentTypeId
+      ? typeof data.documentTypeId === 'string'
+        ? parseInt(data.documentTypeId, 10)
+        : data.documentTypeId
+      : undefined;
+
     try {
       // Fetch document kind name for title if documentTypeId is provided
       let documentKindName = '';
-      if (data.documentTypeId) {
-        const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (documentTypeId) {
+        const typeDoc = await prisma.documentKind.findUnique({ where: { id: documentTypeId }, select: { name: true } });
         if (typeDoc) documentKindName = typeDoc.name;
       }
 
@@ -645,7 +651,7 @@ export class IncomingDocumentsService {
           data: {
             documentId: document.id,
             issuer: data.issuer,
-            documentTypeId: data.documentTypeId,
+            documentTypeId,
             documentNumber: data.documentNumber,
             arrivalNumber: data.arrivalNumber,
             signerName: data.signerName,
@@ -826,10 +832,16 @@ export class IncomingDocumentsService {
     const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
     const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
 
+    const documentTypeId = data.documentTypeId
+      ? typeof data.documentTypeId === 'string'
+        ? parseInt(data.documentTypeId, 10)
+        : data.documentTypeId
+      : undefined;
+
     // Fetch document kind name for title if documentTypeId is provided
     let documentKindName = '';
-    if (data.documentTypeId) {
-      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+    if (documentTypeId) {
+      const typeDoc = await prisma.documentKind.findUnique({ where: { id: documentTypeId }, select: { name: true } });
       if (typeDoc) documentKindName = typeDoc.name;
     }
 
@@ -859,7 +871,7 @@ export class IncomingDocumentsService {
           where: { id },
           data: {
             issuer: data.issuer,
-            documentTypeId: data.documentTypeId,
+            documentTypeId,
             documentNumber: data.documentNumber,
             arrivalNumber: data.arrivalNumber,
             signerName: data.signerName,
@@ -908,11 +920,17 @@ export class IncomingDocumentsService {
     const fileUrl = `/uploads/${file.filename}`;
     let resultDocId: number | null = null;
 
+    const documentTypeId = data.documentTypeId
+      ? typeof data.documentTypeId === 'string'
+        ? parseInt(data.documentTypeId, 10)
+        : data.documentTypeId
+      : undefined;
+
     try {
       // Fetch document kind name for title if documentTypeId is provided
       let documentKindName = '';
-      if (data.documentTypeId) {
-        const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (documentTypeId) {
+        const typeDoc = await prisma.documentKind.findUnique({ where: { id: documentTypeId }, select: { name: true } });
         if (typeDoc) documentKindName = typeDoc.name;
       }
 
@@ -945,7 +963,7 @@ export class IncomingDocumentsService {
           data: {
             documentId: document.id,
             issuer: data.issuer,
-            documentTypeId: data.documentTypeId,
+            documentTypeId,
             documentNumber: data.documentNumber,
             arrivalNumber: data.arrivalNumber,
             signerName: data.signerName,
@@ -1219,52 +1237,6 @@ export class IncomingDocumentsService {
    * Author is the authenticated user. Access must be allowed via
    * checkIncomingDocumentAccess.
    */
-  async addComment(
-    id: number,
-    userId: number,
-    userRoles: string[],
-    body: string
-  ) {
-    await checkIncomingDocumentAccess(id, userId, userRoles);
-    const incoming = await incomingDocumentsRepository.findById(id);
-
-    await prisma.incomingDocumentComment.create({
-      data: {
-        incomingId: id,
-        documentId: incoming.documentId,
-        userId,
-        body,
-      },
-    });
-
-    await logSystemAction({
-      userId,
-      action: 'INCOMING_COMMENT_ADDED',
-      entityType: 'IncomingDocument',
-      entityId: id,
-      details: `Comment length=${body.length}`,
-    });
-
-    return this.getById(id);
-  }
-
-  async listComments(id: number, userId: number, userRoles: string[]) {
-    await checkIncomingDocumentAccess(id, userId, userRoles);
-    const comments = await prisma.incomingDocumentComment.findMany({
-      where: { incomingId: id },
-      orderBy: { createdAt: 'asc' },
-      include: {
-        user: { select: { id: true, fullName: true, email: true } },
-      },
-    });
-    return comments.map((c) => ({
-      id: c.id,
-      body: c.body,
-      createdAt: c.createdAt.toISOString(),
-      user: c.user,
-    }));
-  }
-
   /**
    * POST /incoming-documents/:id/processors/:userId/complete — mark a PHXL
    * processor's supporting task as complete. Only the assigned PHXL user (or
@@ -1274,7 +1246,8 @@ export class IncomingDocumentsService {
     incomingId: number,
     processorUserId: number,
     actorId: number,
-    actorRoles: string[]
+    actorRoles: string[],
+    notes?: string
   ) {
     await checkIncomingDocumentAccess(incomingId, actorId, actorRoles);
 
@@ -1302,7 +1275,10 @@ export class IncomingDocumentsService {
     await prisma.$transaction(async (tx) => {
       await tx.documentProcessor.update({
         where: { id: processor.id },
-        data: { completedAt: new Date() },
+        data: {
+          completedAt: new Date(),
+          notes: notes ?? null,
+        },
       });
       await tx.documentProcessorHistory.create({
         data: {
@@ -1311,6 +1287,7 @@ export class IncomingDocumentsService {
           processorType: ProcessorType.PHXL,
           action: 'COMPLETED',
           actorId,
+          reason: notes ?? null,
         },
       });
     });
