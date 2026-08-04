@@ -62,6 +62,73 @@ async function main() {
   }
   console.log('Roles seeded');
 
+  // Seed departments (hierarchy)
+  // Root department - create only if not exists (no upsert due to parentId: null type constraint)
+  let rootDept = await prisma.department.findFirst({
+    where: { name: 'Đại Học FPT Cần Thơ', parentId: null },
+  });
+  if (!rootDept) {
+    rootDept = await prisma.department.create({
+      data: {
+        name: 'Đại Học FPT Cần Thơ',
+        description: 'Trường Đại học FPT Cần Thơ - Cơ sở gốc',
+        parentId: null,
+      },
+    });
+  }
+
+  const cnitDept = await prisma.department.upsert({
+    where: { name_parentId: { name: 'Phòng Công Nghệ Thông Tin', parentId: rootDept.id } },
+    update: { description: 'Phòng Công Nghệ Thông Tin - Quản lý hệ thống CNTT' },
+    create: {
+      name: 'Phòng Công Nghệ Thông Tin',
+      description: 'Phòng Công Nghệ Thông Tin - Quản lý hệ thống CNTT',
+      parentId: rootDept.id,
+    },
+  });
+
+  const daoTaoDept = await prisma.department.upsert({
+    where: { name_parentId: { name: 'Phòng Đào Tạo', parentId: rootDept.id } },
+    update: { description: 'Phòng Đào Tạo - Quản lý công tác đào tạo' },
+    create: {
+      name: 'Phòng Đào Tạo',
+      description: 'Phòng Đào Tạo - Quản lý công tác đào tạo',
+      parentId: rootDept.id,
+    },
+  });
+
+  const ctsvDept = await prisma.department.upsert({
+    where: { name_parentId: { name: 'Phòng Công Tác Sinh Viên', parentId: rootDept.id } },
+    update: { description: 'Phòng Công Tác Sinh Viên - Quản lý CTSV' },
+    create: {
+      name: 'Phòng Công Tác Sinh Viên',
+      description: 'Phòng Công Tác Sinh Viên - Quản lý CTSV',
+      parentId: rootDept.id,
+    },
+  });
+
+  const dvsvDept = await prisma.department.upsert({
+    where: { name_parentId: { name: 'Phòng Dịch Vụ Sinh Viên', parentId: rootDept.id } },
+    update: { description: 'Phòng Dịch Vụ Sinh Viên - Cung cấp dịch vụ cho sinh viên' },
+    create: {
+      name: 'Phòng Dịch Vụ Sinh Viên',
+      description: 'Phòng Dịch Vụ Sinh Viên - Cung cấp dịch vụ cho sinh viên',
+      parentId: rootDept.id,
+    },
+  });
+
+  const lanhDaoDept = await prisma.department.upsert({
+    where: { name_parentId: { name: 'Phòng Lãnh Đạo', parentId: rootDept.id } },
+    update: { description: 'Phòng Lãnh Đạo - Ban giám hiệu và lãnh đạo trường' },
+    create: {
+      name: 'Phòng Lãnh Đạo',
+      description: 'Phòng Lãnh Đạo - Ban giám hiệu và lãnh đạo trường',
+      parentId: rootDept.id,
+    },
+  });
+
+  console.log('Departments seeded (hierarchy: Đại Học FPT Cần Thơ → 5 child departments)');
+
   // Seed confidentiality classifications (lookup table replacing the previous enum)
   const confidentialityLevels = [
     { code: 'A',     name: 'TUYET_MAT', description: 'Tuyệt mật — mức độ mật cao nhất' },
@@ -143,18 +210,19 @@ async function main() {
       username: 'depthead01',
       email: 'depthead01@dms.local',
       password: defaultHashedPassword,
-      fullName: 'Tran Thi B',
+      fullName: 'Trần Thị B',
       phone: '0900000002',
       status: UserStatus.ACTIVE,
       isFirstLogin: true,
       createdBy: adminUser.id,
       updatedBy: adminUser.id,
+      departmentId: rootDept.id,
       userRoles: {
         create: { roleId: deptHeadRole!.id },
       },
     },
   });
-  console.log('Department Head seeded');
+  console.log('Department Head (root) seeded');
 
   await prisma.user.upsert({
     where: { username: 'specialist01' },
@@ -163,18 +231,19 @@ async function main() {
       username: 'specialist01',
       email: 'specialist01@dms.local',
       password: defaultHashedPassword,
-      fullName: 'Le Van C',
+      fullName: 'Lê Văn C',
       phone: '0900000003',
       status: UserStatus.ACTIVE,
       isFirstLogin: true,
       createdBy: adminUser.id,
       updatedBy: adminUser.id,
+      departmentId: rootDept.id,
       userRoles: {
         create: { roleId: specialistRole!.id },
       },
     },
   });
-  console.log('Specialist seeded');
+  console.log('Specialist (root) seeded');
 
   await prisma.user.upsert({
     where: { username: 'clerk01' },
@@ -183,18 +252,114 @@ async function main() {
       username: 'clerk01',
       email: 'clerk01@dms.local',
       password: defaultHashedPassword,
-      fullName: 'Pham Thi D',
+      fullName: 'Phạm Thị D',
       phone: '0900000004',
       status: UserStatus.ACTIVE,
       isFirstLogin: true,
       createdBy: adminUser.id,
       updatedBy: adminUser.id,
+      departmentId: rootDept.id,
       userRoles: {
         create: { roleId: docClerkRole!.id },
       },
     },
   });
-  console.log('Document Clerk seeded');
+  console.log('Document Clerk (root) seeded');
+
+  // Seed 5 Document Clerks
+  const clerkUsers = [
+    { username: 'clerk02', email: 'clerk02@dms.local', fullName: 'Nguyễn Thị E', phone: '0900000010', departmentId: cnitDept.id },
+    { username: 'clerk03', email: 'clerk03@dms.local', fullName: 'Trần Văn F', phone: '0900000011', departmentId: daoTaoDept.id },
+    { username: 'clerk04', email: 'clerk04@dms.local', fullName: 'Lê Thị G', phone: '0900000012', departmentId: ctsvDept.id },
+    { username: 'clerk05', email: 'clerk05@dms.local', fullName: 'Hoàng Văn H', phone: '0900000013', departmentId: dvsvDept.id },
+  ];
+
+  for (const clerk of clerkUsers) {
+    await prisma.user.upsert({
+      where: { username: clerk.username },
+      update: {},
+      create: {
+        username: clerk.username,
+        email: clerk.email,
+        password: defaultHashedPassword,
+        fullName: clerk.fullName,
+        phone: clerk.phone,
+        status: UserStatus.ACTIVE,
+        isFirstLogin: true,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
+        departmentId: clerk.departmentId,
+        userRoles: {
+          create: { roleId: docClerkRole!.id },
+        },
+      },
+    });
+  }
+  console.log('5 Document Clerks seeded');
+
+  // Seed 5 Specialists
+  const specialistUsers = [
+    { username: 'specialist02', email: 'specialist02@dms.local', fullName: 'Võ Thị I', phone: '0900000020', departmentId: cnitDept.id },
+    { username: 'specialist03', email: 'specialist03@dms.local', fullName: 'Đặng Văn J', phone: '0900000021', departmentId: daoTaoDept.id },
+    { username: 'specialist04', email: 'specialist04@dms.local', fullName: 'Bùi Thị K', phone: '0900000022', departmentId: ctsvDept.id },
+    { username: 'specialist05', email: 'specialist05@dms.local', fullName: 'Phạm Văn L', phone: '0900000023', departmentId: dvsvDept.id },
+    { username: 'specialist06', email: 'specialist06@dms.local', fullName: 'Trương Thị M', phone: '0900000024', departmentId: lanhDaoDept.id },
+  ];
+
+  for (const specialist of specialistUsers) {
+    await prisma.user.upsert({
+      where: { username: specialist.username },
+      update: {},
+      create: {
+        username: specialist.username,
+        email: specialist.email,
+        password: defaultHashedPassword,
+        fullName: specialist.fullName,
+        phone: specialist.phone,
+        status: UserStatus.ACTIVE,
+        isFirstLogin: true,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
+        departmentId: specialist.departmentId,
+        userRoles: {
+          create: { roleId: specialistRole!.id },
+        },
+      },
+    });
+  }
+  console.log('5 Specialists seeded');
+
+  // Seed 5 Department Heads
+  const deptHeadUsers = [
+    { username: 'depthead02', email: 'depthead02@dms.local', fullName: 'Ngô Văn N', phone: '0900000030', departmentId: cnitDept.id },
+    { username: 'depthead03', email: 'depthead03@dms.local', fullName: 'Đỗ Thị O', phone: '0900000031', departmentId: daoTaoDept.id },
+    { username: 'depthead04', email: 'depthead04@dms.local', fullName: 'Lý Văn P', phone: '0900000032', departmentId: ctsvDept.id },
+    { username: 'depthead05', email: 'depthead05@dms.local', fullName: 'Hứa Thị Q', phone: '0900000033', departmentId: dvsvDept.id },
+    { username: 'depthead06', email: 'depthead06@dms.local', fullName: 'Vũ Văn R', phone: '0900000034', departmentId: lanhDaoDept.id },
+  ];
+
+  for (const deptHead of deptHeadUsers) {
+    await prisma.user.upsert({
+      where: { username: deptHead.username },
+      update: {},
+      create: {
+        username: deptHead.username,
+        email: deptHead.email,
+        password: defaultHashedPassword,
+        fullName: deptHead.fullName,
+        phone: deptHead.phone,
+        status: UserStatus.ACTIVE,
+        isFirstLogin: true,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
+        departmentId: deptHead.departmentId,
+        userRoles: {
+          create: { roleId: deptHeadRole!.id },
+        },
+      },
+    });
+  }
+  console.log('5 Department Heads seeded');
 
   // Seed default workflow steps for incoming documents
   const defaultSteps = [

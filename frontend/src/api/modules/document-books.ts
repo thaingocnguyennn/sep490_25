@@ -37,6 +37,7 @@ export interface CreateDocumentBookRequest {
   bookType: 'INCOMING' | 'OUTGOING';
   year: number;
   departmentId: number;
+  currentNumber?: number;
   isDefault?: boolean;
   description?: string;
 }

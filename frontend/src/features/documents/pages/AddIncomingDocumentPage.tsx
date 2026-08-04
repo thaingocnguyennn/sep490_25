@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
   documentsApi,
@@ -6,6 +6,7 @@ import {
   type ProcessorType,
   type Urgency,
 } from '../../../api';
+import { documentBooksApi, type DocumentBook } from '../../../api/modules/document-books';
 import { useProcessors } from '../../../shared/hooks';
 import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
@@ -109,16 +110,56 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
   const [processorsList, setProcessorsList] = useState<ProcessorAssignment[]>([]);
 
+  // Document book state
+  const [documentBooks, setDocumentBooks] = useState<DocumentBook[]>([]);
+  const [loadingBooks, setLoadingBooks] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
+
   const layoutRef = useRef<LayoutContextValue | null>(null);
   layoutRef.current = useOutletContext<LayoutContextValue>();
 
   // Track if we've set the initial sidebar state for this mount
   const initialStateSetRef = useRef(false);
 
+  // Fetch active incoming document books
+  const fetchDocumentBooks = useCallback(async () => {
+    setLoadingBooks(true);
+    try {
+      const response = await documentBooksApi.list({
+        bookType: 'INCOMING',
+        status: 'ACTIVE',
+        limit: 100,
+      });
+      setDocumentBooks(response.items);
+
+      // Auto-select default book if available and none selected
+      if (response.items.length > 0 && selectedBookId === null) {
+        const defaultBook = response.items.find((b) => b.isDefault) || response.items[0];
+        setSelectedBookId(defaultBook.id);
+        // Set next arrival number based on selected book
+        setArrivalNumber(String(defaultBook.currentNumber + 1));
+      }
+    } catch (err) {
+      console.error('Failed to fetch document books:', err);
+    } finally {
+      setLoadingBooks(false);
+    }
+  }, [selectedBookId]);
+
+  // Handle document book selection
+  const handleBookChange = (bookId: number) => {
+    setSelectedBookId(bookId);
+    const selectedBook = documentBooks.find((b) => b.id === bookId);
+    if (selectedBook) {
+      setArrivalNumber(String(selectedBook.currentNumber + 1));
+    }
+  };
+
   useEffect(() => {
     fetchProcessors();
     fetchDocumentTypes();
-  }, [fetchProcessors, fetchDocumentTypes]);
+    fetchDocumentBooks();
+  }, [fetchProcessors, fetchDocumentTypes, fetchDocumentBooks]);
 
   // Load draft document data when in edit mode
   useEffect(() => {
@@ -157,6 +198,11 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         }
         if (doc.document.confidentiality) {
           setConfidentiality(doc.document.confidentiality.name as ConfidentialityCodeOrName);
+        }
+
+        // Set document book if available
+        if (doc.documentBookId) {
+          setSelectedBookId(doc.documentBookId);
         }
 
         // Set preview URL if there's a file
@@ -371,6 +417,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       notes: notes || undefined,
       processingInstructions: processingInstructions || undefined,
       processorIds: processorsList,
+      documentBookId: selectedBookId || undefined,
       attachments: attachments.map((a) => ({
         fileName: a.name,
         fileUrl: a.url,
@@ -426,6 +473,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       urgency,
       confidentialityLevel: confidentiality,
       notes: notes || undefined,
+      documentBookId: selectedBookId || undefined,
       attachments: attachments.map((a) => ({
         fileName: a.name,
         fileUrl: a.url,
@@ -696,7 +744,27 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
                   </div>
 
                   {/* Divider — phân tách nhẹ giữa OCR fields và metadata */}
-                  
+
+
+                  {/* Document book selection */}
+                  <div className="form-group">
+                    <label htmlFor="documentBookId">Sổ văn bản đến</label>
+                    <select
+                      id="documentBookId"
+                      value={selectedBookId || ''}
+                      onChange={(e) => handleBookChange(Number(e.target.value))}
+                      disabled={loadingBooks}
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
+                    >
+                      <option value="" disabled>-- Chọn sổ văn bản --</option>
+                      {documentBooks.map((book) => (
+                        <option key={book.id} value={book.id}>
+                          {book.name} {book.isDefault ? '(Mặc định)' : ''} - Số hiện tại: {book.currentNumber}
+                        </option>
+                      ))}
+                    </select>
+                    {loadingBooks && <small style={{ color: '#636e72' }}>Đang tải danh sách sổ văn bản...</small>}
+                  </div>
 
                   {/* Document metadata (incoming information) */}
                   <div className="signer-row">
@@ -708,8 +776,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
                         min="1"
                         value={arrivalNumber}
                         onChange={(e) => setArrivalNumber(e.target.value)}
-                        placeholder="Tự động tăng"
+                        placeholder={selectedBookId ? "Tự động theo sổ" : "Nhập số đến"}
                       />
+                      {selectedBookId && (
+                        <small style={{ color: '#636e72' }}>
+                          Số tiếp theo trong sổ: {documentBooks.find(b => b.id === selectedBookId)?.currentNumber ? documentBooks.find(b => b.id === selectedBookId)!.currentNumber + 1 : '—'}
+                        </small>
+                      )}
                     </div>
                     <div className="form-group">
                       <label htmlFor="dateReceived">

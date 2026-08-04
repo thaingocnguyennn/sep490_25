@@ -198,6 +198,8 @@ export interface Document {
   processors?: Array<{
     id: number;
     processorType: string;
+    completedAt: string | null;
+    notes: string | null;
     user: { id: number; fullName: string; email: string };
   }>;
   attachments?: Array<{
