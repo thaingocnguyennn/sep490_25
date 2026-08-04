@@ -184,7 +184,6 @@ model User {
   outgoingAssignedClerk    OutgoingDocument[] @relation("OutgoingAssignedClerk")
 
   incomingDocumentsCreated IncomingDocument[]      @relation("IncomingDocumentClerk")
-  incomingDocumentComments IncomingDocumentComment[]
 
   // Document book relations
   createdDocumentBooks         DocumentBook[]      @relation("DocumentBookCreatedBy")
@@ -309,7 +308,6 @@ model Document {
   workflows         DocumentWorkflow[]
   processors        DocumentProcessor[]
   attachments       DocumentAttachment[]
-  incomingComments  IncomingDocumentComment[]
 
   @@index([documentStatus])
   @@index([type])
@@ -362,7 +360,6 @@ model IncomingDocument {
   documentTypeRef DocumentKind? @relation("IncomingDocumentKind", fields: [documentTypeId], references: [id])
 
   outgoingResponses   OutgoingDocument[]
-  comments            IncomingDocumentComment[]
   bookEntry           IncomingBookEntry?
 
   @@index([categoryId])
@@ -459,6 +456,7 @@ model DocumentProcessor {
   documentId    Int
   userId        Int
   processorType ProcessorType
+  notes         String?
   createdAt     DateTime      @default(now())
   completedAt   DateTime?
 
@@ -485,21 +483,6 @@ model DocumentProcessorHistory {
 }
 
 // Comment thread per incoming document — supports XLC / PHXL discussions.
-model IncomingDocumentComment {
-  id            Int      @id @default(autoincrement())
-  incomingId    Int
-  documentId    Int
-  userId        Int
-  body          String   @db.Text
-  createdAt     DateTime @default(now())
-
-  incoming IncomingDocument @relation(fields: [incomingId], references: [id], onDelete: Cascade)
-  document Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([incomingId, createdAt])
-}
-
 model DocumentAttachment {
   id         Int      @id @default(autoincrement())
   documentId Int

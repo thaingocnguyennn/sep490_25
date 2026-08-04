@@ -16,6 +16,8 @@ export interface UrgencyRecord {
 export interface DocumentProcessor {
   id: number;
   processorType: ProcessorType;
+  completedAt: string | null;
+  notes: string | null;
   user: {
     id: number;
     fullName: string;
@@ -309,7 +311,7 @@ export const incomingDocumentsApi = {
     formData.append('file', file);
     const entries: [string, string | number | undefined][] = [
       ['issuer', data.issuer],
-      ['documentType', data.documentType],
+      ['documentTypeId', data.documentTypeId],
       ['documentNumber', data.documentNumber],
       ['arrivalNumber', data.arrivalNumber],
       ['signerName', data.signerName],
@@ -352,7 +354,7 @@ export const incomingDocumentsApi = {
     formData.append('file', file);
     const entries: [string, string | number | undefined][] = [
       ['issuer', data.issuer],
-      ['documentType', data.documentType],
+      ['documentTypeId', data.documentTypeId],
       ['documentNumber', data.documentNumber],
       ['arrivalNumber', data.arrivalNumber],
       ['signerName', data.signerName],
@@ -391,7 +393,7 @@ export const incomingDocumentsApi = {
     // Append all metadata fields
     const entries: [string, string | number | undefined][] = [
       ['issuer', data.issuer],
-      ['documentType', data.documentType],
+      ['documentTypeId', data.documentTypeId],
       ['documentNumber', data.documentNumber],
       ['arrivalNumber', data.arrivalNumber],
       ['signerName', data.signerName],
@@ -435,40 +437,13 @@ export const incomingDocumentsApi = {
     api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/process-specialist`, data),
 
   /**
-   * Add a comment to the discussion thread on an incoming document.
-   * Returns the comment with the author info attached.
-   */
-  addComment: (id: number, body: string) =>
-    api.post<
-      ApiResponse<{
-        id: number;
-        body: string;
-        createdAt: string;
-        user: { id: number; fullName: string; email: string };
-      }>
-    >(`/incoming-documents/${id}/comments`, { body }),
-
-  /** Fetch the comment thread for an incoming document. */
-  listComments: (id: number) =>
-    api.get<
-      ApiResponse<
-        Array<{
-          id: number;
-          body: string;
-          createdAt: string;
-          user: { id: number; fullName: string; email: string };
-        }>
-      >
-    >(`/incoming-documents/${id}/comments`),
-
-  /**
    * Mark a PHXL processor's supporting task as complete. Only PHXL users
    * (or ADMIN) may invoke this; XDB is read-only.
    */
-  completeProcessorTask: (id: number, userId: number) =>
+  completeProcessorTask: (id: number, userId: number, notes?: string) =>
     api.post<ApiResponse<IncomingDocumentDetail>>(
       `/incoming-documents/${id}/processors/${userId}/complete`,
-      {}
+      { notes }
     ),
 
   // Thống kê Văn bản đến (thêm mới)

@@ -37,19 +37,19 @@ async function main() {
   const roles = [
     {
       name: 'ADMIN',
-      description: 'System administrator with full access',
+      description: 'Quản trị viên hệ thống với toàn quyền truy cập.',
     },
     {
       name: 'DEPARTMENT_HEAD',
-      description: 'Department head with management permissions',
+      description: 'Trưởng phòng có quyền quản lý và phê duyệt tài liệu.',
     },
     {
       name: 'SPECIALIST',
-      description: 'Specialist with document processing permissions',
+      description: 'Chuyên viên có quyền xử lý và quản lý tài liệu được phân công.',
     },
     {
       name: 'DOCUMENT_CLERK',
-      description: 'Document clerk with basic document access',
+      description: 'Văn thư có quyền tiếp nhận, đăng ký và quản lý tài liệu.',
     },
   ];
 
@@ -313,15 +313,39 @@ async function main() {
   // Seed Document Kinds (Thể loại văn bản – UC-71 to UC-74)
   // isSystem = false so Document Clerk can manage these entries
   const documentKinds = [
-    { code: 'CV',    name: 'Công văn',    normalizedName: 'cong van',    description: 'Công văn hành chính' },
-    { code: 'QD',    name: 'Quyết định', normalizedName: 'quyet dinh',  description: 'Văn bản quyết định của cơ quan' },
-    { code: 'TB',    name: 'Thông báo',  normalizedName: 'thong bao',   description: 'Thông báo nội bộ và đối ngoại' },
-    { code: 'BC',    name: 'Báo cáo',   normalizedName: 'bao cao',     description: 'Báo cáo định kỳ và đột xuất' },
-    { code: 'KH',    name: 'Kế hoạch', normalizedName: 'ke hoach',    description: 'Kế hoạch công tác' },
-    { code: 'TTR',   name: 'Tờ trình',  normalizedName: 'to trinh',    description: 'Tờ trình lên cấp trên' },
-    { code: 'BB',    name: 'Biên bản',  normalizedName: 'bien ban',    description: 'Biên bản họp, kiểm tra' },
-    { code: 'HD',    name: 'Hướng dẫn', normalizedName: 'huong dan',   description: 'Văn bản hướng dẫn nghiệp vụ' },
-    { code: 'OTHER', name: 'Khác',      normalizedName: 'khac',        description: 'Các loại văn bản khác', isSystem: true },
+    { code: 'CV',    name: 'CÔNG VĂN',          normalizedName: 'cong van',          description: 'Công văn hành chính' },
+    { code: 'QĐ',    name: 'QUYẾT ĐỊNH',        normalizedName: 'quyet dinh',        description: 'Văn bản quyết định của cơ quan' },
+    { code: 'NQ',    name: 'NGHỊ QUYẾT',        normalizedName: 'nghi quyet',        description: 'Văn bản nghị quyết của cơ quan' },
+    { code: 'TB',    name: 'THÔNG BÁO',         normalizedName: 'thong bao',         description: 'Thông báo nội bộ và đối ngoại' },
+    { code: 'BC',    name: 'BÁO CÁO',           normalizedName: 'bao cao',           description: 'Báo cáo định kỳ và đột xuất' },
+    { code: 'KH',    name: 'KẾ HOẠCH',          normalizedName: 'ke hoach',          description: 'Kế hoạch công tác' },
+    { code: 'TTr',   name: 'TỜ TRÌNH',          normalizedName: 'to trinh',          description: 'Tờ trình lên cấp trên' },
+    { code: 'BB',    name: 'BIÊN BẢN',          normalizedName: 'bien ban',          description: 'Biên bản họp, kiểm tra' },
+    { code: 'HD',    name: 'HƯỚNG DẪN',         normalizedName: 'huong dan',         description: 'Văn bản hướng dẫn nghiệp vụ' },
+  
+    // Bổ sung
+    { code: 'CT',    name: 'CHỈ THỊ',           normalizedName: 'chi thi',           description: 'Văn bản chỉ thị' },
+    { code: 'QC',    name: 'QUY CHẾ',           normalizedName: 'quy che',           description: 'Quy chế của cơ quan' },
+    { code: 'QYĐ',   name: 'QUY ĐỊNH',          normalizedName: 'quy dinh',          description: 'Quy định của cơ quan' },
+    { code: 'TC',    name: 'THÔNG CÁO',         normalizedName: 'thong cao',         description: 'Thông cáo' },
+    { code: 'CTr',   name: 'CHƯƠNG TRÌNH',      normalizedName: 'chuong trinh',      description: 'Chương trình công tác' },
+    { code: 'PA',    name: 'PHƯƠNG ÁN',         normalizedName: 'phuong an',         description: 'Phương án thực hiện' },
+    { code: 'ĐA',    name: 'ĐỀ ÁN',             normalizedName: 'de an',             description: 'Đề án' },
+    { code: 'DA',    name: 'DỰ ÁN',             normalizedName: 'du an',             description: 'Dự án' },
+    { code: 'HĐ',    name: 'HỢP ĐỒNG',          normalizedName: 'hop dong',          description: 'Hợp đồng' },
+    { code: 'CĐ',    name: 'CÔNG ĐIỆN',         normalizedName: 'cong dien',         description: 'Công điện' },
+    { code: 'BGN',   name: 'BẢN GHI NHỚ',       normalizedName: 'ban ghi nho',       description: 'Biên bản ghi nhớ' },
+    { code: 'BTT',   name: 'BẢN THỎA THUẬN',    normalizedName: 'ban thoa thuan',    description: 'Bản thỏa thuận' },
+    { code: 'GUQ',   name: 'GIẤY ỦY QUYỀN',     normalizedName: 'giay uy quyen',     description: 'Giấy ủy quyền' },
+    { code: 'GM',    name: 'GIẤY MỜI',          normalizedName: 'giay moi',          description: 'Giấy mời' },
+    { code: 'GGT',   name: 'GIẤY GIỚI THIỆU',   normalizedName: 'giay gioi thieu',   description: 'Giấy giới thiệu' },
+    { code: 'GNP',   name: 'GIẤY NGHỈ PHÉP',    normalizedName: 'giay nghi phep',    description: 'Giấy nghỉ phép' },
+    { code: 'PG',    name: 'PHIẾU GỬI',         normalizedName: 'phieu gui',         description: 'Phiếu gửi' },
+    { code: 'PC',    name: 'PHIẾU CHUYỂN',      normalizedName: 'phieu chuyen',      description: 'Phiếu chuyển' },
+    { code: 'PB',    name: 'PHIẾU BÁO',         normalizedName: 'phieu bao',         description: 'Phiếu báo' },
+    { code: 'TCG',   name: 'THƯ CÔNG',          normalizedName: 'thu cong',          description: 'Thư công' },
+  
+    { code: 'OTHER', name: 'KHÁC',              normalizedName: 'khac',              description: 'Các loại văn bản khác', isSystem: true },
   ];
 
   for (const kind of documentKinds) {

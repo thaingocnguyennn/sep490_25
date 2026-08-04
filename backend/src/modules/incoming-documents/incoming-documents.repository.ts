@@ -54,6 +54,8 @@ export interface IncomingDocumentWithRelations {
     processors: {
       id: number;
       processorType: string;
+      completedAt: Date | null;
+      notes: string | null;
       user: { id: number; fullName: string; email: string };
     }[];
     attachments: {
@@ -140,7 +142,7 @@ export class IncomingDocumentsRepository {
               urgency: { select: { id: true, name: true, description: true } },
               confidentiality: { select: { id: true, code: true, name: true, description: true } },
               processors: {
-                include: { user: { select: { id: true, fullName: true, email: true } } },
+                select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
               },
               workflows: {
                 include: {
@@ -173,7 +175,7 @@ export class IncomingDocumentsRepository {
             urgency: { select: { id: true, name: true, description: true } },
             confidentiality: { select: { id: true, code: true, name: true, description: true } },
             processors: {
-              include: { user: { select: { id: true, fullName: true, email: true } } },
+              select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
             },
             workflows: {
               include: {
@@ -233,7 +235,7 @@ export class IncomingDocumentsRepository {
               urgency: { select: { id: true, name: true, description: true } },
               confidentiality: { select: { id: true, code: true, name: true, description: true } },
               processors: {
-                include: { user: { select: { id: true, fullName: true, email: true } } },
+                select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
               },
               workflows: {
                 include: {
@@ -295,7 +297,7 @@ export class IncomingDocumentsRepository {
               urgency: { select: { id: true, name: true, description: true } },
               confidentiality: { select: { id: true, code: true, name: true, description: true } },
               processors: {
-                include: { user: { select: { id: true, fullName: true, email: true } } },
+                select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
               },
               workflows: {
                 include: {
