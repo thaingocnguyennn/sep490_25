@@ -601,7 +601,7 @@ export default function OutgoingDocumentDetailPage() {
                         >
                           👁️ Xem
                         </button>
-                        <button
+                        {/* <button
                           type="button"
                           onClick={() =>
                             downloadAuthenticatedFile(
@@ -613,7 +613,7 @@ export default function OutgoingDocumentDetailPage() {
                           style={{ fontSize: 13, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
                         >
                           ⬇️ Tải về
-                        </button>
+                        </button> */}
                       </div>
                     </div>
                   </div>

@@ -279,6 +279,7 @@ export const incomingDocumentsApi = {
     limit?: number;
     search?: string;
     status?: string;
+    documentTypeId?: number;
   }) =>
     api.get<ApiResponse<PaginatedResponse<IncomingDocumentListItem>>>('/incoming-documents', { params }),
 

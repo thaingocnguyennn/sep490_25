@@ -26,6 +26,11 @@ export class IncomingDocumentsController {
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
       const status = req.query.status as string;
+      const documentTypeIdParam = req.query.documentTypeId as string | undefined;
+      const parsedDocumentTypeId = documentTypeIdParam ? parseInt(documentTypeIdParam, 10) : NaN;
+      const documentTypeId = Number.isInteger(parsedDocumentTypeId) && parsedDocumentTypeId > 0
+        ? parsedDocumentTypeId
+        : undefined;
       const urgency = (req.query.urgencyId ?? req.query.urgency) as string | undefined;
 
       const result = await incomingDocumentsService.list({
@@ -33,6 +38,7 @@ export class IncomingDocumentsController {
         limit,
         search,
         status,
+        documentTypeId,
         urgency,
         userId: req.user!.userId,
         userRoles: req.user!.roles,

@@ -88,6 +88,7 @@ export class IncomingDocumentsRepository {
     limit: number;
     search?: string;
     status?: string;
+    documentTypeId?: number;
     /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
     /** Filter by documentId for users with XLC/PHXL/XDB assignments */
@@ -95,22 +96,21 @@ export class IncomingDocumentsRepository {
     /** Restrict to documents where the user has at least one XLC/PHXL/XDB processor record */
     assignedProcessorTypes?: string[];
   }) {
-    const { page, limit, search, status, urgency, assignedToUserId, assignedProcessorTypes } = params;
+    const { page, limit, search, status, documentTypeId, urgency, assignedToUserId, assignedProcessorTypes } = params;
     const skip = (page - 1) * limit;
 
     const documentWhere: Prisma.DocumentWhereInput = {};
     const where: Prisma.IncomingDocumentWhereInput = {};
     if (search) {
       documentWhere.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { documentNumber: { contains: search, mode: 'insensitive' } },
-        { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
+        { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
     if (status) documentWhere.status = status as any;
+    if (documentTypeId !== undefined) {
+      where.documentTypeId = documentTypeId;
+    }
     if (urgency) {
       const urgencyId = await resolveUrgencyId(urgency);
       if (urgencyId === null) {
@@ -217,7 +217,7 @@ export class IncomingDocumentsRepository {
     if (search) {
       documentWhere.OR = [
         { title: { contains: search, mode: 'insensitive' } },
-        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
@@ -279,7 +279,7 @@ export class IncomingDocumentsRepository {
     if (search) {
       documentWhere.OR = [
         { title: { contains: search, mode: 'insensitive' } },
-        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
