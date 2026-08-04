@@ -376,6 +376,7 @@ export class IncomingDocumentsService {
     /** Seeded name (THUONG/MAT/TOI_MAT/TUYET_MAT) or numeric id */
     confidentialityLevel?: string;
     confidentialityId?: string;
+    documentBookId?: number;
   }) {
     const userIds = data.processorIds.map((p) => p.userId);
     const users = await prisma.user.findMany({
@@ -404,6 +405,13 @@ export class IncomingDocumentsService {
     // Resolve confidentialityId from the request, or fall back to THUONG.
     const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
     const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
+
+    // Parse documentBookId if provided as string (defensive parsing)
+    const documentBookId = data.documentBookId !== undefined && data.documentBookId !== null
+      ? typeof data.documentBookId === 'string'
+        ? parseInt(data.documentBookId, 10)
+        : data.documentBookId
+      : undefined;
 
     // Fetch document kind name for title if documentTypeId is provided
     let documentKindName = '';
@@ -443,8 +451,31 @@ export class IncomingDocumentsService {
           notes: data.notes,
           processingInstructions: data.processingInstructions,
           createdByClerkId: data.createdBy,
+          documentBookId,
         },
       });
+
+      // If a document book is selected, create the book entry
+      if (documentBookId && data.arrivalNumber) {
+        await tx.incomingBookEntry.create({
+          data: {
+            documentBookId,
+            incomingDocumentId: incoming.id,
+            arrivalNumber: data.arrivalNumber,
+            arrivalDate: new Date(data.dateReceived),
+            senderSnapshot: data.issuer || '',
+            documentNumberSnapshot: data.documentNumber || null,
+            summarySnapshot: data.summary || '',
+            registeredById: data.createdBy,
+          },
+        });
+
+        // Update the document book's currentNumber
+        await tx.documentBook.update({
+          where: { id: documentBookId },
+          data: { currentNumber: { increment: 1 } },
+        });
+      }
 
       await tx.documentProcessor.createMany({
         data: data.processorIds.map((p) => ({
@@ -503,6 +534,7 @@ export class IncomingDocumentsService {
     createdBy: number;
     confidentialityLevel?: string;
     confidentialityId?: string;
+    documentBookId?: number;
   }) {
     const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
 
@@ -513,6 +545,13 @@ export class IncomingDocumentsService {
 
     const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
     const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
+
+    // Parse documentBookId if provided as string (defensive parsing)
+    const documentBookId = data.documentBookId !== undefined && data.documentBookId !== null
+      ? typeof data.documentBookId === 'string'
+        ? parseInt(data.documentBookId, 10)
+        : data.documentBookId
+      : undefined;
 
     // Fetch document kind name for title if documentTypeId is provided
     let documentKindName = '';
@@ -552,8 +591,12 @@ export class IncomingDocumentsService {
           notes: data.notes,
           processingInstructions: data.processingInstructions,
           createdByClerkId: data.createdBy,
+          documentBookId,
         },
       });
+
+      // If a document book is selected and draft is being submitted later,
+      // we don't create the book entry yet - it will be created when the document is finalized
 
       if (data.attachments && data.attachments.length > 0) {
         await tx.documentAttachment.createMany({
@@ -602,6 +645,7 @@ export class IncomingDocumentsService {
       attachments?: AttachmentInput[];
       confidentialityLevel?: string;
       confidentialityId?: string;
+      documentBookId?: number;
     },
     userId: number,
   ) {
@@ -612,6 +656,12 @@ export class IncomingDocumentsService {
       ? typeof data.documentTypeId === 'string'
         ? parseInt(data.documentTypeId, 10)
         : data.documentTypeId
+      : undefined;
+
+    const documentBookId = data.documentBookId
+      ? typeof data.documentBookId === 'string'
+        ? parseInt(data.documentBookId, 10)
+        : data.documentBookId
       : undefined;
 
     try {
@@ -663,6 +713,7 @@ export class IncomingDocumentsService {
             notes: data.notes,
             processingInstructions: data.processingInstructions,
             createdByClerkId: userId,
+            documentBookId,
           },
         });
 
@@ -727,6 +778,7 @@ export class IncomingDocumentsService {
       confidentialityLevel?: string;
       confidentialityId?: string;
       updatedBy: number;
+      documentBookId?: number;
     }
   ) {
     // Verify the document is a draft
@@ -782,6 +834,7 @@ export class IncomingDocumentsService {
           pageCount: data.pageCount,
           notes: data.notes,
           processingInstructions: data.processingInstructions,
+          documentBookId: data.documentBookId,
         },
       });
     });
@@ -813,6 +866,7 @@ export class IncomingDocumentsService {
       confidentialityLevel?: string;
       confidentialityId?: string;
       updatedBy: number;
+      documentBookId?: number;
     },
     userId: number,
   ) {
@@ -836,6 +890,12 @@ export class IncomingDocumentsService {
       ? typeof data.documentTypeId === 'string'
         ? parseInt(data.documentTypeId, 10)
         : data.documentTypeId
+      : undefined;
+
+    const documentBookId = data.documentBookId
+      ? typeof data.documentBookId === 'string'
+        ? parseInt(data.documentBookId, 10)
+        : data.documentBookId
       : undefined;
 
     // Fetch document kind name for title if documentTypeId is provided
@@ -882,6 +942,7 @@ export class IncomingDocumentsService {
             pageCount: data.pageCount,
             notes: data.notes,
             processingInstructions: data.processingInstructions,
+            documentBookId,
           },
         });
       });
@@ -924,6 +985,12 @@ export class IncomingDocumentsService {
       ? typeof data.documentTypeId === 'string'
         ? parseInt(data.documentTypeId, 10)
         : data.documentTypeId
+      : undefined;
+
+    const documentBookId = data.documentBookId
+      ? typeof data.documentBookId === 'string'
+        ? parseInt(data.documentBookId, 10)
+        : data.documentBookId
       : undefined;
 
     try {
@@ -975,8 +1042,31 @@ export class IncomingDocumentsService {
             notes: data.notes,
             processingInstructions: data.processingInstructions,
             createdByClerkId: userId,
+            documentBookId,
           },
         });
+
+        // If a document book is selected, create the book entry
+        if (documentBookId && data.arrivalNumber) {
+          await tx.incomingBookEntry.create({
+            data: {
+              documentBookId,
+              incomingDocumentId: incoming.id,
+              arrivalNumber: data.arrivalNumber,
+              arrivalDate: new Date(data.dateReceived),
+              senderSnapshot: data.issuer || '',
+              documentNumberSnapshot: data.documentNumber || null,
+              summarySnapshot: data.summary || '',
+              registeredById: userId,
+            },
+          });
+
+          // Update the document book's currentNumber
+          await tx.documentBook.update({
+            where: { id: documentBookId },
+            data: { currentNumber: { increment: 1 } },
+          });
+        }
 
         await tx.documentProcessor.createMany({
           data: data.processorIds.map((p) => ({

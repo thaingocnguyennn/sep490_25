@@ -69,6 +69,8 @@ export interface IncomingDocumentDetail {
   processingInstructions: string | null;
   createdByClerkId: number | null;
   createdByClerk: { id: number; fullName: string } | null;
+  documentBookId: number | null;
+  documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
 }
 
@@ -91,6 +93,8 @@ export interface IncomingDocumentListItem {
   processingInstructions: string | null;
   createdByClerkId: number | null;
   createdByClerk: { id: number; fullName: string } | null;
+  documentBookId: number | null;
+  documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
 }
 
@@ -115,6 +119,7 @@ export interface CreateIncomingDocumentRequest {
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
   confidentialityLevel?: ConfidentialityCodeOrName;
   confidentialityId?: ConfidentialityCodeOrName;
+  documentBookId?: number;
 }
 
 export type HeadAction = 'FINISH' | 'FORWARD' | 'RETURN';
@@ -324,6 +329,7 @@ export const incomingDocumentsApi = {
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
       ['notes', data.notes],
+      ['documentBookId', data.documentBookId],
     ];
     for (const [key, value] of entries) {
       if (value !== undefined) {
@@ -367,6 +373,7 @@ export const incomingDocumentsApi = {
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
       ['notes', data.notes],
+      ['documentBookId', data.documentBookId],
     ];
     for (const [key, value] of entries) {
       if (value !== undefined) {
@@ -407,6 +414,7 @@ export const incomingDocumentsApi = {
       ['confidentialityId', data.confidentialityId],
       ['notes', data.notes],
       ['processingInstructions', data.processingInstructions],
+      ['documentBookId', data.documentBookId],
     ];
     for (const [key, value] of entries) {
       if (value !== undefined) {

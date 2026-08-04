@@ -23,6 +23,12 @@ export interface IncomingDocumentWithRelations {
   processingInstructions: string | null;
   createdByClerkId: number | null;
   createdByClerk: { id: number; fullName: string } | null;
+  documentBookId: number | null;
+  documentBook: {
+    id: number;
+    name: string;
+    code: string | null;
+  } | null;
   document: {
     id: number;
     documentNumber: string;
@@ -168,6 +174,7 @@ export class IncomingDocumentsRepository {
       include: {
         createdByClerk: { select: { id: true, fullName: true } },
         documentTypeRef: { select: { id: true, name: true } },
+        documentBook: { select: { id: true, name: true, code: true } },
         document: {
           include: {
             createdByUser: { select: { id: true, fullName: true } },

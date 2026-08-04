@@ -67,6 +67,7 @@ export const createIncomingDocumentValidation = [
     .isIn(['XLC', 'PHXL', 'XDB'])
     .withMessage('Loại xử lý không hợp lệ'),
   body('attachments').optional().isArray().withMessage('Tệp đính kèm phải là một mảng'),
+  body('documentBookId').optional().isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
 ];
 
 /**
@@ -137,6 +138,7 @@ export const createIncomingDocumentWithFileValidation = [
     .isIn(['XLC', 'PHXL', 'XDB'])
     .withMessage('Loại xử lý không hợp lệ'),
   body('attachments').optional().isArray().withMessage('Tệp đính kèm phải là một mảng'),
+  body('documentBookId').optional().isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
 ];
 
 export const processIncomingDocumentValidation = [
