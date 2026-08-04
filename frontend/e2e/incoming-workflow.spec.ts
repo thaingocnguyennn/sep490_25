@@ -101,20 +101,20 @@ test.describe('Incoming document workflow — happy path', () => {
     });
     expect(forward.status()).toBe(200);
 
-    // Specialist COMPLETEs.
+    // Specialist FINISHes.
     const complete = await request.post(
       `${BACKEND_URL}/api/incoming-documents/${id}/process-specialist`,
       {
         headers: { Authorization: `Bearer ${specialistToken}` },
-        data: { action: 'COMPLETE' },
+        data: { action: 'FINISH' },
       }
     );
     expect(complete.status()).toBe(200);
   });
 });
 
-test.describe('Incoming document workflow — RETURN_TO_HEAD loop', () => {
-  test('specialist returns → head rejects → head forwards again', async ({ request }) => {
+test.describe('Incoming document workflow — RETURN loop (specialist → head)', () => {
+  test('specialist returns → head forwards again', async ({ request }) => {
     const clerkToken = await loginViaApi('clerk', 'Password@123');
     const headToken = await loginViaApi('dept_head', 'Password@123');
     const specialistToken = await loginViaApi('specialist', 'Password@123');
@@ -126,7 +126,7 @@ test.describe('Incoming document workflow — RETURN_TO_HEAD loop', () => {
         documentType: 'Quyết định',
         documentNumber: 'QĐ/E2E/' + Date.now(),
         dateReceived: new Date().toISOString(),
-        summary: 'Test RETURN_TO_HEAD',
+        summary: 'Test RETURN',
         processorIds: [],
       },
     });
@@ -149,10 +149,10 @@ test.describe('Incoming document workflow — RETURN_TO_HEAD loop', () => {
     });
     expect(resp.status()).toBe(200);
 
-    // Specialist RETURN_TO_HEAD
+    // Specialist RETURNs to head
     resp = await request.post(`${BACKEND_URL}/api/incoming-documents/${id}/process-specialist`, {
       headers: { Authorization: `Bearer ${specialistToken}` },
-      data: { action: 'RETURN_TO_HEAD', reason: 'Cần bổ sung tài liệu' },
+      data: { action: 'RETURN', reason: 'Cần bổ sung tài liệu' },
     });
     expect(resp.status()).toBe(200);
 
