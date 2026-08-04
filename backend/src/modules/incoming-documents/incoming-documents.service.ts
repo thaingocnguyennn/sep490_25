@@ -65,6 +65,7 @@ export class IncomingDocumentsService {
     limit: number;
     search?: string;
     status?: string;
+    documentTypeId?: number;
     urgency?: string;
     userId?: number;
     userRoles?: string[];

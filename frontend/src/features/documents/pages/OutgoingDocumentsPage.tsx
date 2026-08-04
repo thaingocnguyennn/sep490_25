@@ -129,18 +129,18 @@ export default function OutgoingDocumentsPage() {
       <div className="top-bar">
         <h1>Văn bản đi</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
+          {/* <button
             className="btn btn-secondary"
             onClick={() => handleExport('excel')}
           >
             📊 Xuất Excel
-          </button>
-          <button
+          </button> */}
+          {/* <button
             className="btn btn-secondary"
             onClick={() => handleExport('pdf')}
           >
             📑 Xuất PDF
-          </button>
+          </button> */}
           {canCreate && (
             <button
               id="btn-create-outgoing"

@@ -5,6 +5,7 @@ import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
+import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 
 type StatusTab = '' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT';
 
@@ -20,13 +21,16 @@ export default function IncomingDocumentsPage() {
   const navigate = useNavigate();
   const { isDocumentClerk, isAdmin, isDepartmentHead } = useAuth();
   const { documents, total, page, limit, loading, fetch, setPage } = useIncomingDocuments({ pageSize: 10 });
+  const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusTab>('');
   const [activeTab, setActiveTab] = useState<StatusTab>('');
+  const [documentTypeFilter, setDocumentTypeFilter] = useState('');
 
   useEffect(() => {
+    fetchDocumentTypes();
     fetch();
-  }, []);
+  }, [fetch, fetchDocumentTypes]);
 
   useEffect(() => {
     setStatusFilter(activeTab);
@@ -34,13 +38,29 @@ export default function IncomingDocumentsPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetch({ search, status: statusFilter });
+    fetch({
+      search,
+      status: statusFilter,
+      documentTypeId: documentTypeFilter ? Number(documentTypeFilter) : undefined,
+    });
   };
 
   const handleTabChange = (tab: StatusTab) => {
     setActiveTab(tab);
-    setPage(1);
-    fetch({ search, status: tab });
+    fetch({
+      search,
+      status: tab,
+      documentTypeId: documentTypeFilter ? Number(documentTypeFilter) : undefined,
+    });
+  };
+
+  const handleDocumentTypeChange = (documentTypeId: string) => {
+    setDocumentTypeFilter(documentTypeId);
+    fetch({
+      search,
+      status: statusFilter,
+      documentTypeId: documentTypeId ? Number(documentTypeId) : undefined,
+    });
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -77,11 +97,22 @@ export default function IncomingDocumentsPage() {
             <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input
                 type="text"
-                placeholder="Tìm theo tiêu đề, số ký hiệu, cơ quan..."
+                placeholder="Tìm theo số ký hiệu hoặc trích yếu..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, width: 280 }}
               />
+              <select
+                id="incoming-document-type-filter"
+                value={documentTypeFilter}
+                onChange={(e) => handleDocumentTypeChange(e.target.value)}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
+              >
+                <option value="">Tất cả loại VB</option>
+                {documentTypeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
+              </select>
               <button type="submit" className="btn btn-secondary">Tìm kiếm</button>
             </form>
           </div>

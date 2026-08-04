@@ -12,7 +12,7 @@ interface UseIncomingDocumentsResult {
   limit: number;
   loading: boolean;
   error: string;
-  fetch: (params?: { search?: string; status?: string }) => void;
+  fetch: (params?: { search?: string; status?: string; documentTypeId?: number }) => void;
   setPage: (page: number) => void;
 }
 
@@ -25,19 +25,22 @@ export function useIncomingDocuments(options: UseIncomingDocumentsOptions = {}):
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [documentTypeId, setDocumentTypeId] = useState<number | undefined>();
 
   const fetch = useCallback(
-    (params?: { search?: string; status?: string }) => {
+    (params?: { search?: string; status?: string; documentTypeId?: number }) => {
       const s = params?.search ?? search;
       const st = params?.status ?? statusFilter;
+      const dt = params && 'documentTypeId' in params ? params.documentTypeId : documentTypeId;
       setSearch(s);
       setStatusFilter(st);
+      setDocumentTypeId(dt);
       setPageState(1);
       setLoading(true);
       setError('');
 
       incomingDocumentsApi
-        .getAll({ page: 1, limit: pageSize, search: s, status: st || undefined })
+        .getAll({ page: 1, limit: pageSize, search: s, status: st || undefined, documentTypeId: dt })
         .then(({ data }) => {
           setDocuments(data.data!.items);
           setTotal(data.data!.total);
@@ -56,7 +59,7 @@ export function useIncomingDocuments(options: UseIncomingDocumentsOptions = {}):
       setError('');
 
       incomingDocumentsApi
-        .getAll({ page: newPage, limit: pageSize, search, status: statusFilter || undefined })
+        .getAll({ page: newPage, limit: pageSize, search, status: statusFilter || undefined, documentTypeId })
         .then(({ data }) => {
           setDocuments(data.data!.items);
           setTotal(data.data!.total);
@@ -65,7 +68,7 @@ export function useIncomingDocuments(options: UseIncomingDocumentsOptions = {}):
         .finally(() => setLoading(false));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pageSize, search, statusFilter]
+    [pageSize, search, statusFilter, documentTypeId]
   );
 
   return {

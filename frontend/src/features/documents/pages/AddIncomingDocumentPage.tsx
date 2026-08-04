@@ -312,12 +312,34 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       const result: OcrResult = data.data!;
       const fields = result.extractedFields;
 
+      // Match the OCR-returned documentType string (e.g. "QUYẾT ĐỊNH") to the
+      // active DocumentKind options already loaded by useDocumentTypeOptions.
+      // We compare case-insensitively against both `name` and `code` so that
+      // minor wording/format differences (e.g. "Quyết định" vs "QUYẾT ĐỊNH")
+      // still resolve to the right option. When no match is found, leave the
+      // field untouched so the user can pick it manually.
+      let resolvedDocumentTypeId = '';
+      if (fields.documentType) {
+        const normalized = fields.documentType
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, ' ');
+        const match = documentTypeOptions.find(
+          (opt) =>
+            opt.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalized ||
+            opt.code.trim().toLowerCase() === normalized
+        );
+        if (match) {
+          resolvedDocumentTypeId = String(match.id);
+        }
+      }
+
       setForm((prev) => ({
         ...prev,
         issuer: fields.issuer || prev.issuer,
         documentNumber: fields.documentNumber || prev.documentNumber,
         dateLetter: fields.dateLetter || prev.dateLetter,
-        // Optional: you can map documentType string to documentTypeId if you have the list
+        documentTypeId: resolvedDocumentTypeId || prev.documentTypeId,
         summary: fields.summary || prev.summary,
         pageCount: fields.pageCount || prev.pageCount,
         signerName: fields.signerName || prev.signerName,
