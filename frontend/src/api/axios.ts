@@ -1,25 +1,14 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-// Use environment variable for API base URL, fallback to relative path for Vercel rewrites
-const getApiBaseUrl = () => {
-  // In production with Vercel, use relative path (Vercel rewrites handle routing to /api)
-  // In development, use the configured URL with /api prefix
-  if (import.meta.env.VITE_API_BASE_URL) {
-    // Direct backend URL (e.g., production with CORS)
-    return import.meta.env.VITE_API_BASE_URL;
-  }
-  // Fallback: Vercel rewrites handle /api/* -> backend
-  return '';
-};
-
-const getApiPrefix = () => {
-  // If using direct backend URL, we need to add /api prefix
-  // If using Vercel rewrites, the /api prefix is already in the URL
-  return import.meta.env.VITE_API_BASE_URL ? '/api' : '';
-};
+// API base URL:
+// - Production (Vercel): use relative path '/api' which Vercel rewrites to backend
+// - Development: use VITE_API_BASE_URL env (e.g., http://localhost:5000) + /api
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : '/api';
 
 const api = axios.create({
-  baseURL: getApiBaseUrl() + getApiPrefix(),
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },
