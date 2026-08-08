@@ -5,16 +5,8 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://your-backend.onrender.com/api/$1"
-    },
-    {
-      "source": "/uploads/(.*)",
-      "destination": "https://your-backend.onrender.com/uploads/$1"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
-  ],
-  "env": {
-    "VITE_API_BASE_URL": "https://your-backend.onrender.com",
-    "API_URL": "https://your-backend.onrender.com"
-  }
+  ]
 }
