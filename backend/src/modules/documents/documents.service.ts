@@ -12,6 +12,7 @@ import {
   DocumentSummary,
 } from './documents.repository';
 import { performOcr, extractFields } from '../../shared/services/ocr.service';
+import { uploadHandler, deleteFromSupabase, isExternalUrl } from '../../shared/services/storage.service';
 import prisma from '../../config/database';
 
 // ─── Service ────────────────────────────────────────────────────────────────
@@ -89,8 +90,8 @@ export class DocumentsService {
       throw new ConflictError('Document number already exists');
     }
 
-    // Build the relative file URL for client access
-    const fileUrl = file ? `/uploads/${file.filename}` : undefined;
+    // Build the file URL - use storage service for both local and Supabase
+    const fileUrl = file ? await uploadHandler(file) : undefined;
 
     const doc = await documentsRepository.create({
       documentNumber,
@@ -375,8 +376,20 @@ export class DocumentsService {
     if (!existing) {
       throw new NotFoundError('Document not found');
     }
-    // Note: Optionally we could delete the physical file here as well
-    // using fs.unlinkSync(this.getFilePath(existing)) if required.
+
+    // Delete the file from storage (local or Supabase)
+    if (existing.fileUrl) {
+      if (isExternalUrl(existing.fileUrl)) {
+        await deleteFromSupabase(existing.fileUrl);
+      } else {
+        // Local file deletion handled separately
+        const filePath = path.join(config.uploadDir, path.basename(existing.fileUrl));
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+    }
+
     await documentsRepository.hardDelete(id);
   }
 

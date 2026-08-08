@@ -24,5 +24,15 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    build: {
+      // Vercel deployment settings
+      outDir: 'dist',
+      sourcemap: mode !== 'production',
+    },
+    define: {
+      // Ensure VITE_ prefixed env vars are available at build time
+      'import.meta.env.VITE_API_BASE_URL': JSON.stringify(env.VITE_API_BASE_URL || ''),
+      'import.meta.env.API_URL': JSON.stringify(env.API_URL || ''),
+    },
   };
 });

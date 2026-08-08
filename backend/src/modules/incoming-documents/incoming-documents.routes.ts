@@ -12,7 +12,6 @@ import {
   createIncomingDocumentWithFileValidation,
   processIncomingDocumentValidation,
   processSpecialistDocumentValidation,
-  addCommentValidation,
   registerIncomingDocumentValidation,
 } from './incoming-documents.validation';
 
