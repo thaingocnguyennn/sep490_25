@@ -1,4 +1,23 @@
 node_modules/
 dist/
 .env
+.env.example
 *.log
+
+# Prisma
+prisma/migrations/*/
+!prisma/migrations/20260727000000_add_password_reset_tokens/
+!prisma/migrations/20260727000000_add_password_reset_tokens/**
+!prisma/migrations/20260727001000_add_password_changed_at/
+!prisma/migrations/20260727001000_add_password_changed_at/**
+prisma/*.db
+prisma/*.db-journal
+
+# Uploaded document files
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+temp/
+tests/

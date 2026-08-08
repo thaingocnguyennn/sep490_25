@@ -1,11 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { usersApi } from '../../../api';
-import type { User, Role } from '../../../types';
+import { useAuth } from '../../../contexts/AuthContext';
+import { ROLES } from '../../../shared/constants/roles';
+import { validatePasswordPolicy, PASSWORD_POLICY_HINT } from '../../../shared/utils/passwordPolicy';
+import type { User, UserStatus, CreateUserRequest, UpdateUserRequest } from '../../../types';
 
-type UserStatus = 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+interface RoleOption {
+  id: number;
+  name: string;
+  description: string | null;
+}
 
-interface FormState {
+const STATIC_ROLES: RoleOption[] = [
+  { id: 1, name: ROLES.ADMIN, description: 'Quản trị viên hệ thống với toàn quyền truy cập' },
+  { id: 2, name: ROLES.DEPARTMENT_HEAD, description: 'Trưởng phòng ban với các quyền quản lý' },
+  { id: 3, name: ROLES.SPECIALIST, description: 'Chuyên viên với quyền xử lý văn bản' },
+  { id: 4, name: ROLES.DOCUMENT_CLERK, description: 'Văn thư với quyền truy cập cơ bản về văn bản' },
+];
+
+type FormState = {
   username: string;
   email: string;
   password: string;
@@ -13,11 +28,12 @@ interface FormState {
   phone: string;
   status: UserStatus;
   roleIds: number[];
-}
+};
 
 export default function UserFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState<FormState>({
@@ -29,53 +45,51 @@ export default function UserFormPage() {
     status: 'ACTIVE',
     roleIds: [],
   });
-  const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetchingUser, setFetchingUser] = useState(isEdit);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Pre-load roles from DB to get their IDs; fall back to static roles
+  const [availableRoles, setAvailableRoles] = useState<RoleOption[]>(STATIC_ROLES);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
 
   useEffect(() => {
-    const loadRoles = async () => {
-      try {
-        const { data } = await usersApi.getRoles();
-        setRoles(data.data!);
-      } catch {
-        // handled by interceptor
-      }
-    };
-    loadRoles();
-  }, []);
+    if (!isAdmin) return;
+    usersApi.getRoles()
+      .then(({ data }) => {
+        if (data.data && data.data.length > 0) {
+          setAvailableRoles(data.data.map((r) => ({ id: r.id, name: r.name, description: r.description })));
+        }
+        setRolesLoaded(true);
+      })
+      .catch(() => setRolesLoaded(true));
+  }, [isAdmin]);
 
   useEffect(() => {
-    if (!isEdit) return;
+    if (!isAdmin || !isEdit || !rolesLoaded) return;
 
     const loadUser = async () => {
       setFetchingUser(true);
       try {
         const { data } = await usersApi.getById(Number(id));
         const user: User = data.data!;
-        setForm({
-          username: user.username,
-          email: user.email,
-          password: '',
-          fullName: user.fullName,
-          phone: user.phone || '',
-          status: user.status as UserStatus,
-          roleIds: [],
-        });
+        const roleIds = availableRoles
+          .filter((r) => user.roles.includes(r.name))
+          .map((r) => r.id);
+        setForm((prev) => ({ ...prev, username: user.username, email: user.email, password: '', fullName: user.fullName, phone: user.phone || '', status: user.status, roleIds }));
       } catch {
-        navigate('/users');
+        navigate('/admin/users');
       } finally {
         setFetchingUser(false);
       }
     };
 
     loadUser();
-  }, [id, isEdit, navigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isAdmin, isEdit, navigate, rolesLoaded, availableRoles]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setError('');
@@ -91,13 +105,16 @@ export default function UserFormPage() {
   };
 
   const validate = () => {
-    if (!form.username.trim()) return 'Username is required';
-    if (form.username.length < 3) return 'Username must be at least 3 characters';
-    if (!form.email.trim()) return 'Email is required';
-    if (!form.fullName.trim()) return 'Full name is required';
-    if (!isEdit && !form.password) return 'Password is required';
-    if (!isEdit && form.password.length < 8) return 'Password must be at least 8 characters';
-    if (form.roleIds.length === 0) return 'At least one role must be assigned';
+    if (!form.username.trim()) return 'Tên đăng nhập là bắt buộc';
+    if (form.username.length < 3) return 'Tên đăng nhập phải có ít nhất 3 ký tự';
+    if (!form.email.trim()) return 'Email là bắt buộc';
+    if (!form.fullName.trim()) return 'Họ và tên là bắt buộc';
+    if (!isEdit && !form.password) return 'Mật khẩu là bắt buộc';
+    if (!isEdit) {
+      const passwordError = validatePasswordPolicy(form.password);
+      if (passwordError) return passwordError;
+    }
+    if (form.roleIds.length === 0) return 'Phải chỉ định ít nhất một vai trò';
     return null;
   };
 
@@ -114,7 +131,7 @@ export default function UserFormPage() {
 
     try {
       if (isEdit) {
-        const updatePayload = {
+        const updatePayload: UpdateUserRequest = {
           username: form.username,
           email: form.email,
           fullName: form.fullName,
@@ -124,7 +141,7 @@ export default function UserFormPage() {
         };
         await usersApi.update(Number(id), updatePayload);
       } else {
-        const createPayload = {
+        const createPayload: CreateUserRequest = {
           username: form.username,
           email: form.email,
           password: form.password,
@@ -134,23 +151,43 @@ export default function UserFormPage() {
         };
         await usersApi.create(createPayload);
       }
-
-      navigate('/users');
+      navigate('/admin/users');
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Operation failed. Please try again.');
+      const error = err as {
+        response?: {
+          data?: {
+            message?: string;
+            errors?: Array<{ field?: string; message?: string }>;
+          };
+        };
+      };
+      const apiErrors = error.response?.data?.errors;
+      const fieldMessage =
+        apiErrors && apiErrors.length > 0
+          ? apiErrors
+              .map((e) => e.message)
+              .filter(Boolean)
+              .join('. ')
+          : '';
+      setError(
+        fieldMessage ||
+          error.response?.data?.message ||
+          'Thao tác thất bại. Vui lòng thử lại.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  if (!isAdmin) {
+    return <div className="page-content"><p>Truy cập bị từ chối.</p></div>;
+  }
+
   if (fetchingUser) {
     return (
       <>
-        <div className="top-bar"><h1>{isEdit ? 'Edit User' : 'Create User'}</h1></div>
-        <div className="page-content">
-          <div className="loading-spinner"><div className="spinner" /></div>
-        </div>
+        <div className="top-bar"><h1>{isEdit ? 'Chỉnh sửa người dùng' : 'Tạo người dùng'}</h1></div>
+        <div className="page-content"><div className="loading-spinner"><div className="spinner" /></div></div>
       </>
     );
   }
@@ -158,10 +195,8 @@ export default function UserFormPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>{isEdit ? 'Edit User' : 'Create User'}</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/users')}>
-          Back
-        </button>
+        <h1>{isEdit ? 'Chỉnh sửa người dùng' : 'Tạo người dùng'}</h1>
+        <button className="btn btn-secondary" onClick={() => navigate('/admin/users')}>Quay lại</button>
       </div>
 
       <div className="page-content">
@@ -172,89 +207,97 @@ export default function UserFormPage() {
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label htmlFor="username">Username *</label>
-                  <input
-                    id="username"
-                    name="username"
-                    type="text"
-                    value={form.username}
-                    onChange={handleChange}
-                    placeholder="e.g. john_doe"
-                    disabled={isEdit}
-                  />
+                  <label htmlFor="username">Tên đăng nhập *</label>
+                  <input id="username" name="username" type="text" value={form.username}
+                    onChange={handleChange} placeholder="VD: nguyen_van_a" disabled={isEdit} />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="email">Email *</label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="e.g. john@example.com"
-                  />
+                  <input id="email" name="email" type="email" value={form.email}
+                    onChange={handleChange} placeholder="VD: nguyenvana@example.com" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="fullName">Full Name *</label>
-                  <input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    value={form.fullName}
-                    onChange={handleChange}
-                    placeholder="e.g. John Doe"
-                  />
+                  <label htmlFor="fullName">Họ và tên *</label>
+                  <input id="fullName" name="fullName" type="text" value={form.fullName}
+                    onChange={handleChange} placeholder="VD: Nguyễn Văn A" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="phone">Phone</label>
-                  <input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    value={form.phone}
-                    onChange={handleChange}
-                    placeholder="e.g. 0901234567"
-                  />
+                  <label htmlFor="phone">Số điện thoại</label>
+                  <input id="phone" name="phone" type="tel" value={form.phone}
+                    onChange={handleChange} placeholder="VD: 0901234567" />
                 </div>
 
-                <div className="form-group">
-                  <label htmlFor="password">
-                    Password {isEdit ? '(leave blank to keep current)' : '*'}
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    value={form.password}
-                    onChange={handleChange}
-                    placeholder={isEdit ? '••••••••' : 'Min. 8 characters'}
-                    autoComplete={isEdit ? 'new-password' : 'current-password'}
-                  />
-                </div>
+                {!isEdit && (
+                  <div className="form-group">
+                    <label htmlFor="password">Mật khẩu *</label>
+                    <div className="password-input-wrapper">
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={form.password}
+                        onChange={handleChange}
+                        placeholder="Nhập mật khẩu"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      >
+                        {showPassword ? <Eye /> : <EyeOff />}
+                      </button>
+                    </div>
+                    <small style={{ fontSize: 12, color: '#636e72' }}>
+                      {PASSWORD_POLICY_HINT}
+                    </small>
+                  </div>
+                )}
 
                 {isEdit && (
                   <div className="form-group">
-                    <label htmlFor="status">Status</label>
-                    <select
-                      id="status"
-                      name="status"
-                      value={form.status}
-                      onChange={handleChange}
-                    >
-                      <option value="ACTIVE">Active</option>
-                      <option value="INACTIVE">Inactive</option>
-                      <option value="LOCKED">Locked</option>
+                    <label htmlFor="password">Mật khẩu (để trống nếu giữ nguyên)</label>
+                    <div className="password-input-wrapper">
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={form.password}
+                        onChange={handleChange}
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      >
+                        {showPassword ? <Eye /> : <EyeOff />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {isEdit && (
+                  <div className="form-group">
+                    <label htmlFor="status">Trạng thái</label>
+                    <select id="status" name="status" value={form.status} onChange={handleChange}>
+                      <option value="ACTIVE">Hoạt động</option>
+                      <option value="INACTIVE">Không hoạt động</option>
+                      <option value="LOCKED">Bị khóa</option>
                     </select>
                   </div>
                 )}
 
                 <div className="form-group full-width">
-                  <label>Roles *</label>
+                  <label>Vai trò *</label>
                   <div className="checkbox-group">
-                    {roles.map((role) => (
+                    {availableRoles.map((role) => (
                       <label key={role.id} className="checkbox-item">
                         <input
                           type="checkbox"
@@ -264,8 +307,7 @@ export default function UserFormPage() {
                         <span style={{ fontWeight: 500 }}>{role.name}</span>
                         {role.description && (
                           <span style={{ color: '#636e72', fontSize: 12 }}>
-                            {' '}
-                            — {role.description}
+                            {' '}&mdash; {role.description}
                           </span>
                         )}
                       </label>
@@ -275,20 +317,10 @@ export default function UserFormPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => navigate('/users')}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                  style={{ flex: 1 }}
-                >
-                  {loading ? 'Saving...' : isEdit ? 'Update User' : 'Create User'}
+                <button type="button" className="btn btn-secondary"
+                  onClick={() => navigate('/admin/users')}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
+                  {loading ? 'Đang lưu...' : isEdit ? 'Cập nhật người dùng' : 'Tạo người dùng'}
                 </button>
               </div>
             </form>

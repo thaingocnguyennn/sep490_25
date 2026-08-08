@@ -7,6 +7,8 @@ export interface UserListParams {
   limit?: number;
   search?: string;
   status?: UserStatus;
+  role?: string;
+  departmentId?: number;
 }
 
 export interface UserListResult {
@@ -36,6 +38,11 @@ export interface UserDetail extends UserSummary {
     id: number;
     name: string;
   } | null;
+  departmentMemberships?: {
+    departmentId: number;
+    name: string;
+    assignedAt: string;
+  }[];
   createdBy?: {
     id: number;
     fullName: string;
@@ -56,6 +63,20 @@ export class UsersRepository {
 
     if (params.status) {
       where.status = params.status;
+    }
+
+    if (params.role) {
+      where.userRoles = {
+        some: {
+          role: {
+            name: params.role,
+          },
+        },
+      };
+    }
+
+    if (params.departmentId !== undefined) {
+      where.departmentId = params.departmentId;
     }
 
     if (params.search) {
@@ -97,6 +118,10 @@ export class UsersRepository {
           include: { role: true },
         },
         department: true,
+        departmentMemberships: {
+          include: { department: { select: { id: true, name: true } } },
+          orderBy: { assignedAt: 'desc' },
+        },
         createdByUser: {
           select: { id: true, fullName: true },
         },
@@ -150,6 +175,10 @@ export class UsersRepository {
           include: { role: true },
         },
         department: true,
+        departmentMemberships: {
+          include: { department: { select: { id: true, name: true } } },
+          orderBy: { assignedAt: 'desc' },
+        },
         createdByUser: {
           select: { id: true, fullName: true },
         },
@@ -190,6 +219,10 @@ export class UsersRepository {
           include: { role: true },
         },
         department: true,
+        departmentMemberships: {
+          include: { department: { select: { id: true, name: true } } },
+          orderBy: { assignedAt: 'desc' },
+        },
         createdByUser: {
           select: { id: true, fullName: true },
         },
@@ -256,6 +289,11 @@ export class UsersRepository {
     updatedAt: Date;
     userRoles: { role: { name: string } }[];
     department: { id: number; name: string } | null;
+    departmentMemberships: {
+      departmentId: number;
+      assignedAt: Date;
+      department: { id: number; name: string };
+    }[];
     createdByUser: { id: number; fullName: string } | null;
     updatedByUser: { id: number; fullName: string } | null;
   }): UserDetail {
@@ -273,6 +311,11 @@ export class UsersRepository {
       updatedAt: user.updatedAt.toISOString(),
       roles: user.userRoles.map((ur) => ur.role.name),
       department: user.department,
+      departmentMemberships: user.departmentMemberships.map((m) => ({
+        departmentId: m.departmentId,
+        name: m.department.name,
+        assignedAt: m.assignedAt.toISOString(),
+      })),
       createdBy: user.createdByUser,
       updatedBy: user.updatedByUser,
     };

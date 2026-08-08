@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import { config } from '../../config';
-import { NotFoundError, ConflictError, BadRequestError } from '../../shared/exceptions/app-error';
+import { NotFoundError, ConflictError } from '../../shared/exceptions/app-error';
 import {
   usersRepository,
   UserDetail,
@@ -13,19 +13,23 @@ export class UsersService {
     limit?: number;
     search?: string;
     status?: string;
+    role?: string;
+    departmentId?: number;
   }): Promise<UserListResult> {
     return usersRepository.findAll({
       page: params.page ? Number(params.page) : 1,
       limit: params.limit ? Number(params.limit) : 10,
       search: params.search,
       status: params.status as any,
+      role: params.role,
+      departmentId: params.departmentId,
     });
   }
 
   async getById(id: number): Promise<UserDetail> {
     const user = await usersRepository.findById(id);
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Không tìm thấy người dùng');
     }
     return user;
   }
@@ -41,12 +45,12 @@ export class UsersService {
   }): Promise<UserDetail> {
     const existingUsername = await usersRepository.findByUsername(data.username);
     if (existingUsername) {
-      throw new ConflictError('Username already exists');
+      throw new ConflictError('Tên đăng nhập đã tồn tại');
     }
 
     const existingEmail = await usersRepository.findByEmail(data.email);
     if (existingEmail) {
-      throw new ConflictError('Email already exists');
+      throw new ConflictError('Email đã tồn tại');
     }
 
     const hashedPassword = await bcrypt.hash(data.password, config.bcrypt.saltRounds);
@@ -71,20 +75,20 @@ export class UsersService {
   ): Promise<UserDetail> {
     const existing = await usersRepository.findById(id);
     if (!existing) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Không tìm thấy người dùng');
     }
 
     if (data.username && data.username !== existing.username) {
       const conflict = await usersRepository.findByUsername(data.username);
       if (conflict) {
-        throw new ConflictError('Username already exists');
+        throw new ConflictError('Tên đăng nhập đã tồn tại');
       }
     }
 
     if (data.email && data.email !== existing.email) {
       const conflict = await usersRepository.findByEmail(data.email);
       if (conflict) {
-        throw new ConflictError('Email already exists');
+        throw new ConflictError('Email đã tồn tại');
       }
     }
 
@@ -97,13 +101,21 @@ export class UsersService {
   async delete(id: number): Promise<void> {
     const existing = await usersRepository.findById(id);
     if (!existing) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Không tìm thấy người dùng');
     }
     await usersRepository.delete(id);
   }
 
   async getRoles() {
     return usersRepository.getAllRoles();
+  }
+
+  async updateStatus(id: number, status: 'ACTIVE' | 'INACTIVE' | 'LOCKED', updatedBy?: number) {
+    const existing = await usersRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Không tìm thấy người dùng');
+    }
+    return usersRepository.update(id, { status, updatedBy: updatedBy ?? 0 });
   }
 }
 

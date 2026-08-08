@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
+import {
+  PASSWORD_POLICY_HINT,
+  validatePasswordPolicy,
+} from '../../../shared/utils/passwordPolicy';
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuth();
+  const profilePath = location.pathname.startsWith('/admin/') ? '/admin/profile' : '/profile';
   const [form, setForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -25,17 +31,23 @@ export default function ChangePasswordPage() {
     e.preventDefault();
 
     if (!form.currentPassword || !form.newPassword || !form.confirmPassword) {
-      setError('Please fill in all fields');
+      setError('Vui lòng nhập đầy đủ các trường');
       return;
     }
 
     if (form.newPassword !== form.confirmPassword) {
-      setError('New password and confirm password do not match');
+      setError('Mật khẩu mới và xác nhận mật khẩu không trùng khớp');
       return;
     }
 
-    if (form.newPassword.length < 8) {
-      setError('New password must be at least 8 characters');
+    const policyError = validatePasswordPolicy(form.newPassword);
+    if (policyError) {
+      setError(policyError);
+      return;
+    }
+
+    if (form.currentPassword === form.newPassword) {
+      setError('Mật khẩu mới phải khác mật khẩu hiện tại');
       return;
     }
 
@@ -44,14 +56,14 @@ export default function ChangePasswordPage() {
 
     try {
       await authApi.changePassword(form);
-      setSuccess('Password changed successfully. Please log in again.');
+      setSuccess('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.');
       setTimeout(async () => {
         await logout();
         navigate('/login');
       }, 1500);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Failed to change password');
+      setError(error.response?.data?.message || 'Đổi mật khẩu thất bại');
     } finally {
       setLoading(false);
     }
@@ -60,9 +72,9 @@ export default function ChangePasswordPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>Change Password</h1>
-        <button className="btn btn-secondary" onClick={() => navigate(-1)}>
-          Back
+        <h1>Đổi mật khẩu</h1>
+        <button className="btn btn-secondary" onClick={() => navigate(profilePath)}>
+          Quay lại
         </button>
       </div>
       <div className="page-content">
@@ -73,7 +85,7 @@ export default function ChangePasswordPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="currentPassword">Current Password</label>
+                <label htmlFor="currentPassword">Mật khẩu hiện tại</label>
                 <input
                   id="currentPassword"
                   name="currentPassword"
@@ -85,7 +97,7 @@ export default function ChangePasswordPage() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="newPassword">New Password</label>
+                <label htmlFor="newPassword">Mật khẩu mới</label>
                 <input
                   id="newPassword"
                   name="newPassword"
@@ -95,12 +107,12 @@ export default function ChangePasswordPage() {
                   autoComplete="new-password"
                 />
                 <small style={{ fontSize: 12, color: '#636e72' }}>
-                  At least 8 characters with uppercase, lowercase, and number
+                  {PASSWORD_POLICY_HINT}
                 </small>
               </div>
 
               <div className="form-group">
-                <label htmlFor="confirmPassword">Confirm New Password</label>
+                <label htmlFor="confirmPassword">Xác nhận mật khẩu mới</label>
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -115,9 +127,9 @@ export default function ChangePasswordPage() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => navigate(-1)}
+                  onClick={() => navigate(profilePath)}
                 >
-                  Cancel
+                  Huỷ
                 </button>
                 <button
                   type="submit"
@@ -125,7 +137,7 @@ export default function ChangePasswordPage() {
                   disabled={loading}
                   style={{ flex: 1 }}
                 >
-                  {loading ? 'Saving...' : 'Change Password'}
+                  {loading ? 'Đang lưu...' : 'Đổi mật khẩu'}
                 </button>
               </div>
             </form>

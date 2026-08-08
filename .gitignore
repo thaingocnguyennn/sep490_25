@@ -1,0 +1,24 @@
+temp/
+docs/
+data-test/
+
+# ─── Local OCR language models ──────────────────────────────────────────────
+# LSTM traineddata files (tessdata_best).  Not committed because they total
+# ~30 MB and are re-downloaded automatically when OCR_LANG_PATH is cleared.
+# tesseract.js v7 expects .traineddata.gz files (gzip-magic 0x1F 0x8B) on
+# langPath; the loader gunzips them on read.
+*.traineddata
+*.traineddata.gz
+backend/tessdata/
+
+# Root-level environment files (Postgres credentials, etc.)
+/.env
+/.env.local
+/.env.*.local
+.env.example
+/uploads/
+/image-test/
+/report5/
+/Report5_Package/
+Functional_Specification_User_Module.md
+/stuff/

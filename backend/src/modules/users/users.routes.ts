@@ -1,60 +1,45 @@
 import { Router } from 'express';
 import { usersController } from './users.controller';
-import { authenticate } from '../../shared/middlewares/auth.middleware';
 import { requireRole } from '../../shared/middlewares/require-role.middleware';
+import { ROLES } from '../../shared/constants/roles';
 import { validateRequest } from '../../shared/middlewares/validate.middleware';
-import {
-  createUserValidation,
-  updateUserValidation,
-  getUsersValidation,
-  getUserByIdValidation,
-  deleteUserValidation,
-} from './users.validation';
+import { updateProfileValidation } from '../auth/auth.validation';
 
 const router = Router();
 
-router.use(authenticate);
-
-router.get('/roles', requireRole('ADMIN'), usersController.getRoles.bind(usersController));
-
 router.get(
-  '/',
-  requireRole('ADMIN'),
-  getUsersValidation,
-  validateRequest,
-  usersController.getAll.bind(usersController)
-);
-
-router.get(
-  '/:id',
-  requireRole('ADMIN'),
-  getUserByIdValidation,
-  validateRequest,
-  usersController.getById.bind(usersController)
-);
-
-router.post(
-  '/',
-  requireRole('ADMIN'),
-  createUserValidation,
-  validateRequest,
-  usersController.create.bind(usersController)
+  '/me',
+  usersController.getMe.bind(usersController)
 );
 
 router.put(
-  '/:id',
-  requireRole('ADMIN'),
-  updateUserValidation,
+  '/me',
+  updateProfileValidation,
   validateRequest,
-  usersController.update.bind(usersController)
+  usersController.updateMe.bind(usersController)
 );
 
-router.delete(
-  '/:id',
-  requireRole('ADMIN'),
-  deleteUserValidation,
-  validateRequest,
-  usersController.delete.bind(usersController)
+router.get(
+  '/roles',
+  requireRole(ROLES.ADMIN),
+  usersController.getRoles.bind(usersController)
+);
+
+router.get(
+  '/approvers',
+  requireRole(ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK),
+  usersController.getApprovers.bind(usersController)
+);
+
+router.get(
+  '/clerks',
+  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.SPECIALIST),
+  usersController.getClerks.bind(usersController)
+);
+
+router.get(
+  '/',
+  usersController.getAllUsers.bind(usersController)
 );
 
 export default router;

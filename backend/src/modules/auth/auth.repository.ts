@@ -45,6 +45,104 @@ export class AuthRepository {
     });
   }
 
+  async updateProfile(
+    id: number,
+    data: { fullName?: string; phone?: string | null }
+  ): Promise<UserProfile> {
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        ...data,
+        updatedBy: id,
+      },
+      include: {
+        userRoles: {
+          include: { role: true },
+        },
+        department: true,
+      },
+    });
+
+    return this.formatProfile(user);
+  }
+
+  async findByEmail(email: string) {
+    return prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true, email: true, fullName: true },
+    });
+  }
+
+  async createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date) {
+    return prisma.$transaction(async (transaction) => {
+      await transaction.passwordResetToken.deleteMany({
+        where: {
+          OR: [{ userId }, { expiresAt: { lt: new Date() } }],
+        },
+      });
+      return transaction.passwordResetToken.create({
+        data: { userId, tokenHash, expiresAt },
+      });
+    });
+  }
+
+  async deletePasswordResetToken(tokenHash: string) {
+    return prisma.passwordResetToken.deleteMany({ where: { tokenHash } });
+  }
+
+  async resetPasswordWithToken(tokenHash: string, hashedPassword: string): Promise<boolean> {
+    return prisma.$transaction(async (transaction) => {
+      const now = new Date();
+      const resetToken = await transaction.passwordResetToken.findFirst({
+        where: { tokenHash, expiresAt: { gt: now } },
+        select: { id: true, userId: true },
+      });
+
+      if (!resetToken) return false;
+
+      const consumed = await transaction.passwordResetToken.deleteMany({
+        where: {
+          id: resetToken.id,
+          tokenHash,
+          expiresAt: { gt: now },
+        },
+      });
+
+      if (consumed.count !== 1) return false;
+
+      await transaction.user.update({
+        where: { id: resetToken.userId },
+        data: {
+          password: hashedPassword,
+          passwordChangedAt: new Date(),
+          isFirstLogin: false,
+        },
+      });
+
+      await transaction.passwordResetToken.deleteMany({
+        where: { userId: resetToken.userId },
+      });
+
+      return true;
+    });
+  }
+
+  async updatePassword(userId: number, hashedPassword: string) {
+    return prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.update({
+        where: { id: userId },
+        data: {
+          password: hashedPassword,
+          passwordChangedAt: new Date(),
+          isFirstLogin: false,
+        },
+      });
+
+      await transaction.passwordResetToken.deleteMany({ where: { userId } });
+      return user;
+    });
+  }
+
   async updateLastLogin(userId: number) {
     return prisma.user.update({
       where: { id: userId },
