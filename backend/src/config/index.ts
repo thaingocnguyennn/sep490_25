@@ -104,6 +104,13 @@ export const config = {
   // Absolute path to the uploads directory for document files
   uploadDir: path.resolve(__dirname, '../../../uploads'),
 
+  // Supabase Storage configuration (for production file uploads)
+  supabase: {
+    url: optional('SUPABASE_URL', ''),
+    anonKey: optional('SUPABASE_ANON_KEY', ''),
+    serviceRoleKey: optional('SUPABASE_SERVICE_ROLE_KEY', ''),
+  },
+
   // SMTP email transport (used by email.service.ts). All values are
   // optional in development so the server can start without mail; in
   // production SMTP_HOST/SMTP_USER/SMTP_PASS are required to send email.

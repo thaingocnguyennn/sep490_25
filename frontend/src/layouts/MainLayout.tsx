@@ -53,12 +53,14 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
       <nav className="sidebar-nav">
         {collapsed ? (
           <div className="sidebar-nav-icons">
-            <NavLink to="/" end className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Bảng điều khiển">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-            </NavLink>
+            {!isSpecialist && (
+              <NavLink to="/" end className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Bảng điều khiển">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </NavLink>
+            )}
             <NavLink to="/profile" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Hồ sơ cá nhân">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -72,7 +74,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </NavLink>
-            {(isDepartmentHead || isSpecialist || isAdmin) && (
+            {(isDepartmentHead || isAdmin) && (
               <NavLink to="/incoming-documents/pending" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Văn bản chờ xử lý">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
@@ -86,13 +88,15 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </NavLink>
-            <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Thống kê văn bản">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10" />
-                <line x1="12" y1="20" x2="12" y2="4" />
-                <line x1="6"  y1="20" x2="6"  y2="14" />
-              </svg>
-            </NavLink>
+            {!isSpecialist && (
+              <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Thống kê văn bản">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10" />
+                  <line x1="12" y1="20" x2="12" y2="4" />
+                  <line x1="6"  y1="20" x2="6"  y2="14" />
+                </svg>
+              </NavLink>
+            )}
             {(isDocumentClerk || isAdmin) && (
               <NavLink to="/document-books" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Quản lý sổ văn bản">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -123,13 +127,15 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         ) : (
           <>
             <div className="nav-section-title">Chính</div>
-            <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-              Bảng điều khiển
-            </NavLink>
+            {!isSpecialist && (
+              <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+                Bảng điều khiển
+              </NavLink>
+            )}
             <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -146,7 +152,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
               </svg>
               Văn bản đến
             </NavLink>
-            {(isDepartmentHead || isSpecialist || isAdmin) && (
+            {(isDepartmentHead || isAdmin) && (
               <NavLink to="/incoming-documents/pending" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
@@ -162,14 +168,16 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
               </svg>
               Văn bản đi
             </NavLink>
-            <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10" />
-                <line x1="12" y1="20" x2="12" y2="4" />
-                <line x1="6"  y1="20" x2="6"  y2="14" />
-              </svg>
-              Thống kê văn bản
-            </NavLink>
+            {!isSpecialist && (
+              <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10" />
+                  <line x1="12" y1="20" x2="12" y2="4" />
+                  <line x1="6"  y1="20" x2="6"  y2="14" />
+                </svg>
+                Thống kê văn bản
+              </NavLink>
+            )}
             {(isDocumentClerk || isAdmin) && (
               <NavLink to="/document-books" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
