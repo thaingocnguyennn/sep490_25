@@ -34,6 +34,13 @@ import {
  * Tesseract emits on low-contrast signature scans to the most
  * likely Vietnamese letter it was meant to render. Add new rules
  * here rather than scattering them across the pipeline.
+ *
+ * Leading non-letter glyphs (`>`, `"`, `(`, `|`, `«`, `»`, `…`,
+ * `*`, `_`, `\`) are mapped to the empty string so they vanish
+ * cleanly from signature-block OCR output. They appear as
+ * decorative ornaments around handwritten names (e.g. `">Phẩm
+ * Thị Trà"` is read as `">Phẩm"` and would otherwise poison the
+ * surname lookup with a leading `>`).
  */
 export const OCR_SUBSTITUTION_MAP: Readonly<Record<string, string>> = {
   '@': 'u', // very frequent: Tesseract emits '@' for 'u' or 'ễ'
@@ -49,6 +56,44 @@ export const OCR_SUBSTITUTION_MAP: Readonly<Record<string, string>> = {
   '`': '',   // grave accent
   '~': '',   // tilde
   '^': '',   // circumflex
+  '>': '',   // signature-block ornament
+  '<': '',   // signature-block ornament
+  '|': '',   // signature-block ornament (often a vertical separator)
+  '(': '',   // signature-block ornament
+  ')': '',   // signature-block ornament
+  '[': '',   // signature-block ornament
+  ']': '',   // signature-block ornament
+  '{': '',   // signature-block ornament
+  '}': '',   // signature-block ornament
+  '*': '',   // signature-block ornament (Tesseract reads '*' next to names)
+  '_': '',   // signature-block ornament (underline remnant)
+  '\\': '',  // backslash artefact
+  '/': '',   // forward slash artefact when not part of a date/number
+  '#': '',   // OCR artefact inside fused names ("Phẩn#Íh¡")
+  '!': '',   // exclamation (OCR artefact)
+  '¡': '',   // inverted exclamation (OCR artefact on "ị" descenders)
+  ';': '',   // semicolon artefact
+  ':': '',   // colon artefact
+  ',': '',   // comma artefact (signature OCR frequently inserts spurious commas)
+  '.': '',   // period artefact
+  '?': '',   // question mark artefact
+  '¿': '',   // inverted question mark artefact
+  '«': '',   // left guillemet ornament
+  '»': '',   // right guillemet ornament
+  '‹': '',   // left single guillemet ornament
+  '›': '',   // right single guillemet ornament
+  '·': '',   // middle dot ornament
+  '•': '',   // bullet ornament
+  '§': '',   // section sign ornament
+  '%': '',   // percent ornament
+  '½': '',   // half fraction
+  '¼': '',   // quarter fraction
+  '¾': '',   // three-quarter fraction
+  '×': '',   // multiplication sign
+  '÷': '',   // division sign
+  '±': '',   // plus-minus sign
+  '°': '',   // degree sign
+  '¬': '',   // negation sign
 };
 
 /** Build the substitution regex once at module load. */
@@ -236,6 +281,29 @@ export function classifyToken(
       distance: 0,
       ocrConfidence,
     };
+  }
+
+  // Light fuzzy correction for non-first tokens (middles + givens).
+  // Without this, OCR artefacts like "Íhị" (1-2 edits from "Thị")
+  // survive verbatim and produce wrong signer names. We cap the
+  // edit distance at 1 for short tokens and 2 for longer ones,
+  // which is enough to recover common Tesseract errors on the
+  // very frequent Vietnamese middles ("Thị", "Văn", "Hồng", …)
+  // while still preserving unusual givens intact. The diacritic-
+  // aware dictionary lookup above already preferred exact matches
+  // so anything that reaches here is genuinely ambiguous.
+  if (position >= 1) {
+    const midBudget = asciiLower.length >= 5 ? 2 : 1;
+    const midHit = fuzzyCorrectNormalised(asciiLower, 'middle', midBudget);
+    if (midHit) {
+      return {
+        role: 'middle',
+        corrected: midHit.nfc,
+        correctedNormal: asciiLower,
+        distance: midHit.distance,
+        ocrConfidence,
+      };
+    }
   }
 
   if (position === 0) {

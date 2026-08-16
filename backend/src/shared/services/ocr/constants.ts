@@ -171,11 +171,25 @@ export function userPatternsFile(): Buffer {
   return Buffer.from(USER_PATTERNS.join('\n') + '\n\n', 'utf8');
 }
 
-/** Title keywords used to identify signer position (chức vụ / Box 7a). */
+/** Title keywords used to identify signer position (chức vụ / Box 7a).
+ *
+ * Ordered most-specific-first so that the tier-1 matcher prefers
+ * "PHÓ THỦ TƯỚNG" over "THỦ TƯỚNG" when both could match the same
+ * substring. The previous list omitted the Prime Minister and
+ * Deputy Prime Minister titles, which silently caused PM-issued
+ * Nghị định documents to fall back to the wrong title (e.g. the
+ * body-text "Chủ tịch" phrase replaced the missing signature-block
+ * title).
+ */
 export const TITLE_KEYWORDS = [
-  'PHÓ CHỦ TỊCH', 'CHỦ TỊCH', 'GIÁM ĐỐC', 'TRƯỞNG PHÒNG',
-  'THỦ TRƯỞNG', 'HIỆU TRƯỞNG', 'TỔNG GIÁM ĐỐC', 'PHÓ GIÁM ĐỐC',
-  'CỤC TRƯỞNG', 'VỤ TRƯỞNG', 'BỘ TRƯỞNG', 'THỨ TRƯỞNG',
+  'PHÓ THỦ TƯỚNG', 'THỦ TƯỚNG',
+  'PHÓ CHỦ TỊCH', 'CHỦ TỊCH',
+  'GIÁM ĐỐC', 'PHÓ GIÁM ĐỐC', 'TỔNG GIÁM ĐỐC',
+  'TRƯỞNG PHÒNG', 'PHÓ TRƯỞNG PHÒNG',
+  'THỦ TRƯỞNG', 'HIỆU TRƯỞNG', 'PHÓ HIỆU TRƯỞNG',
+  'CỤC TRƯỞNG', 'PHÓ CỤC TRƯỞNG',
+  'VỤ TRƯỞNG', 'PHÓ VỤ TRƯỞNG',
+  'BỘ TRƯỞNG', 'THỨ TRƯỞNG',
 ];
 
 /** Confidentiality keywords (Box 10a). */
@@ -191,6 +205,49 @@ export const URGENCY_KEYWORDS = [
   'HOẢ TỐC', 'HOA TOC',
   'KHẨN', 'KHAN',
   'THƯỜNG', 'THUONG',
+];
+
+/**
+ * Known issuing bodies (Box 2) for Vietnamese administrative documents.
+ *
+ * Each entry is the canonical phrase; matching is diacritic-insensitive
+ * (Tesseract frequently drops tone marks on small-font government
+ * letterhead, so we also list the no-diacritic form when it's likely to
+ * be unique). The list is used by the issuer extractor to:
+ *
+ *   1. Validate that a top-band line is plausibly an issuer (vs.
+ *      an imprint / artifact / misread).
+ *   2. Pick the right column when the column detector's default
+ *      left-column assumption is wrong (some layouts put the
+ *      issuer on the right and the national motto on the left).
+ *
+ * Order matters: more-specific entries ("HỘI ĐỒNG NHÂN DÂN",
+ * "ỦY BAN NHÂN DÂN") come before generic ones ("BỘ ...") so that
+ * "BỘ TÀI CHÍNH" doesn't get matched by a premature generic rule.
+ */
+export const ISSUER_KEYWORDS: readonly string[] = [
+  // National level
+  'CHÍNH PHỦ', 'CHINH PHU',
+  'QUỐC HỘI', 'QUOC HOI',
+  'HỘI ĐỒNG NHÂN DÂN', 'HOI DONG NHAN DAN',
+  'ỦY BAN NHÂN DÂN', 'UY BAN NHAN DAN',
+  'VĂN PHÒNG CHÍNH PHỦ', 'VAN PHONG CHINH PHU',
+  'VĂN PHÒNG QUỐC HỘI', 'VAN PHONG QUOC HOI',
+  // Provincial / municipal level (partial — the suffix is appended
+  // separately by the issuer detector after canonicalisation).
+  'UBND TỈNH', 'UBND TINH',
+  'UBND THÀNH PHỐ', 'UBND THANH PHO',
+  'HĐND TỈNH', 'HDND TINH',
+  'HĐND THÀNH PHỐ', 'HDND THANH PHO',
+  // Ministries — listed as the keyword prefix; matching is done as a
+  // prefix-with-noun pattern so "BỘ TÀI CHÍNH" matches even when OCR
+  // mangles the noun.
+  'BỘ', 'BO',
+  'TỔNG CỤC', 'TONG CUC',
+  'CỤC', 'CUC',
+  'VỤ', 'VU',
+  'SỞ', 'SO',
+  'PHÒNG', 'PHONG',
 ];
 
 /**

@@ -19,7 +19,7 @@ const cleanText = (text: string | undefined | null): string =>
  * "KT.", "CH Ú TICH" for "CHUTICH"). Mirrored here to avoid a
  * circular import.
  */
-const SIGNATURE_MARKER_RE = /\b(T\s*M\s*\.?|K\s*T\s*\.?|C\s*H\s*[ỦU]\s*T\s*[ỊI]CH|CHUTICH|P\s*H\s*O\s*C\s*H\s*[ỦU]\s*T\s*[ỊI]CH|PHO\s*CHUTICH|K\s*[ÝY]\s*T\s*[ÊE]N|N\s*G\s*[ƯU][ỜO]I\s*K\s*[ÝY])\b/i;
+const SIGNATURE_MARKER_RE = /\b(T\s*M\s*\.?|K\s*T\s*\.?|C\s*H\s*[ỦU]\s*T\s*[ỊI]CH|CHUTICH|P\s*H\s*O\s*C\s*H\s*[ỦU]\s*T\s*[ỊI]CH|PHO\s*CHUTICH|P\s*H\s*[ÓO]\s*TH\s*[ỦU]\s*T\s*[ƯU][ỚO]NG|TH\s*[ỦU]\s*T\s*[ƯU][ỚO]NG|K\s*[ÝY]\s*T\s*[ÊE]N|N\s*G\s*[ƯU][ỜO]I\s*K\s*[ÝY])\b/i;
 
 /**
  * Per-region OCR.
@@ -47,6 +47,26 @@ const DOC_NUMBER_WHITELIST =
 
 const DATE_WHITELIST =
   "0123456789/.-nNgGaAyYtTháàÁÀảẢãÃạẠăĂằẰẳẲẵẴặẶâÂầẦẩẨẫẪậẬêÊếẾềỀểỂễỄệỆ";
+
+/**
+ * Whitelist of characters that appear in real Vietnamese personal
+ * names. Used for a targeted signature-block re-OCR pass that
+ * suppresses the OCR-glyph garbage (`>`, `#`, `¡`, `*`, `½`, `«`)
+ * that Tesseract routinely injects around handwritten signatures.
+ *
+ * Without this whitelist Tesseract emits symbols and punctuation as
+ * full words when the underlying pixels are ambiguous — so a dim
+ * signature line that should read "Phạm Thị Thanh Trà" comes back as
+ * "Phẩn#Íh¡ Thanh Tra". Constraining the alphabet to the actual
+ * letters seen in real names lets the LSTM commit to letter
+ * identities even at low confidence.
+ *
+ * The list mirrors the union of SURNAMES_NFC + MIDDLES_NFC plus the
+ * set of common given-name initials (kept narrow on purpose — the
+ * signer-name extractor handles dictionary expansion downstream).
+ */
+const SIGNATURE_NAME_WHITELIST =
+  "abcdefghijklmnopqrstuvwxyzáàảãạăằẳẵặâầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđĐ";
 
 export interface RegionOCRResult {
   documentNumber?: string;
@@ -232,20 +252,35 @@ export async function recognizeSignatureBlock(
   // the page-level AUTO.
   //
   // We take the union of lines (deduped by text) across passes.
-  const passes: Array<PSM> = [
-    PSM.AUTO,
-    PSM.SINGLE_BLOCK,
-    PSM.SPARSE_TEXT,
-    PSM.SINGLE_LINE,
+  const passes: Array<Partial<{ tessedit_pageseg_mode: PSM; tessedit_char_whitelist: string }>> = [
+    { tessedit_pageseg_mode: PSM.AUTO },
+    { tessedit_pageseg_mode: PSM.SINGLE_BLOCK },
+    { tessedit_pageseg_mode: PSM.SPARSE_TEXT },
+    { tessedit_pageseg_mode: PSM.SINGLE_LINE },
+    // Dedicated name-line pass: PSM.SINGLE_BLOCK (assume a uniform
+    // block of text) with a strict Vietnamese-name character
+    // whitelist. The whitelist suppresses the OCR-glyph garbage
+    // (`>`, `#`, `¡`, `*`, `½`, `«`) that the unconstrained LSTM
+    // emits around handwritten signatures. Constraining the
+    // alphabet to the union of SURNAMES_NFC + MIDDLES_NFC letters
+    // lets Tesseract commit to letter identities even at low
+    // confidence, which is critical for recovering the first 1–2
+    // tokens of a 4-token Vietnamese name ("Phạm Thị Thanh Trà")
+    // that the unconstrained LSTM collapses to "Phẩn#Íh¡ Thanh
+    // Tra". The candidate is emitted in addition to the others
+    // (not replacing them) so downstream scoring has more
+    // material to work with.
+    {
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+      tessedit_char_whitelist: SIGNATURE_NAME_WHITELIST,
+    },
   ];
 
   const seen = new Set<string>();
   const collectedLines: Array<{ text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }> = [];
-  for (const psm of passes) {
+  for (const params of passes) {
     try {
-      const reOcr = await recognizeRegionWithParams(cropped, page.pageNumber, {
-        tessedit_pageseg_mode: psm,
-      });
+      const reOcr = await recognizeRegionWithParams(cropped, page.pageNumber, params);
       for (const l of linesInReadingOrder(reOcr)) {
         const text = cleanText(l.text);
         if (!text) continue;
@@ -330,7 +365,6 @@ export async function recognizeSignatureBlock(
   // pick the first match it found and stop — here, the first match
   // was the garbage fragment.
   let titleLine: { text: string; bbox: any } | undefined;
-  let nameLine: { text: string; bbox: any } | undefined;
   for (const l of collectedLines) {
     const t = cleanText(l.text);
     // Skip the signature marker itself — its words ("UY BAN NHAN DAN")
@@ -342,7 +376,23 @@ export async function recognizeSignatureBlock(
       continue;
     }
   }
-  let nameCandidate: { text: string; bbox: any; nameRun: number; tokenCount: number; index: number } | undefined;
+  // Collect EVERY viable name-line candidate (not just the single
+  // best). On Vietnamese signature blocks the best-scoring candidate
+  // by raw-OCR heuristics often isn't the best-scoring one after
+  // dictionary expansion: "Phẩn#Íh¡ Thanh Tra" (PSM SINGLE_BLOCK,
+  // 4 tokens, first 2 garbage) has the same isPersonNameWord score
+  // as "hi Thanh Tra" (PSM SPARSE_TEXT, 3 tokens, first 1 garbage),
+  // but downstream the longer line gives the dictionary more to
+  // work with. Emitting both lets the signer-name-extractor's
+  // structural scorer pick the actual best span via the Vietnamese
+  // name dictionaries, instead of us committing to one here.
+  const nameCandidates: Array<{
+    text: string;
+    bbox: any;
+    nameRun: number;
+    tokenCount: number;
+    index: number;
+  }> = [];
   for (let i = 0; i < collectedLines.length; i++) {
     const l = collectedLines[i];
     const t = cleanText(l.text);
@@ -359,30 +409,17 @@ export async function recognizeSignatureBlock(
     }
     if (run.length > bestRun.length) bestRun = run;
     if (bestRun.length < 2) continue;
-    const cand = {
+    // Skip candidate lines whose text is already represented in an
+    // earlier candidate — keeps the replacement block compact and
+    // avoids the signer-name-extractor scoring the same text twice.
+    if (nameCandidates.some((c) => c.text === t)) continue;
+    nameCandidates.push({
       text: t,
       bbox: l.bbox,
       nameRun: bestRun.length,
       tokenCount: tokens.length,
       index: i,
-    };
-    if (
-      !nameCandidate ||
-      cand.nameRun > nameCandidate.nameRun ||
-      (cand.nameRun === nameCandidate.nameRun &&
-        cand.tokenCount > nameCandidate.tokenCount) ||
-      (cand.nameRun === nameCandidate.nameRun &&
-        cand.tokenCount === nameCandidate.tokenCount &&
-        cand.index > nameCandidate.index)
-    ) {
-      nameCandidate = cand;
-    }
-  }
-  // Emit the chosen raw OCR text — same as the legacy single-match
-  // branch did. Downstream `extractSignerName` will normalise,
-  // classify, and re-rank via dictionaries.
-  if (nameCandidate) {
-    nameLine = { text: nameCandidate.text, bbox: nameCandidate.bbox };
+    });
   }
 
   const newLines: OcrLine[] = [];
@@ -396,14 +433,18 @@ export async function recognizeSignatureBlock(
       words: [{ text: titleLine.text, bbox: remapBBox(titleLine.bbox), confidence: 80, line: 0, block: 0, paragraph: 0 }],
     });
   }
-  if (nameLine) {
+  // Emit every viable name-line candidate so the signer-name
+  // extractor can pick the best span after dictionary expansion.
+  // Downstream scoring (in signer-name-extractor.ts) is responsible
+  // for selecting the actual output from these candidates.
+  for (const cand of nameCandidates) {
     newLines.push({
-      text: nameLine.text,
-      bbox: remapBBox(nameLine.bbox),
+      text: cand.text,
+      bbox: remapBBox(cand.bbox),
       confidence: 80,
       block: 0,
       paragraph: 0,
-      words: [{ text: nameLine.text, bbox: remapBBox(nameLine.bbox), confidence: 80, line: 0, block: 0, paragraph: 0 }],
+      words: [{ text: cand.text, bbox: remapBBox(cand.bbox), confidence: 80, line: 0, block: 0, paragraph: 0 }],
     });
   }
   if (newLines.length === 0) return { replacements };
