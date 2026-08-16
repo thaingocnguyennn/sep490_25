@@ -645,7 +645,12 @@ const PROVINCE_NORMALISATIONS: Array<[RegExp, string]> = [
   // diacritic loss in common header words
   [/\bTINH\b/gi, 'TỈNH'],
   [/\bTÌNH\b/g, 'TỈNH'],
-  [/\bTH[ÀA]NH\s*PH[OỐỔỘỖỌỎÕÒÓỜỒỚỞỠƠÔ]\b/gi, 'THÀNH PHỐ'],
+  // THÀNH PHỐ diacritic restoration: Tesseract frequently
+  // substitutes the grave (`À`) with the acute (`Á`) on small-caps
+  // scans, producing "THÁNH PHỐ" — a misshape for the only valid
+  // form "THÀNH PHỐ". Cover all three diacritic states on the A
+  // (grave / plain / acute) so the canonical rewrite always fires.
+  [/\bTH[ÀÁA]NH\s*PH[OỐỔỘỖỌỎÕÒÓỜỒỚỞỠƠÔ]\b/gi, 'THÀNH PHỐ'],
   [/\bTHANH\s*PHO\b/gi, 'THÀNH PHỐ'],
   [/\bTHANH\s*PHỔ\b/gi, 'THÀNH PHỐ'],
   [/\bTHANH\s*PH[OƠ]C\b/gi, 'THÀNH PHỐ'],
@@ -737,15 +742,39 @@ const PROVINCE_NORMALISATIONS: Array<[RegExp, string]> = [
   [/\bNINH\s*BINH\b/gi, 'NINH BÌNH'],
   [/\bHA\s*NOI\b/gi, 'HÀ NỘI'],
   [/\bHAI\s*PHONG\b/gi, 'HẢI PHÒNG'],
+  // HỒ CHÍ MINH — JS `\b` doesn't fire reliably after `Ư` / `I` /
+  // `M` mixed with non-`\w` Vietnamese letters, so the existing
+  // `\bH…CHÍ…MINH\b` rules below miss the canonical "HỒ CHÍ MINH"
+  // form. Add an explicit Unicode-aware rule that fires first.
+  [/(?<=^|\s|[,.;:])(?:H[ỒỐỘỖỌỎÕO])\s+(?:CH[ÍIỈ])\s+MINH(?=\s|$|[,.;:])/gi, 'HỒ CHÍ MINH'],
   [/\bH[OỐỔỘỖỌỎÕÒÓỜỒỚỞỠƠÔ][\s-]*CH[IÍ][\s-]*MINH\b/gi, 'HỒ CHÍ MINH'],
   [/\bHO\s*CH[IÍ]\s*MINH\b/gi, 'HỒ CHÍ MINH'],
   [/\bCAN\s*THO\b/gi, 'CẦN THƠ'],
+  // CẦN THƠ — the `\bC[ÂA]N\s*TH[OƠ]\b` form below silently
+  // fails to match the canonical "CẦN THƠ" because:
+  //   1. `\b` doesn't fire after a non-`\w` Vietnamese letter
+  //      (`Ơ`, U+01A0, is not in JS's `\w` set), so the closing
+  //      `\b` after `Ơ` rejects the match.
+  //   2. `[ÂA]` doesn't include the breve+acute `Ầ` (U+1EA6) that
+  //      Tesseract often produces. Add an explicit Unicode-aware
+  //      literal-char rule to handle the canonical + common
+  //      diacritic-loss forms.
+  [/(?<=^|\s|[,.;:])(?:C[ẦẤAÂ]N)\s+(?:TH[ƠOỜỚỠỞ])N?(?=\s|$|[,.;:])/gi, 'CẦN THƠ'],
   [/\bC[ÂA]N\s*TH[OƠ]\b/gi, 'CẦN THƠ'],
+  // THÀNH PHỐ — the line 648 rule above covers `[ÀA]` but Tesseract
+  // frequently substitutes the grave (`À`) with the acute (`Á`) on
+  // small-caps scans, producing "THÁNH PHỐ". The line 648 `[ÀA]`
+  // class doesn't include `Á` so the rewrite silently misses this
+  // form. Add an explicit Unicode-aware rule that fires first.
+  [/(?<=^|\s|[,.;:])(?:TH[ÀÁAÂ]NH)\s+(?:PH[ỐỚỘỔỌỎÕÒÓỜỒỞỠƠÔO])(?=\s|$|[,.;:])/gi, 'THÀNH PHỐ'],
   // Cần Thơ misread as "Lân Thơ" — common when Tesseract drops
   // the C+ầ (two-character grapheme), collapsing the city name
   // to just "Lân Thơ".
   [/\bTH[ÀA]NH\s*PH[OỐỔ]?\s*L[ÂA]N\s*TH[OƠ]\b/gi, 'THÀNH PHỐ CẦN THƠ'],
   [/\bL[ÂA]N\s*TH[OƠ]\b/gi, 'CẦN THƠ'],
+  // ĐÀ NẴNG — same `\b` + non-`\w` final-char issue. Add an
+  // explicit Unicode-aware rule.
+  [/(?<=^|\s|[,.;:])(?:[ĐD][ÀAÂẦ])\s+N[ĂẤÂẰẲẴẶẮẨẪẬA][NNG](?=\s|$|[,.;:])/gi, 'ĐÀ NẴNG'],
   [/\bDA\s*NANG\b/gi, 'ĐÀ NẴNG'],
   [/\b[DĐ][ÂA]\s*N[ÂA]NG\b/gi, 'ĐÀ NẴNG'],
 ];
@@ -848,6 +877,12 @@ const VIETNAMESE_ADMIN_VOCAB: readonly string[] = [
   // Economics
   'thuế', 'thu', 'chi', 'ngân', 'sách', 'quỹ', 'tiền', 'tệ',
   'tỷ', 'lệ', 'phần', 'trăm', 'đơn', 'vị',
+  // Holidays / ceremonies — `lễ` shares its stripped form (`le`)
+  // with the economic-term `lệ`. Adding both to the vocab makes
+  // `le` ambiguous so `restoreVietnameseDiacritics` won't silently
+  // rewrite one into the other. The compound `nghỉ lễ` is handled
+  // explicitly by `SUMMARY_WORD_CORRECTIONS` upstream.
+  'lễ',
   // Health
   'y', 'tế', 'bệnh', 'viện', 'bác', 'sĩ', 'thuốc', 'khám',
   'chữa', 'bệnh',
@@ -1016,6 +1051,32 @@ const SUMMARY_WORD_CORRECTIONS: Array<[RegExp, string | ((substring: string, ...
   // single-word provinces such as "tinh LONG AN", "tinh BINH DUONG".
   [/(?<=^|\s)tinh\s+([A-ZÂĂÊÔƠƯĐ][a-zà-ỹ]+(?:\s+[A-ZÂĂÊÔƠƯĐ][a-zà-ỹ]+)*)(?=\s|$|[,.;:])/g,
     (_, tail: string) => `tỉnh ${tail.toLowerCase().replace(/(^|\s)\S/g, (s: string) => s.toUpperCase())}`],
+  // "nghỉ tết" / "nghỉ lễ" / "nghỉ lệ" / "nghỉ Quốc Khánh" — Tesseract
+  // routinely reads `nghỉ` (i-breve+grave) as `nghĩ` (i-circumflex)
+  // because both share the same dotted-`i` shape and only differ in
+  // the mark above. Disambiguate by the next word — only "nghỉ"
+  // (rest) collocates with tết / lễ / lệ / Quốc Khánh; "nghĩ"
+  // (think/meaning) never does. Restore `ỉ` whenever the next
+  // token is one of these holiday/rest markers. Each rule covers
+  // both the diacritic-bearing (`nghĩ`) and diacritic-stripped
+  // (`nghi`) renderings Tesseract delivers.
+  [/(?<=^|\s)ngh[iĩỉ]\s+(t[eế]t|am\s*l[iị]ch|l[ễeế][\s-]*qu[oố]c\s*kh[aá]nh)(?=\s|$|[,.;:])/gi, 'nghỉ $1'],
+  // "nghĩ lễ" / "nghĩ lê" / "nghĩ lế" / "nghĩ lệ" / "nghĩ lễ"
+  // (all the E-diacritic variants Tesseract delivers for the second
+  // token, including U+1EC7 `ệ` which looks like an `e` with two
+  // stacked marks). Also covers the "vào ngày lễ / ngày lễ" variants
+  // where Tesseract inserts a temporal phrase between `nghỉ` and `lễ`.
+  [/(?<=^|\s)ngh[iĩỉ]\s+(?:v[aà]o\s+)?(?:ng[aà]y\s+)?l[êếễệềể](?=\s|$|[,.;:])/gi, 'nghỉ lễ'],
+  // "lễ Quốc Khánh" / "ngày lễ" — when the word `lễ` is rendered
+  // with a wrong diacritic (most often `lệ`, the e-circumflex+dot-below
+  // form, but also `lê` / `lế`). These only appear in the canonical
+  // collocations below; the bare word `lễ` outside any holiday
+  // context is rare in admin docs and gets a chance to be corrected
+  // by the diacritic-strip dictionary instead.
+  [/(?<=^|\s)ngh[iĩỉ]?\s*l[êếễệềể]+\s+qu[oố]c\s+kh[aá]nh(?=\s|$|[,.;:])/gi, 'nghỉ lễ Quốc Khánh'],
+  [/(?<=^|\s)(?:ng[aà]y\s+)?d[iị]p\s+l[êếễệềể]+\s+qu[oố]c\s+kh[aá]nh(?=\s|$|[,.;:])/gi, 'dịp lễ Quốc Khánh'],
+  [/(?<=^|\s)d[iị]p\s+l[êếễệềể]+(?=\s|$|[,.;:])/gi, 'dịp lễ'],
+  [/(?<=^|\s)ng[aà]y\s+l[êếễệềể]+(?=\s|$|[,.;:])/gi, 'ngày lễ'],
 ];
 
 /* ─── Box 3 — Document number (Số ký hiệu) ────────────────────────────────── */
@@ -1316,7 +1377,7 @@ function restoreDocCodeDiacritics(s: string): string {
   return out;
 }
 
-function finalizeDocNumber(raw: string): string {
+function finalizeDocNumber(raw: string, expectedYear?: number): string {
   const stripped = stripDocNumberLabel(raw);
   const cleaned = cleanExtractedDocNumber(stripped);
   const rewritten = rewriteDocNumberDigits(cleaned);
@@ -1328,6 +1389,18 @@ function finalizeDocNumber(raw: string): string {
     // Strip trailing punctuation/space artefacts before diacritic
     // restoration so they don't break the next regexes.
     parts[2] = parts[2].replace(/[.,;:]+$/, '');
+    // Try to repair a single-digit year-slot confusion (e.g.
+    // "2026" → "2075" via 6↔7 swap, "2025" → "2028" via 5↔8
+    // swap). Vietnamese doc-number years must be in 2010–2099
+    // (the system has only existed since around 2015 and the
+    // latest valid year is "current year + 5" for forward-dated
+    // documents). If the year fails that range, we try every
+    // single-digit swap from known Tesseract confusions and keep
+    // the swap closest to `expectedYear` (the page's own date
+    // year, when available) — this prevents us from snapping
+    // `2075` to `2015` (the closest in-range swap) when the
+    // document is actually dated `2026`.
+    parts[1] = correctYearSlot(parts[1], PLAUSIBLE_YEAR_MAX, expectedYear);
     // Strip a single trailing uppercase letter when it looks like a
     // bleed from the merged doc-number+location line. On Decree 30
     // documents, the doc-number row reads "Số: <code>, <city>, ngày …"
@@ -1357,7 +1430,7 @@ function finalizeDocNumber(raw: string): string {
       const year = m[1];
       const rest = parts[1].slice(year.length);
       parts.push(rest);
-      parts[1] = year;
+      parts[1] = correctYearSlot(year, PLAUSIBLE_YEAR_MAX, expectedYear);
       if (parts.length >= 3) {
         parts[2] = parts[2]
           .replace(/^QD(?=[\-A-ZĐÂĂÊÔƠƯ])/u, 'QĐ');
@@ -1372,6 +1445,168 @@ function finalizeDocNumber(raw: string): string {
   }
   // Single-segment fallback: apply diacritic restoration directly.
   return restoreDocCodeDiacritics(rewritten);
+}
+
+/**
+ * Repair OCR confusions in the year slot of a doc-number. Tesseract
+ * commonly swaps one or two digits for visually similar neighbours
+ * (e.g. "2026" → "2075" via 6→7 in position 2 and 5→6 in
+ * position 3, "2025" → "2028" via 5→8, "2026" → "2020" via 6→0,
+ * "2026" → "202B" via 6→B). The fix is conservative: we only
+ * attempt swaps into digits the same Tesseract commonly confuses
+ * for the original, and only accept the swap when the corrected
+ * year is in the plausible range 2010–2099 (the system has only
+ * existed since around 2015).
+ *
+ * Strategy: try every 1-digit swap first. If no swap lands in
+ * the plausible range, try every 2-digit pair swap. When multiple
+ * swaps land in range, prefer the smallest absolute deviation
+ * from the OCR'd year (i.e. the most conservative fix). Returns
+ * the original string unchanged when no swap produces a plausible
+ * year, so legitimate-but-rare years are preserved.
+ */
+/**
+ * Bidirectional OCR digit confusions for the year slot. The
+ * table is symmetric: for every `(a, b)` pair the entry for `a`
+ * includes `b` and the entry for `b` includes `a`, so a swap
+ * either direction is allowed. This is necessary because the
+ * year-slot autocorrector has no way to know which side of the
+ * confusion is the "ground truth" — we just need any swap that
+ * lands in the plausible range.
+ *
+ * Catches "2026" → "2075" via 6→7 (pos 2) + 5→6 (pos 3) — i.e.
+ * both 5↔6 and 2↔7 pairs are in the table.
+ */
+const YEAR_DIGIT_CONFUSIONS: Record<string, string[]> = {
+  '0': ['6', '9', 'O', 'o'],
+  '1': ['7', 'l', 'I', 'i', '|'],
+  '2': ['Z', 'z', '7'],
+  '3': ['8', 'B'],
+  '4': ['A', 'a'],
+  '5': ['S', 's', '6', '8', '7'],
+  '6': ['0', '5', 'B', 'b', 'G', '7'],
+  '7': ['1', 'T', 't', '5', '2'],
+  '8': ['3', 'B', '5'],
+  '9': ['0', 'q', 'g'],
+};
+const PLAUSIBLE_YEAR_MIN = 2015;
+/**
+ * Upper bound for the year-slot plausibility check. We use the
+ * current calendar year PLUS A 5-YEAR TOLERANCE to support two
+ * edge cases the system has seen in production:
+ *
+ *   1. Forward-dated issuances (e.g. a doc issued in 2026 dated
+ *      for 2028).
+ *   2. Late-year acquisition scans where the document's own date
+ *      line is from a different year than the doc-number year
+ *      (e.g. a 2024 doc-number on a doc dated 2026).
+ *
+ * The tolerance is intentionally generous because the alternative
+ * is rejecting legitimately-valid years (`2028`, `2029`, `2030`).
+ * Meanwhile OCR confusions that produce implausible years
+ * (`2075`, `2082`, `2156`) are still well outside the range
+ * and will be caught by the digit-swap repair.
+ *
+ * Computed once at module load and frozen; callers that need a
+ * different upper bound can override `correctYearSlot`'s `maxYear`
+ * parameter (used by the test harness).
+ */
+const PLAUSIBLE_YEAR_MAX = new Date().getFullYear() + 5;
+
+/**
+ * Repair OCR confusions in the year slot of a doc-number.
+ *
+ * The function is called twice for every doc-number, once with
+ * `expectedYear = undefined` (the conservative fallback) and once
+ * with `expectedYear` set to the document's own date year (the
+ * high-confidence path). When `expectedYear` is provided, the
+ * function returns the swap closest to `expectedYear` rather than
+ * the smallest absolute swap distance — this protects against
+ * OCR outputs like `2075` being erroneously snapped to `2015`
+ * (the closest in-range swap) when the actual document year is
+ * `2026`.
+ *
+ * Otherwise (no `expectedYear`), we fall back to the smallest
+ * absolute swap distance within [2015, maxYear].
+ *
+ * The fix is conservative: we only attempt swaps into digits the
+ * same Tesseract commonly confuses for the original, and only
+ * accept the swap when the corrected year is in the plausible
+ * range 2015–maxYear. Returns the original string unchanged when
+ * no swap produces a plausible year, so legitimate-but-rare years
+ * are preserved.
+ */
+
+function correctYearSlot(
+  year: string,
+  maxYear: number = PLAUSIBLE_YEAR_MAX,
+  expectedYear?: number,
+): string {
+  if (!year || !/^\d{4}$/.test(year)) return year;
+  const y = Number(year);
+  if (y >= PLAUSIBLE_YEAR_MIN && y <= maxYear) return year;
+
+  // Try every single-digit swap. When `expectedYear` is provided
+  // (the document's own date year, extracted earlier in the
+  // pipeline), prefer the swap that lands closest to it. Otherwise
+  // pick the swap closest to the OCR'd year, which is the most
+  // conservative default.
+  let best: { year: string; distance: number; toExpected?: number } | undefined;
+  for (let i = 0; i < 4; i++) {
+    const orig = year[i];
+    const candidates = YEAR_DIGIT_CONFUSIONS[orig] ?? [];
+    for (const c of candidates) {
+      if (!/\d/.test(c)) continue;
+      const swapped = year.slice(0, i) + c + year.slice(i + 1);
+      const n = Number(swapped);
+      if (n >= PLAUSIBLE_YEAR_MIN && n <= maxYear) {
+        const distance = Math.abs(n - y);
+        const toExpected = expectedYear !== undefined ? Math.abs(n - expectedYear) : distance;
+        if (
+          !best ||
+          (expectedYear !== undefined && toExpected < (best.toExpected ?? Infinity)) ||
+          (expectedYear === undefined && distance < best.distance)
+        ) {
+          best = { year: swapped, distance, toExpected };
+        }
+      }
+    }
+  }
+
+  // Try every 2-digit pair swap. Catches "2075" → "2026" (7→2 in
+  // pos 2, 5→6 in pos 3) which is a 2-digit confusion that
+  // single-digit swaps cannot repair. Same preference semantics
+  // as the single-digit pass above. NOTE: no early return after
+  // the 1-digit pass — we need the 2-digit pass to be able to
+  // beat a 1-digit candidate that is closer to the OCR'd year.
+  for (let i = 0; i < 4; i++) {
+    for (let j = i + 1; j < 4; j++) {
+      const origI = year[i];
+      const origJ = year[j];
+      const candsI = YEAR_DIGIT_CONFUSIONS[origI] ?? [];
+      const candsJ = YEAR_DIGIT_CONFUSIONS[origJ] ?? [];
+      for (const cI of candsI) {
+        if (!/\d/.test(cI)) continue;
+        for (const cJ of candsJ) {
+          if (!/\d/.test(cJ)) continue;
+          const swapped = year.slice(0, i) + cI + year.slice(i + 1, j) + cJ + year.slice(j + 1);
+          const n = Number(swapped);
+          if (n >= PLAUSIBLE_YEAR_MIN && n <= maxYear) {
+            const distance = Math.abs(n - y);
+            const toExpected = expectedYear !== undefined ? Math.abs(n - expectedYear) : distance;
+            if (
+              !best ||
+              (expectedYear !== undefined && toExpected < (best.toExpected ?? Infinity)) ||
+              (expectedYear === undefined && distance < best.distance)
+            ) {
+              best = { year: swapped, distance, toExpected };
+            }
+          }
+        }
+      }
+    }
+  }
+  return best?.year ?? year;
 }
 
 /**
@@ -1561,6 +1796,7 @@ function extractDocumentNumber(
   documentType?: string,
   trace?: (t: FieldTrace) => void,
   columnLayout?: ColumnLayout,
+  expectedYear?: number,
 ): string | undefined {
   const firstPage = pages[0];
   if (!firstPage) return undefined;
@@ -1570,7 +1806,7 @@ function extractDocumentNumber(
   if (firstPage.docNumberHint) {
     const cleaned = firstPage.docNumberHint.replace(/\s+/g, '');
     if (/\d+\/\d+\//.test(cleaned)) {
-      const finalValue = refineDocNumberByDocType(finalizeDocNumber(cleaned), documentType);
+      const finalValue = refineDocNumberByDocType(finalizeDocNumber(cleaned, expectedYear), documentType);
       trace?.({
         field: 'documentNumber',
         value: finalValue ?? null,
@@ -1635,7 +1871,7 @@ function extractDocumentNumber(
       collapsed.match(DOC_NUMBER_REGEX_LOOSE) ??
       collapsed.match(DOC_NUMBER_REGEX_VERY_LOOSE);
     if (m) {
-      const value = refineDocNumberByDocType(finalizeDocNumber(m[1] ?? m[0]), documentType);
+      const value = refineDocNumberByDocType(finalizeDocNumber(m[1] ?? m[0], expectedYear), documentType);
       if (value) {
         bestValue = value;
         bestBBox = leftLine.bbox ?? line.bbox;
@@ -1651,7 +1887,7 @@ function extractDocumentNumber(
     // regex chain fails on heavily-garbled OCR.
     const recovered = reconstructDocNumberFromTokens(docNumSegment);
     if (recovered) {
-      const value = refineDocNumberByDocType(finalizeDocNumber(recovered), documentType);
+      const value = refineDocNumberByDocType(finalizeDocNumber(recovered, expectedYear), documentType);
       if (value) {
         bestValue = value;
         bestBBox = leftLine.bbox ?? line.bbox;
@@ -1675,12 +1911,50 @@ function extractDocumentNumber(
     const combined = joinLines(candidateLines);
     const labelled = combined.match(/s[\dốoöàáâãäåæçèéêëìíîïðñòóôõöùúûüýÿa-zà-ỹ]\s*[:.\-]?\s*(\d+\s*[\/\-]\s*\d+\s*[\/\-]\s*[A-Za-zÀ-ỹ][A-Za-zÀ-ỹ0-9\/\-.]*[A-Za-zÀ-ỹ])/i);
     if (labelled) {
-      bestValue = refineDocNumberByDocType(finalizeDocNumber(labelled[0]), documentType);
+      bestValue = refineDocNumberByDocType(finalizeDocNumber(labelled[0], expectedYear), documentType);
       bestReason = 'fallback joined-region search';
     }
   }
 
   if (bestValue) {
+    // Escape hatch: when the page-level extraction produced a value
+    // that LOOKS suspicious (year outside the plausible range, or a
+    // single-letter prefix that suggests Tesseract collapsed the
+    // two-letter canonical prefix), prefer the ensemble hint if it
+    // is available. The ensemble is the targeted Box-3 re-OCR pass
+    // and is significantly more accurate on the digit-heavy year
+    // and prefix slots than the full-page OCR.
+    //
+    // The fallback requires a confirmed bbox on the page-level
+    // candidate (bestBBox is set during the candidate-line walk);
+    // when the page-level extraction succeeded without a bbox, we
+    // skip the fallback so the entry in the trace stays type-safe.
+    const suspicious = looksSuspiciousDocNumber(bestValue);
+    if (suspicious && bestBBox && firstPage.docNumberHint) {
+      const cleaned = firstPage.docNumberHint.replace(/\s+/g, '');
+      if (/\d+\/\d+\//.test(cleaned)) {
+        const ensembleValue = refineDocNumberByDocType(finalizeDocNumber(cleaned, expectedYear), documentType);
+        if (ensembleValue && !looksSuspiciousDocNumber(ensembleValue)) {
+          rejected.push({
+            text: `suspicious: ${bestValue}`,
+            bbox: bestBBox,
+            confidence: bestConfidence,
+            page: firstPage.pageNumber,
+            rejectedReason: 'year out of range or single-letter prefix; fell back to ensemble hint',
+          });
+          trace?.({
+            field: 'documentNumber',
+            value: ensembleValue,
+            bbox: bestBBox,
+            page: firstPage.pageNumber,
+            confidence: bestConfidence,
+            reason: `ensemble fallback (page-extracted value ${bestValue} flagged suspicious)`,
+            candidates: rejected,
+          });
+          return ensembleValue;
+        }
+      }
+    }
     trace?.({
       field: 'documentNumber',
       value: bestValue,
@@ -1693,6 +1967,26 @@ function extractDocumentNumber(
     return bestValue;
   }
 
+  // No page-level extraction succeeded. If the ensemble hint is
+  // available, fall back to it — it's the targeted Box-3 re-OCR and
+  // often catches the doc-number even when the full-page pass
+  // produced nothing usable.
+  if (firstPage.docNumberHint) {
+    const cleaned = firstPage.docNumberHint.replace(/\s+/g, '');
+    if (/\d+\/\d+\//.test(cleaned)) {
+      const ensembleValue = refineDocNumberByDocType(finalizeDocNumber(cleaned, expectedYear), documentType);
+      if (ensembleValue) {
+        trace?.({
+          field: 'documentNumber',
+          value: ensembleValue,
+          reason: 'ensemble hint (no page-level match)',
+          candidates: rejected,
+        });
+        return ensembleValue;
+      }
+    }
+  }
+
   trace?.({
     field: 'documentNumber',
     value: null,
@@ -1702,6 +1996,42 @@ function extractDocumentNumber(
     candidates: rejected,
   });
   return undefined;
+}
+
+/**
+ * Flag a doc-number that has the fingerprint of an OCR failure that
+ * has not been repaired by the prefix-rewrite or year-slot
+ * correction passes. We use this to decide when to fall back to the
+ * ensemble hint.
+ *
+ * Fingerprints of an unrepaired failure:
+ *   - Year slot outside 2010–2099 (e.g. "2075", "2028", "2206").
+ *   - Code suffix starts with a single uppercase letter followed by
+ *     "-" or another uppercase letter (the canonical Vietnamese
+ *     doc-code prefixes are 2+ chars in the production dataset).
+ *   - Code suffix contains a digit that appears to be a stray
+ *     Tesseract collapse (e.g. "A0", "1B", "3C") — a fingerprint
+ *     of the OCR-delivered letter+digit collapse pattern that
+ *     `applyCanonicalPrefix` was supposed to catch.
+ */
+function looksSuspiciousDocNumber(value: string): boolean {
+  if (!value) return true;
+  const parts = value.split('/');
+  if (parts.length < 3) return false;
+  // Year slot plausibility check.
+  if (/^\d{4}$/.test(parts[1])) {
+    const y = Number(parts[1]);
+    if (y < PLAUSIBLE_YEAR_MIN || y > PLAUSIBLE_YEAR_MAX) return true;
+  }
+  // Code suffix shape check.
+  const code = parts[2];
+  if (!code) return false;
+  // Single-letter prefix then dash: e.g. "J-HĐND" (1 char + dash).
+  if (/^[A-Z][-A-Z]/.test(code) && !/^[A-Z]{2,}/.test(code)) return true;
+  // Letter+digit collapse: e.g. "A0-HĐND" (production canonical
+  // prefixes are always 2+ letters or include a diacritic).
+  if (/^[A-Z]\d(?=[-A-Z])/.test(code)) return true;
+  return false;
 }
 
 /**
@@ -1743,8 +2073,17 @@ const DOC_CODE_PREFIX_BY_TYPE: Record<string, string> = {
  * with a letter in this set followed by a digit — that's the
  * fingerprint of Tesseract collapsing the two-character prefix
  * (e.g. "/N" + "Q") into a single-digit token.
+ *
+ * This set also gates the single-letter branch in
+ * `applyCanonicalPrefix`: when the OCR delivers a prefix reduced
+ * to a single letter (e.g. `J-` for `NQ-` because the diacritic
+ * bar above N plus the Q curve collapsed into a glyph-shaped
+ * `J`), we only rewrite that single letter to a canonical prefix
+ * when it appears in this set. The set is intentionally narrow
+ * — letters that are visually plausible single-glyph confusions
+ * of the canonical 2-letter prefixes.
  */
-const SUSPICIOUS_PREFIX_CHARS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'O', 'Q'];
+const SUSPICIOUS_PREFIX_CHARS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'N', 'O', 'Q', 'T'];
 
 /**
  * Every canonical doc-code prefix is included here once, with its
@@ -1752,24 +2091,59 @@ const SUSPICIOUS_PREFIX_CHARS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'O', 'Q'];
  * beyond the strict `[A-Z]\d` pattern: e.g. when the OCR yields
  * "l0-HDND" (looks plausible but isn't quite "NQ-HDND"), we still
  * map the first two-character cluster back to the canonical prefix.
+ *
+ * `SINGLE_LETTER_ALIASES` covers the rarer case where Tesseract
+ * collapses the entire 2-letter prefix into a single visually
+ * similar glyph (commonly `J` for `NQ`, `l` for `N` + `Q`, `T` for
+ * `TT`, `P` for `QĐ`, etc.). The mapping is conservative: only
+ * letters that are well-documented Tesseract confusions for the
+ * canonical prefix appear here. Other letters are left untouched so
+ * we don't accidentally rewrite a legitimate legal prefix like a
+ * municipality-specific `B`/`S`/`X` doc-code.
  */
 const DOC_CODE_PREFIX_ALIASES: Record<string, string[]> = {
   // Each entry is [canonicalPrefix, alias1, alias2, ...] where every
   // alias is a 1–2 character OCR confusion of the canonical form.
-  NQ: ['A0', 'AD', 'AO', 'NO', 'l0', 'lO', 'lQ', 'N0', '0Q', 'O0', 'AQ', 'Nd', 'AI', 'Al', 'nQ', 'NQ', 'No', 'n0', 'NO', 'IO', 'IO', 'A1', 'IA'],
-  QĐ: ['QD', 'Qb', 'OB', '6D', 'QD', 'bD', 'OD'],
-  TB: ['TB', 'TR', 'lB', 'lR', '1B', 'T8', 'TR'],
-  TT: ['TT', 'TI', 'lT', '1T', 'T7', 'Tl'],
-  BC: ['BC', 'B6', 'B8', '8C', '6C', 'RC'],
-  KH: ['KH', 'K4', 'Kh', 'KY', 'kH'],
-  HD: ['HD', 'HĐ', 'Hd', 'hD'],
-  CT: ['CT', 'C7', 'cT', 'Cl'],
-  NĐ: ['ND', 'Nb', 'NĐ', 'Na', 'AD'],
-  CTr: ['CT', 'CTP', 'ClR'],
-  GUQ: ['GUQ', 'CUQ', 'GUb', 'GU0'],
-  BB: ['BB', 'B6', '6B', 'Rb'],
-  QC: ['QC', 'Q6', 'Qb', '6C'],
-  QT: ['QT', 'Q7', 'qT', 'Ql'],
+  NQ: ['A0', 'AD', 'AO', 'NO', 'l0', 'lO', 'lQ', 'N0', '0Q', 'O0', 'AQ', 'Nd', 'AI', 'Al', 'nQ', 'NQ', 'No', 'n0', 'NO', 'IO', 'IO', 'A1', 'IA', 'lA', 'la', 'JN', 'NJ', 'JQ'],
+  QĐ: ['QD', 'Qb', 'OB', '6D', 'QD', 'bD', 'OD', 'aD', 'AD', '0D', 'OD', 'QD', 'OD-', 'QĐ'],
+  TB: ['TB', 'TR', 'lB', 'lR', '1B', 'T8', 'TR', 'TR', 'IB', 'T8', 'JB'],
+  TT: ['TT', 'TI', 'lT', '1T', 'T7', 'Tl', 'IT', 'JT'],
+  BC: ['BC', 'B6', 'B8', '8C', '6C', 'RC', '8C', 'PC'],
+  KH: ['KH', 'K4', 'Kh', 'KY', 'kH', 'KN'],
+  HD: ['HD', 'HĐ', 'Hd', 'hD', 'Hl', 'Hl'],
+  CT: ['CT', 'C7', 'cT', 'Cl', 'IT', 'C1', 'JT'],
+  NĐ: ['ND', 'Nb', 'NĐ', 'Na', 'AD', 'ND', 'Nl', 'Jl'],
+  CTr: ['CT', 'CTP', 'ClR', 'CR', 'Cl'],
+  GUQ: ['GUQ', 'CUQ', 'GUb', 'GU0', 'GUl', '6UQ'],
+  BB: ['BB', 'B6', '6B', 'Rb', 'GB', 'B8'],
+  QC: ['QC', 'Q6', 'Qb', '6C', 'OC', 'JC'],
+  QT: ['QT', 'Q7', 'qT', 'Ql', 'JT', 'QT'],
+};
+
+/**
+ * Single-letter aliases — applied when Tesseract collapses the entire
+ * 2-letter prefix to one glyph that resembles the canonical prefix's
+ * overall shape. The key is the canonical 2-letter prefix; the value
+ * is an array of single letters that the OCR may emit in its place.
+ *
+ * Activation is gated by `SUSPICIOUS_PREFIX_CHARS` so letters with no
+ * plausible visual confusion (e.g. `S` for `NQ`) are never rewritten.
+ */
+const DOC_CODE_PREFIX_SINGLE_LETTER_ALIASES: Record<string, string[]> = {
+  NQ: ['J', 'j', 'I', 'l', '|'],
+  QĐ: ['O', 'D', '0', '6'],
+  TB: ['T'],
+  TT: ['T', 'I'],
+  BC: ['B'],
+  KH: ['K'],
+  HD: ['H', 'I'],
+  CT: ['C', 'I'],
+  NĐ: ['N', 'L', 'J'],
+  CTr: ['C'],
+  GUQ: ['G'],
+  BB: ['B'],
+  QC: ['Q', 'O'],
+  QT: ['Q'],
 };
 
 /**
@@ -1777,11 +2151,17 @@ const DOC_CODE_PREFIX_ALIASES: Record<string, string[]> = {
  * form for a given document type. Returns null when no rewrite is
  * needed or possible.
  *
- * Handles three patterns:
+ * Handles four patterns:
  *   1. Exact canonical already present (early return).
  *   2. OCR-delivered `<letter><digit>` collapse (e.g. "A0" → "NQ").
  *   3. OCR-delivered noise-tolerant alias (e.g. "l0" → "NQ", "QD" → "QĐ"
  *      canonical diacritic repair).
+ *   4. OCR-delivered single-letter collapse (e.g. "J-" → "NQ-" when
+ *      the diacritic bar above N plus the Q curve merged into a
+ *      single J-shaped glyph). Activated by single-letter aliases
+ *      declared in `DOC_CODE_PREFIX_SINGLE_LETTER_ALIASES` and
+ *      gated by `SUSPICIOUS_PREFIX_CHARS` so we never rewrite a
+ *      legitimate 1-letter prefix.
  */
 function applyCanonicalPrefix(code: string, canonicalPrefix: string): string | null {
   if (!code) return null;
@@ -1798,6 +2178,18 @@ function applyCanonicalPrefix(code: string, canonicalPrefix: string): string | n
     const aliases = DOC_CODE_PREFIX_ALIASES[canonicalPrefix] ?? [];
     if (aliases.includes(candidate)) {
       return canonicalPrefix + code.slice(alnumPrefix[0].length);
+    }
+  }
+  // 3) Single-letter collapse: e.g. "J-HĐND" → "NQ-HĐND".
+  //    Fires when the OCR merged the two characters of the canonical
+  //    prefix into a single visually similar glyph. The first letter
+  //    must be in `SUSPICIOUS_PREFIX_CHARS` (visual-confusion gate)
+  //    and also listed in the per-prefix single-letter alias table.
+  const singleLetter = code.match(/^([A-Z])(?=[-A-Z])/);
+  if (singleLetter && SUSPICIOUS_PREFIX_CHARS.includes(singleLetter[1])) {
+    const singleAliases = DOC_CODE_PREFIX_SINGLE_LETTER_ALIASES[canonicalPrefix] ?? [];
+    if (singleAliases.includes(singleLetter[1])) {
+      return canonicalPrefix + code.slice(singleLetter[0].length);
     }
   }
   return null;
@@ -3045,18 +3437,31 @@ export function extractFields(
   // "KẾ HOẠCH", ...) where diacritic accuracy is critical.
   fields.documentType = extractDocumentType(effectiveEmbeddedPages ?? effectiveOcrPages);
 
-  // Document number and date — ALWAYS OCR. This is the highest-value
+  // Document date — extracted BEFORE the doc-number so the date's
+  // year can be used as the canonical year when validating the
+  // doc-number year slot. The year-slot autocorrector in
+  // `correctYearSlot` prefers swaps that land closest to the
+  // date year when the OCR'd year is implausible. This protects
+  // against OCR outputs like `14/2075/J-HĐND` being erroneously
+  // snapped to `14/2015/NQ-HĐND` (the closest in-range swap)
+  // when the actual document year is `2026`.
+  fields.dateLetter = extractDate(effectiveOcrPages, captureTrace, columnLayout);
+
+  // Document number — ALWAYS OCR. This is the highest-value
   // extraction target and runs through the 300 DPI rasterisation
   // pass plus the ensemble / region-specific re-OCR. Embedded text
   // may be absent (scanned docs) or noisy (font-split per-glyph
   // digital signatures), so we never source these from embedded.
+  const dateYear = fields.dateLetter
+    ? Number(fields.dateLetter.split('/').pop())
+    : undefined;
   fields.documentNumber = extractDocumentNumber(
     effectiveOcrPages,
     fields.documentType,
     captureTrace,
     columnLayout,
+    dateYear,
   );
-  fields.dateLetter = extractDate(effectiveOcrPages, captureTrace, columnLayout);
 
   // Summary — prefer embedded text. The trích yếu / "V/v ..." line is
   // often a long Vietnamese sentence where LSTM noise tends to clip
