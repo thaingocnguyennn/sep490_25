@@ -3,6 +3,7 @@ import {
   DOC_TYPES,
   MONTH_NAMES,
   TITLE_KEYWORDS,
+  ISSUER_KEYWORDS,
   isPersonNameWord,
   removeDiacriticsForMatch,
 } from './constants';
@@ -307,18 +308,20 @@ function splitHeaderLine(line: OcrLine): string {
 }
 
 /**
- * If the input starts with the national-motto phrase
+ * Strip any occurrence of the national-motto phrase
  * ("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" — possibly truncated or
- * misread by Tesseract), strip that prefix. Defensive against the
- * common case where Tesseract drops the visual gap between the
- * issuer column and the motto column, causing the merger to land
- * entirely on one OCR line.
+ * misread by Tesseract) from the input string. The motto may
+ * appear at the start of the string (motto-only line in the
+ * single-column case) OR after the issuer on a fused
+ * issuer+motto line ("CHÍNH PHỦ CỘNG HÒA XÃ HỘI CHỦ NGHĨA
+ * VIỆT NAM"). The stripper handles both arrangements.
  *
  * Each clause is independently optional — we strip whatever subset
  * of the motto Tesseract managed to deliver, so "CONG HOA XA HOI"
  * (no diacritics) and "DHU NGHIA VIET NAM" are both handled.
  */
-function stripNationalMottoPrefix(text: string): string {
+function stripNationalMotto(text: string): string {
+  // 1) Strip leading motto phrase: "CỘNG ... NAM" anchored at start.
   let s = text
     // CỘNG/CÔNG/CONG (HÒA/HOA/HOA) (XÃ/XA) (HỘI/HOI/HOI) (CHỦ/CHU/DHỦ/DHU) (NGHĨA/NGHIA) (VIỆT/VIET/VIET) NAM
     .replace(
@@ -326,10 +329,12 @@ function stripNationalMottoPrefix(text: string): string {
       '',
     )
     .trim();
-  // Strip the remainder of the motto when only a partial survived
-  // the leading strip. The motif "XÃ HỘI" / "HỘI" / "CHỦ NGHĨA" /
-  // "NGHĨA VIỆT NAM" is the discriminator.
-  return s
+  // 2) Strip the trailing motto when the issuer was the leading
+  //    fragment. The motif "XÃ HỘI" / "HỘI" / "CHỦ NGHĨA" /
+  //    "NGHĨA VIỆT NAM" is the discriminator. Each pattern is
+  //    anchored at a word boundary on the LEFT (so we don't strip
+  //    a real word that happens to contain "VIỆT NAM" inside it).
+  s = s
     // XÃ HỘI (ĐH|CH|CH)Ủ NGHĨA VIỆT NAM
     .replace(
       /\s+X[ÂÃ]?\s+H[OỘ]I\s+(?:Đ?CH[UỦ]|DH[UỦ])\s+NGH[ĨI]A\s+VI[ÊỆE]T\s+NAM/i,
@@ -345,8 +350,13 @@ function stripNationalMottoPrefix(text: string): string {
       /\s+(?:Đ?CH[UỦ]|DH[UỦ])\s+NGH[ĨI]A\s+VI[ÊỆE]T\s+NAM/i,
       '',
     )
+    // Last-resort: "VIỆT NAM" / "VIET NAM" alone — strips just the
+    // country name when the rest of the motto has already been
+    // removed by the rules above (e.g. "CHÍNH PHỦ VIỆT NAM").
+    .replace(/\s+VI[ÊỆE]T\s+NAM\b/i, '')
     .replace(/\s+/g, ' ')
     .trim();
+  return s;
 }
 
 /**
@@ -371,6 +381,34 @@ function stripNationalMottoPrefix(text: string): string {
  * The y-band is intentionally tight (y < ~0.13, before the doc-number
  * line that Decree 30 always places below the issuer block).
  */
+/**
+ * Diacritic-insensitive check whether a line contains any known
+ * Vietnamese issuing-body phrase. Used to validate that a candidate
+ * top-band line is a real issuer (and not a DMS imprint, OCR
+ * artifact, or body-text line that drifted up to the top of the
+ * page).
+ */
+function lineContainsIssuer(text: string): boolean {
+  const stripped = removeDiacriticsForMatch(text).toUpperCase();
+  return ISSUER_KEYWORDS.some((kw) => {
+    const kwStripped = removeDiacriticsForMatch(kw).toUpperCase();
+    if (kwStripped.length < 2) return false;
+    // Whole-word match for short generic tokens (BỘ, CỤC, VỤ, SỞ,
+    // PHÒNG) to avoid accidental matches inside other words. Longer
+    // phrases are matched as substrings.
+    if (kwStripped.length <= 4) {
+      const re = new RegExp(`(?:^|\\b)${escapeRegex(kwStripped)}(?:\\b|$|[A-ZÀ-Ỹ])`, 'u');
+      return re.test(stripped);
+    }
+    return stripped.includes(kwStripped);
+  });
+}
+
+/** Escape regex metachars in user-supplied strings. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractIssuer(
   pages: PageOcr[],
   trace?: (t: FieldTrace) => void,
@@ -384,17 +422,54 @@ function extractIssuer(
   const layout = columnLayout ?? detectTopBandColumns(firstPage);
 
   const allTopLines = linesInReadingOrder(firstPage).filter((l) => l.bbox.y1 <= 0.13);
-  const candidates: Array<{ line: OcrLine; source: 'left' | 'right' | 'single' }> = [];
+  const candidates: Array<{ line: OcrLine; source: 'left' | 'right' | 'single' | 'split' }> = [];
   for (const line of allTopLines) {
     const split = splitLineByColumns(line, layout);
     if (split.left && split.left.text) candidates.push({ line: split.left as OcrLine, source: 'left' });
     if (split.right && split.right.text) candidates.push({ line: split.right as OcrLine, source: 'right' });
     if (!layout.isTwoColumn) candidates.push({ line, source: 'single' });
+    // Additional candidate: when the line is a fused issuer+motto
+    // (Tesseract merged both into one OCR line), extract the issuer
+    // half using the gap-based splitter `splitHeaderLine`. This is
+    // critical for layouts where the issuer sits to the LEFT of the
+    // motto on the SAME line — column-aware splitting would lump
+    // everything into one half because the column boundary doesn't
+    // coincide with the per-word gap between issuer and motto.
+    const headerSplit = splitHeaderLine(line);
+    if (headerSplit && headerSplit !== clean(line.text)) {
+      // Build a synthetic OcrLine carrying just the issuer half.
+      // The bbox is the line's bbox (kept whole) so that downstream
+      // position checks (column, y-band) still apply. The line
+      // carries only the header-split text — the issuer extractor
+      // will then run stripNationalMotto against the result
+      // (which is a no-op for a clean issuer half).
+      candidates.push({
+        line: {
+          text: headerSplit,
+          bbox: line.bbox,
+          confidence: line.confidence,
+          block: line.block,
+          paragraph: line.paragraph,
+          words: line.words,
+        },
+        source: 'split',
+      });
+    }
   }
 
   const rejected: FieldTrace['candidates'] = [];
 
-  const topLines = candidates.filter(({ line }) => {
+  // Pre-compute the issuer-keyword flag for each candidate once. A
+  // candidate that contains a known issuer phrase is preferred even
+  // when it sits in the right column — some Vietnamese layouts
+  // (notably PM/CP-issued Nghị định) put the issuer on the right
+  // and the national motto on the left.
+  const candidatesWithIssuerFlag = candidates.map((c) => ({
+    ...c,
+    hasIssuer: lineContainsIssuer(c.line.text),
+  }));
+
+  const topLines = candidatesWithIssuerFlag.filter(({ line, hasIssuer }) => {
     const t = clean(line.text);
     if (t.length < 4) return false;
     const alnumLen = t.replace(/[^a-zA-ZÀ-ỹ0-9]/g, '').length;
@@ -413,28 +488,90 @@ function extractIssuer(
       rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'doc-type heading' });
       return false;
     }
-    // Drop lines whose horizontal centre falls in the right column
-    // when two columns are detected. This protects the issuer from
-    // accidentally consuming a date/motto line.
-    if (layout.isTwoColumn && line.bbox.x0 >= layout.columns[0].x1) {
-      rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'right column' });
+    // Drop DMS-imprint noise: "®% Cơ quan phát hành: …" or
+    // "Cơ quan ban hành: …" / "Cơ quan phát hành…" — these are
+    // document-management-system metadata stamped on top of the
+    // scanned PDF, not the issuer. The actual issuer is on the line
+    // BELOW (or merged with) the motto line.
+    //
+    // CRITICAL: "hành" uses À (U+00C0, grave) — NOT Â (U+00C2,
+    // circumflex). The previous version of this filter used [ÂA]
+    // which silently failed to match real "Cơ quan phát hành"
+    // strings, so the DMS imprint was never being filtered.
+    if (/C[ƠỠơ]\s*QUAN\s*(PH[ÁÀ�ÃẠẮẰẲẴẶẤẦẨẪẬ]T|BAN)\s*H[ÀẢÃẠẮẰẲẴẶẤẦẨẪẬ]NH/i.test(upper) ||
+        /^®%\s*C[ƠỠơ]\s*QUAN\s*(PH[ÁÀẢÃẠẮẰẲẴẶẤẦẨẪẬ]T|BAN)\s*H[ÀẢÃẠẮẰẲẴẶẤẦẨẪẬ]NH/i.test(upper)) {
+      rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'DMS imprint' });
       return false;
     }
-    // Drop the "Độc lập - Tự do - Hạnh phúc" / national-motto-only line
-    // in the single-column case.
-    if (!layout.isTwoColumn) {
-      if (/\b[ĐD][ỘO]C\s*L[ẬÂ]P\b/i.test(upper)) {
-        rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'doc-lap line' });
-        return false;
-      }
-      if (/\bT[ỰU]\s*DO\b/i.test(upper)) {
-        rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'tu-do line' });
-        return false;
-      }
-      if (/\bH[ẠA]NH\s*PH[ÚU]C\b/i.test(upper)) {
-        rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'hanh-phuc line' });
-        return false;
-      }
+    // DMS-imprint, second pattern: many DMS systems (notably Văn
+    // phòng Chính phủ's eCabinet / digital-signature stamper) emit a
+    // compact 3-line metadata block above the Decree-30 header:
+    //     "% Cơ quan phát hành: VĂN PHÒNG CHÍNH PHỦ 2 Bình:…"
+    //     "Cơ quan: VĂN PHÒNG CHÍNH PHỦ"
+    //     "Thời gian ký: 14.08.2026 14:01:58 +07:00"
+    // The first line is caught by the rule above (when the verb
+    // "phát hành" / "ban hành" survived OCR), but the second/third
+    // lines are NOT — OCR mangles them into "Cae Co quan:" / "Ne?
+    // Thời gian ký:" and the existing regex doesn't match. Worse,
+    // "VAN PHONG CHINH PHU" inside line 2 IS in `ISSUER_KEYWORDS`,
+    // so the right-column rejection (below) is bypassed and the
+    // issuer extractor joins the DMS imprint line with the proper
+    // "CHÍNH PHỦ" header → "Cae Co quan: VAN PHONG CHÍNH PHỦ
+    // CHÍNH PHỦ". Catch these here:
+    //   - any line containing "CƠ QUAN" immediately followed by
+    //     `:` / `-` (DMS label separator), even without the verb;
+    //   - any line containing a timestamp / signing-time phrase
+    //     ("THỜI GIAN KÝ" / "KY TU");
+    //   - any line starting with `%` / `®` (DMS noise prefix);
+    //   - the obvious artefact "%" + "CƠ QUAN" prefix combo.
+    if (/(?:^|[^A-ZÀ-Ỹ])(C[ƠỠơ]\s*QUAN\s*[:\-]|TH[OƠỜỘ]I\s*GIAN\s*K[ÝY]|KY\s*TU)/i.test(upper) ||
+        /^[®%]/.test(t) ||
+        /[®%]%?\s*C[ƠỠơ]\s*QUAN/i.test(upper)) {
+      rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'DMS imprint v2' });
+      return false;
+    }
+    // Top-band y-guard for two-column layouts: the proper Decree-30
+    // header (issuer+motto line + motto-only line + doc-number line)
+    // ALWAYS sits at y0 ≥ ~0.05. Anything higher than that (y1 <
+    // 0.05) is metadata stamped above the header by a DMS (digital-
+    // signature timestamp, "Cơ quan phát hành:" prefix, etc.).
+    // The single-column case is left alone because some real single-
+    // column issuers (Sở/Phòng/Tỉnh) place the issuer name above
+    // y=0.05 when the page header is unbranded.
+    if (layout.isTwoColumn && line.bbox.y1 < 0.05 && !/C[ÔOỘ]NG\s*H[OÒỜỘ]A/i.test(upper)) {
+      rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'above Decree-30 header (DMS)' });
+      return false;
+    }
+    // Drop the "Độc lập - Tự do - Hạnh phúc" / national-motto-only
+    // line(s) — they appear on both columns on some layouts and are
+    // never the issuer. We apply this in BOTH the two-column and
+    // single-column case because the previous logic dropped them
+    // only on single-column pages, leaving the right-column motto
+    // candidates to be filtered out as "right column" instead. The
+    // sharper fix is to identify and drop the motto directly.
+    if (/\b[ĐD][ỘO]C\s*L[ẬÂ]P\b/i.test(upper) ||
+        /\bT[ỰU]\s*DO\b/i.test(upper) ||
+        /\bH[ẠA]NH\s*PH[ÚU]C\b/i.test(upper)) {
+      rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'doc-lap / motto line' });
+      return false;
+    }
+    // Drop pure-motto lines that start with "CỘNG HÒA XÃ HỘI …"
+    // (the national motto header). These have no issuer on the left
+    // and would otherwise compete with real issuer lines.
+    if (/^\s*C[ÔOỘ]NG\s*H[OÒỜỘ]A/i.test(upper) &&
+        !hasIssuer) {
+      rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'motto-only line' });
+      return false;
+    }
+    // Drop lines whose horizontal centre falls in the right column
+    // when two columns are detected — UNLESS the line carries a
+    // known issuer phrase. This protects the issuer from accidentally
+    // consuming a date/motto line on the right column while still
+    // accepting CP/QH/HĐND-style issuers that Decree 30 places in
+    // the right column on PM-issued documents.
+    if (layout.isTwoColumn && line.bbox.x0 >= layout.columns[0].x1 && !hasIssuer) {
+      rejected.push({ text: t.slice(0, 80), bbox: line.bbox, confidence: line.confidence, page: firstPage.pageNumber, rejectedReason: 'right column' });
+      return false;
     }
     return true;
   });
@@ -456,13 +593,23 @@ function extractIssuer(
   let firstSelectedConfidence = 0;
   for (const { line } of topLines.slice(0, 3)) {
     let text = clean(line.text);
-    text = stripNationalMottoPrefix(text);
-    if (text) {
-      issuerParts.push(text);
-      if (!firstSelectedBBox) {
-        firstSelectedBBox = line.bbox;
-        firstSelectedConfidence = line.confidence;
-      }
+    text = stripNationalMotto(text);
+    if (!text) continue;
+    // Deduplicate: when the same issuer text appears in both
+    // columns (e.g. "CHÍNH PHỦ" appears on the left as the
+    // attestation phrase AND on the right as the actual issuer
+    // header), the loop above would push the same string twice.
+    // We drop the duplicate rather than produce "CHÍNH PHỦ
+    // CHÍNH PHỦ" as the issuer value.
+    const normalizedForCompare = text.toUpperCase().replace(/\s+/g, ' ').trim();
+    const alreadySeen = issuerParts.some(
+      (existing) => existing.toUpperCase().replace(/\s+/g, ' ').trim() === normalizedForCompare,
+    );
+    if (alreadySeen) continue;
+    issuerParts.push(text);
+    if (!firstSelectedBBox) {
+      firstSelectedBBox = line.bbox;
+      firstSelectedConfidence = line.confidence;
     }
   }
 
@@ -1178,6 +1325,18 @@ function finalizeDocNumber(raw: string): string {
     // Collapse OCR-inserted whitespace in the code suffix
     // (e.g. "U BND" → "UBND", "Q D" → "QD" before diacritic restore).
     parts[2] = parts[2].replace(/\s+/g, '');
+    // Strip trailing punctuation/space artefacts before diacritic
+    // restoration so they don't break the next regexes.
+    parts[2] = parts[2].replace(/[.,;:]+$/, '');
+    // Strip a single trailing uppercase letter when it looks like a
+    // bleed from the merged doc-number+location line. On Decree 30
+    // documents, the doc-number row reads "Số: <code>, <city>, ngày …"
+    // and Tesseract often captures only the leading initial of the
+    // city, glued to the end of the code suffix (e.g. "NĐ-CPH" from
+    // "NĐ-CP Hà Nội"). Drop that orphan initial whenever the
+    // remainder forms a recognisable Vietnamese doc-code prefix
+    // (NĐ, QĐ, HĐND, TB, TT, …) or a 2-letter entity code.
+    parts[2] = stripTrailingCityInitialBleed(parts[2]);
     // Restore the QD→QĐ diacritic on the code suffix (the most
     // common Vietnamese doc-code Tesseract artefact) plus the
     // HDND→HĐND fix.
@@ -1213,6 +1372,122 @@ function finalizeDocNumber(raw: string): string {
   }
   // Single-segment fallback: apply diacritic restoration directly.
   return restoreDocCodeDiacritics(rewritten);
+}
+
+/**
+ * Trim a trailing single uppercase letter from the doc-number code
+ * suffix when it looks like an OCR bleed from the merged
+ * location/city name on the same row.
+ *
+ * Examples:
+ *   "NĐ-CPH"  → "NĐ-CP"   (H bleeds from "Hà Nội")
+ *   "QĐ-UBNDT" → "QĐ-UBND" (T bleeds from a city suffix)
+ *   "NĐ-CP"   → "NĐ-CP"   (no change — already clean)
+ *   "NQ-HĐNDD" → "NQ-HĐND" (D bleeds)
+ *
+ * We only drop the trailing single letter when the remainder ends
+ * with a recognised Vietnamese doc-code anchor (NĐ, QĐ, HĐND, TB,
+ * TT, BC, CV, KH, BB, QC, HD, GUQ, QT, CT) followed by either an
+ * end-of-string or a `-` + 2-letter entity code. This prevents
+ * accidentally chopping a legitimate trailing letter that's part of
+ * a longer entity code such as "NĐ-CPB" or "QĐ-UBNDTX".
+ */
+function stripTrailingCityInitialBleed(codeSuffix: string): string {
+  if (!codeSuffix) return codeSuffix;
+  // Recognised Vietnamese doc-code anchors (the 2–4 letter code that
+  // appears between the year and the entity, e.g. "NĐ", "QĐ",
+  // "HĐND", "TB", "TT", …). When such an anchor appears
+  // immediately followed by an entity abbreviation and that entity is
+  // followed by a single trailing uppercase letter, we treat that
+  // trailing letter as a city-name bleed ("H" from "Hà Nội",
+  // "C" from "Cần Thơ", …) and strip it. This handles
+  // Decree 30 doc numbers where Tesseract captures only the leading
+  // initial of the city and glues it onto the entity code (e.g.
+  // "NĐ-CPH" from "NĐ-CP Hà Nội").
+  //
+  // The strip fires when the entity abbreviation is exactly one
+  // character OR matches a known short entity code (CP, UBND, TTg,
+  // BTC, …). We accept that some longer abbreviations (like "CPB"
+  // or "UBNDTX") may be incorrectly shortened — this is the
+  // conservative trade-off because the alternative is leaving the
+  // city bleed intact and producing a wrong doc number.
+  //
+  // In Vietnamese Decree 30 doc numbers the city initial always
+  // appears AFTER the entity abbreviation in the merged
+  // "<doc-num>, <city>, ngày …" line, so we trust this layout and
+  // strip aggressively.
+  const DOC_CODE_TAILS = [
+    'NĐ', 'QĐ', 'HĐND',
+    'TB', 'TT', 'BC', 'CV', 'KH', 'BB', 'QC', 'HD', 'GUQ', 'QT', 'CT',
+  ];
+  // Common Vietnamese city-initial letters that frequently appear
+  // as a trailing bleed on a merged "<doc-num>, <city>, ngày …"
+  // line. We only strip the bleed when (a) the entity is a known
+  // short abbreviation AND (b) the bleed letter is one of these
+  // city initials. This protects us from incorrectly shortening
+  // legitimate 3-letter entity codes like "CPB", "CPK", "CPTX",
+  // "CPC", etc.
+  const CITY_INITIALS = new Set([
+    'H', 'C', 'T', 'Đ', 'D', 'A', 'B', 'G', 'L', 'N', 'P', 'Q', 'V',
+  ]);
+  const STRIPPABLE_ENTITIES: Record<string, Set<string>> = {
+    'NĐ': new Set(['CP']),
+    'QĐ': new Set(['CP', 'UBND', 'TTg']),
+    'TT': new Set(['CP', 'BTC', 'BTP']),
+  };
+  if (codeSuffix.length < 4) return codeSuffix;
+  const bleed = codeSuffix[codeSuffix.length - 1];
+  if (!/[A-ZÀ-�]/.test(bleed)) return codeSuffix;
+  const isLikelyCityInitial = CITY_INITIALS.has(bleed);
+  if (!isLikelyCityInitial) return codeSuffix;
+  const withBleed = codeSuffix; // full suffix includes bleed
+  const beforeBleed = codeSuffix.slice(0, -1);
+  for (const anchor of DOC_CODE_TAILS) {
+    // Layout A: "<anchor><bleed>" — anchor is the LAST 2–4 letters
+    // before the bleed (e.g. "NQ-HĐND" + "D" → "NQ-HĐND").
+    if (beforeBleed.endsWith(anchor)) {
+      return beforeBleed;
+    }
+    // Layout B: "<anchor><entity><bleed>" — anchor is at the LEFT
+    // of the full suffix. The entity portion is between the anchor
+    // (and optional "-") and the bleed.
+    if (withBleed.startsWith(anchor)) {
+      let entityWithBleed = withBleed.slice(anchor.length);
+      if (entityWithBleed.startsWith('-')) entityWithBleed = entityWithBleed.slice(1);
+      // entityWithBleed = "<entity><bleed>" (e.g. "CPH", "CPB",
+      // "CP", "UBNDH"). Strip the trailing bleed and check whether
+      // the remaining entity is exactly a known abbreviation OR a
+      // longer abbreviation that starts with one.
+      if (entityWithBleed.length >= 3) {
+        const entity = entityWithBleed.slice(0, -1);
+        const allowList = STRIPPABLE_ENTITIES[anchor];
+        if (allowList) {
+          for (const allowed of allowList) {
+            if (entity === allowed || entity.startsWith(allowed)) {
+              return beforeBleed;
+            }
+          }
+        }
+      }
+    }
+    const dashAnchor = `-${anchor}`;
+    const idx = withBleed.lastIndexOf(dashAnchor);
+    if (idx >= 0) {
+      const entityWithBleed = withBleed.slice(idx + dashAnchor.length);
+      if (entityWithBleed.length >= 3) {
+        const entity = entityWithBleed.slice(0, -1);
+        const allowList = STRIPPABLE_ENTITIES[anchor];
+        if (allowList) {
+          for (const allowed of allowList) {
+            if (entity === allowed || entity.startsWith(allowed)) {
+              return beforeBleed;
+            }
+          }
+        }
+      }
+    }
+  }
+  return codeSuffix;
 }
 
 /**
@@ -2372,7 +2647,7 @@ function extractSummary(
  * "KÝ TÊN", "NGƯỜI KÝ", or the word "TM" alone. The signer name
  * typically sits within a few lines of these markers.
  */
-const SIGNATURE_MARKER = /\b(TM\.?|KT\.?|CH[ỦU]\s*T[ỊI]CH|CHUTICH|PHO\s*CHUTICH|PH[ÓO]\s*CH[ỦU]\s*T[ỊI]CH|K[ÝY]\s*T[ÊE]N|NG[ƯU][ỜO]I\s*K[ÝY])\b/i;
+const SIGNATURE_MARKER = /\b(TM\s*\.?|KT\s*\.?|CH[ỦU]\s*T[ỊI]CH|CHUTICH|PHO\s*CHUTICH|PH[ÓO]\s*CH[ỦU]\s*T[ỊI]CH|PH[ÓO]\s*TH[ỦU]\s*T[ƯU][ỚO]NG|TH[ỦU]\s*T[ƯU][ỚO]NG|K[ÝY]\s*T[ÊE]N|NG[ƯU][ỜO]I\s*K[ÝY])\b/i;
 
 /**
  * Whether a line looks like a recipient-list bullet (which contains
@@ -2397,7 +2672,18 @@ function isRecipientListLine(t: string, page: number, totalPages: number): boole
 function lastPageLines(pages: PageOcr[]): OcrLine[] {
   const lastPage = pages[pages.length - 1];
   if (!lastPage) return [];
-  return linesInReadingOrder(lastPage).filter((l) => l.bbox.y0 >= 0.20);
+  // The signature block is typically below the recipient list opener
+  // ("Nơi nhận:") on the last page. The marker line itself can sit
+  // as high as y ≈ 0.13 on documents with a long recipient list
+  // (because the body paragraph before "Nơi nhận:" ends near y =
+  // 0.13). The previous threshold (y0 ≥ 0.20) excluded the marker
+  // line AND the re-OCR'd title/name lines inserted via the 7sig
+  // replacement block, leaving the system with no usable title
+  // candidate. Lower the floor to 0.10 — body text rarely mentions
+  // title keywords before y = 0.10, and the new bottom-half scoring
+  // logic still prefers right-column matches when multiple are
+  // available.
+  return linesInReadingOrder(lastPage).filter((l) => l.bbox.y0 >= 0.10);
 }
 
 /**

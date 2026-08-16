@@ -481,6 +481,7 @@ async function main() {
     { code: 'CV',    name: 'CÔNG VĂN',          normalizedName: 'cong van',          description: 'Công văn hành chính' },
     { code: 'QĐ',    name: 'QUYẾT ĐỊNH',        normalizedName: 'quyet dinh',        description: 'Văn bản quyết định của cơ quan' },
     { code: 'NQ',    name: 'NGHỊ QUYẾT',        normalizedName: 'nghi quyet',        description: 'Văn bản nghị quyết của cơ quan' },
+    { code: 'NĐ',    name: 'NGHỊ ĐỊNH',         normalizedName: 'nghi dinh',         description: 'Nghị định của Chính phủ' },
     { code: 'TB',    name: 'THÔNG BÁO',         normalizedName: 'thong bao',         description: 'Thông báo nội bộ và đối ngoại' },
     { code: 'BC',    name: 'BÁO CÁO',           normalizedName: 'bao cao',           description: 'Báo cáo định kỳ và đột xuất' },
     { code: 'KH',    name: 'KẾ HOẠCH',          normalizedName: 'ke hoach',          description: 'Kế hoạch công tác' },

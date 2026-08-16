@@ -50,14 +50,17 @@ const RE_OCR_BLOCK_ID = -2;
  * Bottom-of-page window: a line's y0 above this fraction is treated
  * as last-page signature-block region when no `7sig` block exists.
  *
- * 0.30 (not 0.70) because signer-name lines on Vietnamese
- * administrative documents frequently live 30–70% down the page:
+ * 0.15 (not 0.30) because signer-name lines on Vietnamese
+ * administrative documents frequently live 15–60% down the page:
  * the recipient list pushes the signature block upward when the
  * document has many addressees. The signature-block region is
  * defined by horizontal position (x > 0.50) and the bottom-Y
- * context — not strictly the bottom-third of the page.
+ * context — not strictly the bottom-third of the page. The value
+ * also matches the threshold used by `lastPageLines` in
+ * field-extractor.ts so the two halves of the pipeline agree on
+ * where the signature block lives.
  */
-const LAST_PAGE_Y_MIN = 0.30;
+const LAST_PAGE_Y_MIN = 0.15;
 
 /** Right-column boundary: anything to the right of this is the sig column. */
 const RIGHT_COLUMN_X_MIN = 0.50;
@@ -247,18 +250,44 @@ function tokenizeLine(line: OcrLine): Array<{
     return true;
   });
 
+  // Pre-compile a regex that matches one or more OCR artefact
+  // characters (those mapped to the empty string in
+  // OCR_SUBSTITUTION_MAP). Tesseract on low-contrast signature
+  // scans frequently fuses two name tokens with one of these
+  // characters instead of emitting a space (e.g. "Phạm#Thị
+  // Thanh Trà"). We split both on whitespace and on these
+  // artefacts so the tokeniser sees the individual name pieces.
+  const ARTEFACT_CHARS_RE = new RegExp(
+    '[' +
+      Object.entries(OCR_SUBSTITUTION_MAP)
+        .filter(([, repl]) => repl === '')
+        .map(([c]) => {
+          if (c.length === 1) {
+            const code = c.charCodeAt(0);
+            return '\\u' + code.toString(16).padStart(4, '0');
+          }
+          return c.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+        })
+        .join('') +
+      ']+',
+    'g',
+  );
+
   if (words.length > 0) {
-    // First pass: split single words that contain internal whitespace
-    // (Tesseract squashing multiple tokens into one — common in
-    // signature-block noise such as "“al=@¥en Thanh Bình" or
-    // "~ Nguyễn A nh Chức\n"). Each split token gets a synthetic
-    // bbox within the original word's bbox so downstream candidacy
-    // remains roughly accurate.
+    // First pass: split single words that contain internal
+    // whitespace OR internal OCR artefact characters (such as
+    // `#`, `@`, `¡`, `*`, …). We split both on whitespace and
+    // on any character in the ARTEFACT_CHARS_RE regex. Each split
+    // token gets a synthetic bbox within the original word's bbox
+    // so downstream candidacy remains roughly accurate.
     const expanded: typeof words = [];
     for (const w of words) {
       const cleaned = (w.text || '').trim();
       if (!cleaned) continue;
-      const parts = cleaned.split(/\s+/).filter(Boolean);
+      const parts = cleaned
+        .split(/\s+/)
+        .flatMap((p) => p.split(ARTEFACT_CHARS_RE))
+        .filter(Boolean);
       if (parts.length <= 1) {
         expanded.push(w);
         continue;
@@ -346,13 +375,18 @@ function tokenizeLine(line: OcrLine): Array<{
     return out;
   }
 
-  // Source 2: fallback to splitting the line text on whitespace. This
-  // addresses a common signature-block failure mode where Tesseract
-  // produced a single multi-word word with no per-word bboxes (e.g.
-  // "al=@¥en Thanh Bình" gets emitted as one token). Synthetic
-  // bboxes are evenly distributed across the line's bbox so
+  // Source 2: fallback to splitting the line text on whitespace AND
+  // artefact characters. This addresses common signature-block
+  // failure modes where Tesseract either (a) emits a single
+  // multi-word word with no per-word bboxes (e.g. "al=@¥en Thanh
+  // Bình" gets emitted as one token) or (b) fuses two name tokens
+  // with an artefact like "#" (e.g. "Phạm#Thị"). Synthetic bboxes
+  // are evenly distributed across the line's bbox so
   // candidate-generation can still emit reasonable candidates.
-  const textTokens = line.text.split(/\s+/).filter(Boolean);
+  const textTokens = line.text
+    .split(/\s+/)
+    .flatMap((p) => p.split(ARTEFACT_CHARS_RE))
+    .filter(Boolean);
   for (let i = 0; i < textTokens.length; i++) {
     const raw = normalizeToken(textTokens[i]);
     if (!raw) continue;
