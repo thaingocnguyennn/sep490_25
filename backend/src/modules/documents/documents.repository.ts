@@ -58,7 +58,10 @@ export interface DocumentSummary {
   urgency: DocumentUrgency | null;
   confidentialityId: number | null;
   confidentiality: DocumentConfidentiality | null;
-  sendingAgency: string | null;
+  issuer: string | null;
+  signerName: string | null;
+  signerTitle: string | null;
+  notes: string | null;
   issuanceDate: string | null;
   originalFileName: string | null;
   fileSize: number | null;
@@ -75,7 +78,10 @@ export interface DocumentSummary {
 export interface DocumentDetail extends DocumentSummary {
   description: string | null;
   fileUrl: string | null;
-  category: string | null;
+  categoryId: number | null;
+  category: { id: number; name: string; code: string } | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string; code: string } | null;
   updatedByUser: { id: number; fullName: string } | null;
 }
 
@@ -87,6 +93,8 @@ const summaryInclude = {
   processor: { select: { id: true, fullName: true } },
   confidentiality: { select: { id: true, code: true, name: true, description: true } },
   urgency: { select: { id: true, name: true, description: true } },
+  documentTypeRef: { select: { id: true, name: true, code: true } },
+  category: { select: { id: true, name: true, code: true } },
 };
 
 const detailInclude = {
@@ -155,13 +163,14 @@ export class DocumentsRepository {
       }
     }
 
-    // Full-text search across documentNumber, title, description, sendingAgency
+    // Full-text search across documentNumber, title, description, issuer
     if (params.search) {
       where.OR = [
         { documentNumber: { contains: params.search, mode: 'insensitive' } },
         { title: { contains: params.search, mode: 'insensitive' } },
         { description: { contains: params.search, mode: 'insensitive' } },
-        { sendingAgency: { contains: params.search, mode: 'insensitive' } },
+        { issuer: { contains: params.search, mode: 'insensitive' } },
+        { signerName: { contains: params.search, mode: 'insensitive' } },
       ];
     }
 
@@ -202,12 +211,16 @@ export class DocumentsRepository {
     type: DocumentDirection;
     fileUrl?: string;
     issuanceDate?: Date;
-    sendingAgency?: string;
+    issuer?: string;
+    signerName?: string;
+    signerTitle?: string;
+    notes?: string;
     /** Accepts a seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgencyId?: number | string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, or numeric id */
     confidentialityId?: number | string;
-    category?: string;
+    categoryId?: number;
+    documentTypeId?: number;
     originalFileName?: string;
     fileSize?: number;
     mimeType?: string;
@@ -229,10 +242,14 @@ export class DocumentsRepository {
         type: data.type,
         fileUrl: data.fileUrl,
         issuanceDate: data.issuanceDate,
-        sendingAgency: data.sendingAgency,
+        issuer: data.issuer,
+        signerName: data.signerName,
+        signerTitle: data.signerTitle,
+        notes: data.notes,
         urgencyId,
         confidentialityId,
-        category: data.category,
+        categoryId: data.categoryId,
+        documentTypeId: data.documentTypeId,
         originalFileName: data.originalFileName,
         fileSize: data.fileSize,
         mimeType: data.mimeType,
@@ -254,12 +271,16 @@ export class DocumentsRepository {
       description?: string;
       type?: DocumentDirection;
       issuanceDate?: Date | null;
-      sendingAgency?: string;
+      issuer?: string | null;
+      signerName?: string | null;
+      signerTitle?: string | null;
+      notes?: string | null;
       /** Accepts a seeded name, legacy alias, numeric id, or null to clear */
       urgencyId?: number | string | null;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or null to clear */
       confidentialityId?: number | string | null;
-      category?: string;
+      categoryId?: number | null;
+      documentTypeId?: number | null;
       departmentId?: number | null;
       processorId?: number | null;
       updatedBy: number;
@@ -368,7 +389,8 @@ export class DocumentsRepository {
         { documentNumber: { contains: params.search, mode: 'insensitive' } },
         { title: { contains: params.search, mode: 'insensitive' } },
         { description: { contains: params.search, mode: 'insensitive' } },
-        { sendingAgency: { contains: params.search, mode: 'insensitive' } },
+        { issuer: { contains: params.search, mode: 'insensitive' } },
+        { signerName: { contains: params.search, mode: 'insensitive' } },
       ];
     }
 
@@ -421,7 +443,10 @@ export class DocumentsRepository {
     urgency: DocumentUrgency | null;
     confidentialityId: number | null;
     confidentiality: DocumentConfidentiality | null;
-    sendingAgency: string | null;
+    issuer: string | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    notes: string | null;
     issuanceDate: Date | null;
     originalFileName: string | null;
     fileSize: number | null;
@@ -444,7 +469,10 @@ export class DocumentsRepository {
       urgency: doc.urgency,
       confidentialityId: doc.confidentialityId,
       confidentiality: doc.confidentiality,
-      sendingAgency: doc.sendingAgency,
+      issuer: doc.issuer,
+      signerName: doc.signerName,
+      signerTitle: doc.signerTitle,
+      notes: doc.notes,
       issuanceDate: doc.issuanceDate?.toISOString() ?? null,
       originalFileName: doc.originalFileName,
       fileSize: doc.fileSize,
@@ -470,9 +498,15 @@ export class DocumentsRepository {
     urgency: DocumentUrgency | null;
     confidentialityId: number | null;
     confidentiality: DocumentConfidentiality | null;
-    sendingAgency: string | null;
+    issuer: string | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    notes: string | null;
     issuanceDate: Date | null;
-    category: string | null;
+    categoryId: number | null;
+    category: { id: number; name: string; code: string } | null;
+    documentTypeId: number | null;
+    documentTypeRef: { id: number; name: string; code: string } | null;
     originalFileName: string | null;
     fileSize: number | null;
     mimeType: string | null;
@@ -488,7 +522,10 @@ export class DocumentsRepository {
       ...this.formatSummary(doc),
       description: doc.description,
       fileUrl: doc.fileUrl,
+      categoryId: doc.categoryId,
       category: doc.category,
+      documentTypeId: doc.documentTypeId,
+      documentTypeRef: doc.documentTypeRef,
       updatedByUser: doc.updatedByUser,
     };
   }

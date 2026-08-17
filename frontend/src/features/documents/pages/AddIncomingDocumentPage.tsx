@@ -177,19 +177,19 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
 
         // Populate form fields
         setForm({
-          issuer: doc.issuer || '',
-          documentNumber: doc.documentNumber || '',
-          dateLetter: doc.dateLetter || '',
+          issuer: doc.document.issuer || '',
+          documentNumber: doc.document.documentNumber || '',
+          dateLetter: doc.document.issuanceDate || '',
           documentTypeId: doc.document.documentTypeId?.toString() || '',
-          summary: doc.summary || '',
+          summary: doc.document.description || '',
           pageCount: doc.pageCount?.toString() || '',
-          signerName: doc.signerName || '',
-          signerTitle: doc.signerTitle || '',
+          signerName: doc.document.signerName || '',
+          signerTitle: doc.document.signerTitle || '',
         });
 
         setArrivalNumber(doc.arrivalNumber?.toString() || '');
         setDateReceived(doc.dateReceived?.split('T')[0] || new Date().toISOString().split('T')[0]);
-        setNotes(doc.notes || '');
+        setNotes(doc.document.notes || '');
         setProcessingInstructions(doc.processingInstructions || '');
 
         // Set urgency and confidentiality if available

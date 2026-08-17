@@ -92,6 +92,18 @@ export const uploadDocumentValidation = [
     .trim()
     .isLength({ max: 100 })
     .withMessage('Category must be at most 100 characters'),
+  body('categoryId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Invalid category ID'),
+  body('documentTypeId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Invalid document type ID'),
+  body('documentTypeRef')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Invalid document type ref ID'),
   body('departmentId')
     .optional()
     .isInt({ min: 1 })
@@ -134,6 +146,26 @@ export const updateDocumentValidation = [
     .trim()
     .isLength({ max: 200 })
     .withMessage('Sending agency must be at most 200 characters'),
+  body('issuer')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Issuer must be at most 200 characters'),
+  body('signerName')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer name must be at most 200 characters'),
+  body('signerTitle')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer title must be at most 200 characters'),
+  body('notes')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Notes must be at most 2000 characters'),
   body('urgency')
     .optional({ nullable: true })
     .custom((value) => {

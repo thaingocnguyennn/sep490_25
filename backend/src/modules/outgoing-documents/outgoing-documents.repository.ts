@@ -9,14 +9,11 @@ import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 export interface OutgoingDocumentWithRelations {
   id: number;
   documentId: number;
-  documentType: string | null;
   documentTypeId: number | null;
   documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: Date | null;
-  signerName: string | null;
-  signerTitle: string | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -38,14 +35,10 @@ export interface OutgoingDocumentWithRelations {
   recallReason: string | null;
   trashedAt: Date | null;
   trashedBy: number | null;
-  notes: string | null;
   assignedApproverId: number | null;
   assignedClerkId: number | null;
   createdAt: Date;
   updatedAt: Date;
-  // Lĩnh vực văn bản
-  categoryId: number | null;
-  category: { id: number; name: string; code: string } | null;
   document: {
     id: number;
     documentNumber: string;
@@ -69,6 +62,15 @@ export interface OutgoingDocumentWithRelations {
       name: string;
       description: string | null;
     } | null;
+    documentTypeId: number | null;
+    documentTypeRef: { id: number; name: string } | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    notes: string | null;
+    issuer: string | null;
+    issuanceDate: Date | null;
+    categoryId: number | null;
+    category: { id: number; name: string; code: string } | null;
     documentStatus: string;
     isArchived: boolean;
     originalFileName: string | null;
@@ -106,6 +108,8 @@ const OUTGOING_INCLUDE = {
       department: { select: { id: true, name: true } },
       confidentiality: { select: { id: true, code: true, name: true, description: true } },
       urgency: { select: { id: true, name: true, description: true } },
+      // Include lĩnh vực văn bản (chỉ lấy ACTIVE, nhưng include không filter - filter ở service)
+      category: { select: { id: true, name: true, code: true } },
       attachments: {
         select: {
           id: true,
@@ -118,8 +122,6 @@ const OUTGOING_INCLUDE = {
     },
   },
   documentTypeRef: { select: { id: true, name: true } },
-  // Include lĩnh vực văn bản (chỉ lấy ACTIVE, nhưng include không filter - filter ở service)
-  category: { select: { id: true, name: true, code: true } },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },
@@ -238,7 +240,7 @@ export class OutgoingDocumentsRepository {
           { document: { title: { contains: search, mode: 'insensitive' } } },
           { document: { documentNumber: { contains: search, mode: 'insensitive' } } },
           { document: { ocrText: { contains: search, mode: 'insensitive' } } },
-          { signerName: { contains: search, mode: 'insensitive' } },
+          { document: { signerName: { contains: search, mode: 'insensitive' } } },
           { recipientName: { contains: search, mode: 'insensitive' } },
         ],
       });

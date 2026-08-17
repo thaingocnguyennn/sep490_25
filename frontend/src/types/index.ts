@@ -174,10 +174,15 @@ export interface Document {
   confidentialityId: number | null;
   confidentiality: Confidentiality | null;
   documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
-  sendingAgency: string | null;
+  documentTypeRef: { id: number; name: string; code?: string } | null;
+  /** Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency) */
+  issuer: string | null;
+  signerName: string | null;
+  signerTitle: string | null;
+  notes: string | null;
   issuanceDate: string | null;
-  category: string | null;
+  categoryId: number | null;
+  category: { id: number; name: string; code: string } | null;
   originalFileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
@@ -238,13 +243,17 @@ export interface UpdateDocumentRequest {
   description?: string;
   type?: DocumentDirection;
   issuanceDate?: string | null;
-  sendingAgency?: string;
+  issuer?: string | null;
+  signerName?: string | null;
+  signerTitle?: string | null;
+  notes?: string | null;
   /** Seeded urgency name, legacy alias, or numeric id; null to clear */
   urgency?: UrgencyCodeOrName | null;
   urgencyId?: UrgencyCodeOrName | null;
   confidentialityLevel?: ConfidentialityCodeOrName;
   confidentialityId?: ConfidentialityCodeOrName | null;
-  category?: string;
+  categoryId?: number | null;
+  documentTypeId?: number | null;
   departmentId?: number | null;
   processorId?: number | null;
 }
@@ -267,14 +276,11 @@ export type OutgoingDocumentStatus =
 export interface OutgoingDocument {
   id: number;
   documentId: number;
-  documentType: string | null;
   documentTypeId: number | null;
   documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: string | null;
-  signerName: string | null;
-  signerTitle: string | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -297,7 +303,6 @@ export interface OutgoingDocument {
   recallReason: string | null;
   trashedAt: string | null;
   trashedBy: number | null;
-  notes: string | null;
   assignedApproverId: number | null;
   assignedClerkId: number | null;
   createdAt: string;
@@ -317,6 +322,15 @@ export interface OutgoingDocument {
     urgency: Urgency | null;
     confidentialityId: number | null;
     confidentiality: Confidentiality | null;
+    documentTypeId: number | null;
+    documentTypeRef: { id: number; name: string } | null;
+    issuer: string | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    notes: string | null;
+    issuanceDate: string | null;
+    categoryId: number | null;
+    category: { id: number; name: string; code: string } | null;
     documentStatus: DocumentStatus;
     isArchived: boolean;
     originalFileName: string | null;

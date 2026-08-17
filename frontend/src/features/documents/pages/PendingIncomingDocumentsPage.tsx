@@ -142,7 +142,7 @@ export default function PendingIncomingDocumentsPage() {
                       </td>
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#667eea' }}>
-                          {item.documentNumber || '—'}
+                          {item.document.documentNumber || '—'}
                         </span>
                       </td>
                       <td
@@ -152,9 +152,9 @@ export default function PendingIncomingDocumentsPage() {
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}
-                        title={item.issuer || ''}
+                        title={item.document.issuer || ''}
                       >
-                        {item.issuer || '—'}
+                        {item.document.issuer || '—'}
                       </td>
                       <td>
                         {item.document.documentTypeRef ? (

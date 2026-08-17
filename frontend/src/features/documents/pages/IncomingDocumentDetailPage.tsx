@@ -318,7 +318,7 @@ export default function IncomingDocumentDetailPage() {
                 <div className="detail-item">
                   <label>Số ký hiệu</label>
                   <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea' }}>
-                    {doc.documentNumber || '—'}
+                    {doc.document.documentNumber || '—'}
                   </span>
                 </div>
                 <div className="detail-item">
@@ -331,16 +331,16 @@ export default function IncomingDocumentDetailPage() {
                     <span>{doc.pageCount}</span>
                   </div>
                 )}
-                {doc.issuer && (
+                {doc.document.issuer && (
                   <div className="detail-item full-width">
                     <label>Cơ quan ban hành</label>
-                    <span style={{ fontWeight: 600 }}>{doc.issuer}</span>
+                    <span style={{ fontWeight: 600 }}>{doc.document.issuer}</span>
                   </div>
                 )}
-                {doc.summary && (
+                {doc.document.description && (
                   <div className="detail-item full-width">
                     <label>Trích yếu nội dung</label>
-                    <span>{doc.summary}</span>
+                    <span>{doc.document.description}</span>
                   </div>
                 )}
                 <div className="detail-item">
@@ -349,7 +349,7 @@ export default function IncomingDocumentDetailPage() {
                 </div>
                 <div className="detail-item">
                   <label>Ngày văn bản</label>
-                  <span>{doc.dateLetter ? new Date(doc.dateLetter).toLocaleDateString('vi-VN') : '—'}</span>
+                  <span>{doc.document.issuanceDate ? new Date(doc.document.issuanceDate).toLocaleDateString('vi-VN') : '—'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Độ khẩn</label>
@@ -371,7 +371,7 @@ export default function IncomingDocumentDetailPage() {
             </div>
           </div>
 
-          {(doc.signerName || doc.signerTitle) && (
+          {(doc.document.signerName || doc.document.signerTitle) && (
             <div className="card" style={{ marginBottom: 24 }}>
               <div className="card-header">
                 <h2>Thông tin ký</h2>
@@ -380,11 +380,11 @@ export default function IncomingDocumentDetailPage() {
                 <div className="detail-grid">
                   <div className="detail-item">
                     <label>Họ tên người ký</label>
-                    <span>{doc.signerName || '—'}</span>
+                    <span>{doc.document.signerName || '—'}</span>
                   </div>
                   <div className="detail-item">
                     <label>Chức vụ</label>
-                    <span>{doc.signerTitle || '—'}</span>
+                    <span>{doc.document.signerTitle || '—'}</span>
                   </div>
                 </div>
               </div>
@@ -632,13 +632,13 @@ export default function IncomingDocumentDetailPage() {
             </div>
           </div>
 
-          {doc.notes && (
+          {doc.document.notes && (
             <div className="card">
               <div className="card-header">
                 <h2>Ghi chú</h2>
               </div>
               <div className="card-body">
-                <p style={{ whiteSpace: 'pre-wrap' }}>{doc.notes}</p>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{doc.document.notes}</p>
               </div>
             </div>
           )}

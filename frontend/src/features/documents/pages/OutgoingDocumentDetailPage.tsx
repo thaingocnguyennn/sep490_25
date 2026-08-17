@@ -427,11 +427,6 @@ export default function OutgoingDocumentDetailPage() {
                       <label>Loại văn bản</label>
                       <span>{doc.documentTypeRef.name}</span>
                     </div>
-                  ) : doc.documentType ? (
-                    <div className="detail-item">
-                      <label>Loại văn bản</label>
-                      <span>{doc.documentType}</span>
-                    </div>
                   ) : null}
                   {doc.pageCount && (
                     <div className="detail-item">
@@ -457,11 +452,11 @@ export default function OutgoingDocumentDetailPage() {
                     <label>Trạng thái</label>
                     <span><DocumentStatusBadge status={docStatus} /></span>
                   </div>
-                  {doc.signerName && (
+                  {doc.document.signerName && (
                     <div className="detail-item">
                       <label>Người ký</label>
                       <span style={{ fontWeight: 600 }}>
-                        {doc.signerName}{doc.signerTitle ? ` (${doc.signerTitle})` : ''}
+                        {doc.document.signerName}{doc.document.signerTitle ? ` (${doc.document.signerTitle})` : ''}
                       </span>
                     </div>
                   )}
@@ -507,10 +502,10 @@ export default function OutgoingDocumentDetailPage() {
                     <label>Ngày tạo</label>
                     <span>{formatDateTime(doc.createdAt)}</span>
                   </div>
-                  {doc.notes && (
+                  {doc.document.notes && (
                     <div className="detail-item full-width">
                       <label>Ghi chú</label>
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{doc.notes}</span>
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{doc.document.notes}</span>
                     </div>
                   )}
                 </div>

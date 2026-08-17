@@ -6,17 +6,10 @@ import { resolveUrgencyId } from '../../shared/utils/urgency';
 export interface IncomingDocumentWithRelations {
   id: number;
   documentId: number;
-  issuer: string | null;
-  documentNumber: string | null;
   arrivalNumber: number | null;
-  signerName: string | null;
-  signerTitle: string | null;
-  dateLetter: Date | null;
   dateReceived: Date;
   receivedDate: Date;
-  summary: string | null;
   pageCount: number | null;
-  notes: string | null;
   processingInstructions: string | null;
   createdByClerkId: number | null;
   createdByClerk: { id: number; fullName: string } | null;
@@ -51,6 +44,13 @@ export interface IncomingDocumentWithRelations {
     ocrText: string | null;
     documentTypeId: number | null;
     documentTypeRef: { id: number; name: string } | null;
+    issuer: string | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    notes: string | null;
+    issuanceDate: Date | null;
+    categoryId: number | null;
+    category: { id: number; name: string } | null;
     createdAt: Date;
     updatedAt: Date;
     createdByUser: { id: number; fullName: string } | null;
@@ -102,8 +102,11 @@ export class IncomingDocumentsRepository {
     const where: Prisma.IncomingDocumentWhereInput = {};
     if (search) {
       documentWhere.OR = [
-        { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { title: { contains: search, mode: 'insensitive' } },
+        { issuer: { contains: search, mode: 'insensitive' } },
+        { signerName: { contains: search, mode: 'insensitive' } },
       ];
     }
     if (status) documentWhere.status = status as any;
@@ -146,6 +149,7 @@ export class IncomingDocumentsRepository {
               urgency: { select: { id: true, name: true, description: true } },
               confidentiality: { select: { id: true, code: true, name: true, description: true } },
               documentTypeRef: { select: { id: true, name: true } },
+              category: { select: { id: true, name: true } },
               processors: {
                 select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
               },
@@ -180,6 +184,7 @@ export class IncomingDocumentsRepository {
             urgency: { select: { id: true, name: true, description: true } },
             confidentiality: { select: { id: true, code: true, name: true, description: true } },
             documentTypeRef: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true } },
             processors: {
               select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
             },
@@ -216,10 +221,11 @@ export class IncomingDocumentsRepository {
     if (search) {
       documentWhere.OR = [
         { title: { contains: search, mode: 'insensitive' } },
-        { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { issuer: { contains: search, mode: 'insensitive' } },
+        { signerName: { contains: search, mode: 'insensitive' } },
         { documentTypeRef: { is: { name: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
 
@@ -277,10 +283,11 @@ export class IncomingDocumentsRepository {
     if (search) {
       documentWhere.OR = [
         { title: { contains: search, mode: 'insensitive' } },
-        { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { issuer: { contains: search, mode: 'insensitive' } },
+        { signerName: { contains: search, mode: 'insensitive' } },
         { documentTypeRef: { is: { name: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
 

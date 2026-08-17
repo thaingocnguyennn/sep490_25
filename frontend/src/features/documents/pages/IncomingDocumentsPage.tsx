@@ -177,11 +177,11 @@ export default function IncomingDocumentsPage() {
                       </td>
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#667eea' }}>
-                          {item.documentNumber || '—'}
+                          {item.document.documentNumber || '—'}
                         </span>
                       </td>
-                      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.issuer || ''}>
-                        {item.issuer || '—'}
+                      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.document.issuer || ''}>
+                        {item.document.issuer || '—'}
                       </td>
                       <td>
                         {item.document.documentTypeRef ? (
@@ -189,13 +189,13 @@ export default function IncomingDocumentsPage() {
                         ) : '—'}
                       </td>
                       <td style={{ maxWidth: 200 }}>
-                        <span title={item.summary || ''} style={{
+                        <span title={item.document.description || ''} style={{
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                         }}>
-                          {item.summary || '—'}
+                          {item.document.description || '—'}
                         </span>
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>

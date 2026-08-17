@@ -458,21 +458,17 @@ async function main() {
   }
   console.log('Document Categories seeded (tên tiếng Việt)');
 
-  // Backfill existing documents
+  // Backfill existing documents with default category (Document-side)
   const otherCategory = await prisma.documentCategory.findUnique({
     where: { code: 'OTHER' }
   });
 
   if (otherCategory) {
-    const incomingBackfill = await prisma.incomingDocument.updateMany({
+    const backfill = await prisma.document.updateMany({
       where: { categoryId: null },
       data: { categoryId: otherCategory.id }
     });
-    const outgoingBackfill = await prisma.outgoingDocument.updateMany({
-      where: { categoryId: null },
-      data: { categoryId: otherCategory.id }
-    });
-    console.log(`Backfilled category for ${incomingBackfill.count} incoming and ${outgoingBackfill.count} outgoing documents`);
+    console.log(`Backfilled category for ${backfill.count} documents`);
   }
 
   // Seed Document Types (Thể loại văn bản – UC-71 to UC-74)

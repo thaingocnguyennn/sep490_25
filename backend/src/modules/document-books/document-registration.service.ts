@@ -76,21 +76,21 @@ export class DocumentRegistrationService {
 
       // 5. Tạo IncomingBookEntry
       const arrivalDate = customArrivalDate || doc.dateReceived || new Date();
-      
-      const docNumber = doc.documentNumber || doc.document.documentNumber;
-      
+
+      const docNumber = doc.document.documentNumber;
+
       const entry = await tx.incomingBookEntry.create({
         data: {
           documentBookId,
           incomingDocumentId,
           arrivalNumber,
           arrivalDate,
-          senderSnapshot: doc.issuer || '',
+          senderSnapshot: doc.document.issuer || '',
           documentNumberSnapshot: docNumber,
           documentSymbolSnapshot: docNumber && docNumber.includes('/') ? docNumber.split('/')[1] : null,
-          documentDateSnapshot: doc.dateLetter,
+          documentDateSnapshot: doc.document.issuanceDate,
           documentTypeSnapshot: doc.document.documentTypeRef?.name ?? '',
-          summarySnapshot: doc.summary || doc.document.description || doc.document.title,
+          summarySnapshot: doc.document.description || doc.document.title,
           assignedDepartmentSnapshot: assignedDept,
           assignedUserSnapshot: assignedUser,
           registeredById,
@@ -189,7 +189,7 @@ export class DocumentRegistrationService {
           issuanceDate,
           documentTypeSnapshot: doc.document.documentTypeRef?.name ?? '',
           summarySnapshot: doc.document.description || doc.document.title,
-          signerSnapshot: doc.signerName || '',
+          signerSnapshot: doc.document.signerName || '',
           recipientsSnapshot: doc.recipientName || '',
           archiveRecipientSnapshot: book.department.name, // Lưu tại phòng ban của sổ
           copyCount: doc.pageCount || 1, // Tạm dùng pageCount hoặc default 1

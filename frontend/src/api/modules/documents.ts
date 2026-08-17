@@ -53,16 +53,9 @@ export type WorkflowStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED
 export interface IncomingDocumentDetail {
   id: number;
   documentId: number;
-  issuer: string | null;
-  documentNumber: string | null;
   arrivalNumber: number | null;
-  signerName: string | null;
-  signerTitle: string | null;
-  dateLetter: string | null;
   dateReceived: string;
-  summary: string | null;
   pageCount: number | null;
-  notes: string | null;
   processingInstructions: string | null;
   createdByClerkId: number | null;
   createdByClerk: { id: number; fullName: string } | null;
@@ -74,16 +67,9 @@ export interface IncomingDocumentDetail {
 export interface IncomingDocumentListItem {
   id: number;
   documentId: number;
-  issuer: string | null;
-  documentNumber: string | null;
   arrivalNumber: number | null;
-  signerName: string | null;
-  signerTitle: string | null;
-  dateLetter: string | null;
   dateReceived: string;
-  summary: string | null;
   pageCount: number | null;
-  notes: string | null;
   processingInstructions: string | null;
   createdByClerkId: number | null;
   createdByClerk: { id: number; fullName: string } | null;

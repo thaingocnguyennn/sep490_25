@@ -251,8 +251,8 @@ export default function ProcessIncomingDocumentModal({
             <div style={{ fontSize: 13, color: '#636e72', marginBottom: 4 }}>Văn bản đang xử lý</div>
             <div style={{ fontWeight: 600 }}>{doc.document.title}</div>
             <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>
-              Số ký hiệu: <strong>{doc.documentNumber || '—'}</strong>
-              {doc.issuer && <> &nbsp;•&nbsp; Cơ quan ban hành: <strong>{doc.issuer}</strong></>}
+              Số ký hiệu: <strong>{doc.document.documentNumber || '—'}</strong>
+              {doc.document.issuer && <> &nbsp;•&nbsp; Cơ quan ban hành: <strong>{doc.document.issuer}</strong></>}
             </div>
           </div>
 

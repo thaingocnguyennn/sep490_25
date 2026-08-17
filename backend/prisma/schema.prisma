@@ -275,16 +275,18 @@ model Document {
   searchVector   Unsupported("tsvector")? // Full-text search: title + description + ocrText
 
   // --- Level 2 fields: basic document management ---
-  issuanceDate      DateTime? // Ngày ban hành
-  sendingAgency     String? // Cơ quan gửi
-  urgencyId         Int? // FK -> Urgency (mức độ khẩn)
-  confidentialityId Int? // FK -> Confidentiality (mức độ mật)
-  documentStatus    DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
-  category          String? // Phân loại phụ (tuỳ chọn)
-  originalFileName  String? // Tên file gốc khi upload
-  fileSize          Int? // Dung lượng file (bytes)
-  mimeType          String? // Loại MIME (application/pdf, ...)
-  isArchived        Boolean                 @default(false) // Đã lưu trữ
+  issuer             String? // Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency)
+  signerName         String? // Họ tên người ký
+  signerTitle        String? // Chức vụ người ký
+  notes              String? // Ghi chú chung
+  issuanceDate       DateTime? // Ngày ban hành (tên c� ở IncomingDocument: dateLetter)
+  urgencyId          Int? // FK -> Urgency (mức độ khẩn)
+  confidentialityId  Int? // FK -> Confidentiality (mức độ mật)
+  documentStatus     DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
+  originalFileName   String? // Tên file gốc khi upload
+  fileSize           Int? // Dung lượng file (bytes)
+  mimeType           String? // Loại MIME (application/pdf, ...)
+  isArchived         Boolean                 @default(false) // Đã lưu trữ
 
   // Department & processor relations
   departmentId Int?
@@ -295,6 +297,10 @@ model Document {
   // Lookup ref: loại văn bản hành chính (Công văn, Quyết định, ...)
   documentTypeId  Int?
   documentTypeRef DocumentType? @relation("DocumentDocumentType", fields: [documentTypeId], references: [id])
+
+  // Lookup ref: lĩnh vực văn bản (lookup table)
+  categoryId Int?
+  category   DocumentCategory? @relation("DocumentCategory", fields: [categoryId], references: [id])
 
   // Confidentiality & urgency relations
   confidentiality Confidentiality? @relation(fields: [confidentialityId], references: [id])
@@ -330,17 +336,9 @@ model Document {
 model IncomingDocument {
   id                     Int       @id @default(autoincrement())
   documentId             Int       @unique
-  issuer                 String? // Cơ quan ban hành
-  documentType           String? // Loại văn bản cũ (String, giữ tạm trong giai đoạn chuyển đổi)
-  documentNumber         String? // Số ký hiệu văn bản
   arrivalNumber          Int? // Số đến (do DocumentBook cấp, không gán thủ công)
-  signerName             String? // Họ tên người ký
-  signerTitle            String? // Chức vụ người ký
-  dateLetter             DateTime? // Ngày, tháng, năm văn bản
   dateReceived           DateTime // Ngày đến
-  summary                String?   @db.Text // Trích yếu nội dung
   pageCount              Int? // Số trang văn bản
-  notes                  String?
   processingInstructions String?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
@@ -356,13 +354,9 @@ model IncomingDocument {
   createdByClerk   User? @relation("IncomingDocumentClerk", fields: [createdByClerkId], references: [id])
   createdByClerkId Int?
 
-  categoryId Int?
-  category   DocumentCategory? @relation(fields: [categoryId], references: [id])
-
   outgoingResponses   OutgoingDocument[]
   bookEntry           IncomingBookEntry?
 
-  @@index([categoryId])
   @@index([createdByClerkId])
   @@index([departmentId])
   @@index([dateReceived])
@@ -375,12 +369,9 @@ model OutgoingDocument {
   documentId Int @unique
 
   // Thông tin cơ bản văn bản đi
-  documentType   String? // Loại văn bản cũ (String, giữ tạm trong giai đoạn chuyển đổi)
   documentNumber String? // Số ký hiệu văn bản gốc
   dispatchNumber String? // Số phát hành chính thức (officialNumber, do DocumentBook cấp)
   issuanceDate   DateTime? // Ngày ban hành chính thức
-  signerName     String? // Họ tên người ký
-  signerTitle    String? // Chức vụ người ký
 
   // Thông tin phát hành
   recipientName    String? // Tên người/cơ quan nhận
@@ -414,7 +405,6 @@ model OutgoingDocument {
   trashedAt    DateTime? // Thời điểm đưa vào thùng rác
   trashedBy    Int? // Người đưa vào thùng rác
 
-  notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -432,16 +422,12 @@ model OutgoingDocument {
   assignedClerkId    Int?
   assignedClerk      User? @relation("OutgoingAssignedClerk", fields: [assignedClerkId], references: [id])
 
-  categoryId Int?
-  category   DocumentCategory? @relation(fields: [categoryId], references: [id])
-
   // FK sang bảng DocumentType (model mới, tên cũ DocumentKind)
   documentTypeId  Int?
   documentTypeRef DocumentType? @relation("OutgoingDocumentType", fields: [documentTypeId], references: [id])
 
   bookEntry OutgoingBookEntry?
 
-  @@index([categoryId])
   @@index([documentTypeId])
   @@index([relatedIncomingDocumentId])
   @@index([dispatchNumber])
@@ -735,8 +721,7 @@ model DocumentCategory {
   createdBy User @relation("DocumentCategoryCreatedBy", fields: [createdById], references: [id])
   updatedBy User? @relation("DocumentCategoryUpdatedBy", fields: [updatedById], references: [id])
 
-  incomingDocuments IncomingDocument[]
-  outgoingDocuments OutgoingDocument[]
+  documents Document[] @relation("DocumentCategory")
 
   @@index([status, deletedAt])
   @@index([name])

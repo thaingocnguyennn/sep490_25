@@ -61,23 +61,23 @@ export class DocumentsService {
       description?: string;
       type: string;
       issuanceDate?: string;
-      sendingAgency?: string;
+      issuer?: string;
+      signerName?: string;
+      signerTitle?: string;
+      notes?: string;
       /** Canonical urgency: seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
       urgency?: string;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
       confidentialityLevel?: string;
       confidentialityId?: string;
-      category?: string;
+      categoryId?: string;
+      documentTypeId?: string;
       departmentId?: string;
       processorId?: string;
-      // New incoming fields
-      documentType?: string;
-      signerName?: string;
-      signerTitle?: string;
+      // Incoming-specific fields
       pageCount?: string;
       arrivalNumber?: string;
       dateReceived?: string;
-      notes?: string;
     },
     createdBy: number
   ): Promise<DocumentDetail> {
@@ -100,10 +100,14 @@ export class DocumentsService {
       type: data.type as any,
       fileUrl,
       issuanceDate: data.issuanceDate ? new Date(data.issuanceDate) : undefined,
-      sendingAgency: data.sendingAgency,
+      issuer: data.issuer,
+      signerName: data.signerName,
+      signerTitle: data.signerTitle,
+      notes: data.notes,
       urgencyId: data.urgency ?? undefined,
       confidentialityId: data.confidentialityId ?? data.confidentialityLevel,
-      category: data.category,
+      categoryId: data.categoryId ? Number(data.categoryId) : undefined,
+      documentTypeId: data.documentTypeId ? Number(data.documentTypeId) : undefined,
       originalFileName: file?.originalname,
       fileSize: file?.size,
       mimeType: file?.mimetype,
@@ -118,14 +122,9 @@ export class DocumentsService {
         data: {
           documentId: doc.id,
           dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
-          issuer: data.sendingAgency || '',
           departmentId: data.departmentId ? Number(data.departmentId) : undefined,
-          documentType: data.documentType,
-          signerName: data.signerName,
-          signerTitle: data.signerTitle,
           pageCount: data.pageCount ? Number(data.pageCount) : undefined,
           arrivalNumber: data.arrivalNumber ? Number(data.arrivalNumber) : undefined,
-          notes: data.notes,
         },
       });
     } else if (data.type === 'OUTGOING') {
@@ -159,7 +158,12 @@ export class DocumentsService {
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
       confidentialityLevel?: string;
       confidentialityId?: string | null;
-      category?: string;
+      categoryId?: number | null;
+      documentTypeId?: number | null;
+      issuer?: string | null;
+      signerName?: string | null;
+      signerTitle?: string | null;
+      notes?: string | null;
       departmentId?: number | null;
       processorId?: number | null;
     },
@@ -194,7 +198,10 @@ export class DocumentsService {
       description: data.description,
       type: data.type as any,
       issuanceDate: data.issuanceDate === null ? null : data.issuanceDate ? new Date(data.issuanceDate) : undefined,
-      sendingAgency: data.sendingAgency,
+      issuer: data.issuer,
+      signerName: data.signerName,
+      signerTitle: data.signerTitle,
+      notes: data.notes,
       urgencyId: data.urgency !== undefined ? data.urgency : undefined,
       confidentialityId:
         data.confidentialityId !== undefined
@@ -202,7 +209,8 @@ export class DocumentsService {
           : data.confidentialityLevel !== undefined
             ? data.confidentialityLevel
             : undefined,
-      category: data.category,
+      categoryId: data.categoryId,
+      documentTypeId: data.documentTypeId,
       departmentId: data.departmentId,
       processorId: data.processorId,
       updatedBy,
@@ -214,7 +222,7 @@ export class DocumentsService {
         const incomingExist = await prisma.incomingDocument.findUnique({ where: { documentId: id } });
         if (!incomingExist) {
           await prisma.incomingDocument.create({
-            data: { documentId: id, dateReceived: new Date(), issuer: data.sendingAgency || '' }
+            data: { documentId: id, dateReceived: new Date() }
           });
         }
       } else if (data.type === 'OUTGOING') {
@@ -586,7 +594,7 @@ export class DocumentsService {
       { header: 'Type', key: 'type', width: 14 },
       { header: 'Urgency', key: 'urgencyName', width: 14 },
       { header: 'Confidentiality', key: 'confidentialityName', width: 16 },
-      { header: 'Sending Agency', key: 'sendingAgency', width: 25 },
+      { header: 'Issuer', key: 'issuer', width: 25 },
       { header: 'Issuance Date', key: 'issuanceDate', width: 16 },
       { header: 'Department', key: 'department', width: 20 },
       { header: 'Processor', key: 'processor', width: 20 },
@@ -609,7 +617,7 @@ export class DocumentsService {
         confidentialityName: doc.confidentiality
           ? `${doc.confidentiality.code ? `(${doc.confidentiality.code}) ` : ''}${doc.confidentiality.name}`
           : '—',
-        sendingAgency: doc.sendingAgency || '—',
+        issuer: doc.issuer || '—',
         issuanceDate: doc.issuanceDate ? new Date(doc.issuanceDate).toLocaleDateString() : '—',
         department: doc.department?.name || '—',
         processor: doc.processor?.fullName || '—',
