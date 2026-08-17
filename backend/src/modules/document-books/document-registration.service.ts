@@ -22,6 +22,7 @@ export class DocumentRegistrationService {
         include: {
           document: {
             include: {
+              documentTypeRef: { select: { id: true, name: true } },
               processors: {
                 include: {
                   user: {
@@ -88,7 +89,7 @@ export class DocumentRegistrationService {
           documentNumberSnapshot: docNumber,
           documentSymbolSnapshot: docNumber && docNumber.includes('/') ? docNumber.split('/')[1] : null,
           documentDateSnapshot: doc.dateLetter,
-          documentTypeSnapshot: doc.documentType || doc.document.type,
+          documentTypeSnapshot: doc.document.documentTypeRef?.name ?? '',
           summarySnapshot: doc.summary || doc.document.description || doc.document.title,
           assignedDepartmentSnapshot: assignedDept,
           assignedUserSnapshot: assignedUser,
@@ -135,7 +136,11 @@ export class DocumentRegistrationService {
       const doc = await tx.outgoingDocument.findUnique({
         where: { id: outgoingDocumentId },
         include: {
-          document: true,
+          document: {
+            include: {
+              documentTypeRef: { select: { id: true, name: true } },
+            },
+          },
           issuedByUser: true,
         }
       });
@@ -182,7 +187,7 @@ export class DocumentRegistrationService {
           officialNumber,
           documentSymbol: docSymbol,
           issuanceDate,
-          documentTypeSnapshot: doc.documentType || doc.document.type,
+          documentTypeSnapshot: doc.document.documentTypeRef?.name ?? '',
           summarySnapshot: doc.document.description || doc.document.title,
           signerSnapshot: doc.signerName || '',
           recipientsSnapshot: doc.recipientName || '',

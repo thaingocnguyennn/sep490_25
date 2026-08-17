@@ -1,12 +1,12 @@
 ﻿import api from '../../../api/axios';
 import {
-  DocumentKindFilter,
-  DocumentKindOption,
-  DocumentKindResponse,
-  PaginatedDocumentKindResponse,
-  CreateDocumentKindDto,
-  UpdateDocumentKindDto,
-  DeleteDocumentKindResult,
+  DocumentTypeFilter,
+  DocumentTypeOption,
+  DocumentTypeResponse,
+  PaginatedDocumentTypeResponse,
+  CreateDocumentTypeDto,
+  UpdateDocumentTypeDto,
+  DeleteDocumentTypeResult,
 } from '../types/documentType.types';
 
 interface ApiResponse<T> {
@@ -16,8 +16,8 @@ interface ApiResponse<T> {
 }
 
 export const documentTypeApi = {
-  getAll: async (filter?: DocumentKindFilter): Promise<PaginatedDocumentKindResponse> => {
-    const response = await api.get<ApiResponse<{ items: DocumentKindResponse[]; total: number; page: number; limit: number; totalPages: number }>>('/document-types', {
+  getAll: async (filter?: DocumentTypeFilter): Promise<PaginatedDocumentTypeResponse> => {
+    const response = await api.get<ApiResponse<{ items: DocumentTypeResponse[]; total: number; page: number; limit: number; totalPages: number }>>('/document-types', {
       params: filter,
     });
     const d = response.data.data;
@@ -30,33 +30,33 @@ export const documentTypeApi = {
     };
   },
 
-  getById: async (id: number): Promise<DocumentKindResponse> => {
-    const response = await api.get<ApiResponse<DocumentKindResponse>>(`/document-types/${id}`);
+  getById: async (id: number): Promise<DocumentTypeResponse> => {
+    const response = await api.get<ApiResponse<DocumentTypeResponse>>(`/document-types/${id}`);
     return response.data.data;
   },
 
-  getActiveOptions: async (): Promise<DocumentKindOption[]> => {
-    const response = await api.get<ApiResponse<DocumentKindOption[]>>('/document-types/options');
+  getActiveOptions: async (): Promise<DocumentTypeOption[]> => {
+    const response = await api.get<ApiResponse<DocumentTypeOption[]>>('/document-types/options');
     return response.data.data;
   },
 
-  create: async (dto: CreateDocumentKindDto): Promise<DocumentKindResponse> => {
-    const response = await api.post<ApiResponse<DocumentKindResponse>>('/document-types', dto);
+  create: async (dto: CreateDocumentTypeDto): Promise<DocumentTypeResponse> => {
+    const response = await api.post<ApiResponse<DocumentTypeResponse>>('/document-types', dto);
     return response.data.data;
   },
 
-  update: async (id: number, dto: UpdateDocumentKindDto): Promise<DocumentKindResponse> => {
-    const response = await api.patch<ApiResponse<DocumentKindResponse>>(`/document-types/${id}`, dto);
+  update: async (id: number, dto: UpdateDocumentTypeDto): Promise<DocumentTypeResponse> => {
+    const response = await api.patch<ApiResponse<DocumentTypeResponse>>(`/document-types/${id}`, dto);
     return response.data.data;
   },
 
-  reactivate: async (id: number): Promise<DocumentKindResponse> => {
-    const response = await api.patch<ApiResponse<DocumentKindResponse>>(`/document-types/${id}/reactivate`);
+  reactivate: async (id: number): Promise<DocumentTypeResponse> => {
+    const response = await api.patch<ApiResponse<DocumentTypeResponse>>(`/document-types/${id}/reactivate`);
     return response.data.data;
   },
 
-  delete: async (id: number): Promise<DeleteDocumentKindResult> => {
-    const response = await api.delete<ApiResponse<DeleteDocumentKindResult>>(`/document-types/${id}`);
+  delete: async (id: number): Promise<DeleteDocumentTypeResult> => {
+    const response = await api.delete<ApiResponse<DeleteDocumentTypeResult>>(`/document-types/${id}`);
     return response.data.data;
   },
 };

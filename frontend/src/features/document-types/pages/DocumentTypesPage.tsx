@@ -3,13 +3,12 @@ import { useDocumentTypes, useDocumentTypeActions } from '../hooks/useDocumentTy
 import { DocumentTypeTable } from '../components/DocumentTypeTable';
 import { DocumentTypeFormModal } from '../components/DocumentTypeFormModal';
 import { DeleteDocumentTypeModal } from '../components/DeleteDocumentTypeModal';
-import { DocumentKindResponse, DocumentKindStatus } from '../types/documentType.types';
+import { DocumentTypeResponse, DocumentTypeStatus } from '../types/documentType.types';
 import { LoadingSpinner } from '../../../shared/components';
 
 export const DocumentTypesPage: React.FC = () => {
   const { data, loading, error, fetchDocumentTypes } = useDocumentTypes();
   const { reactivate, loading: actionLoading } = useDocumentTypeActions();
-
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [page, setPage] = useState(1);
@@ -17,8 +16,8 @@ export const DocumentTypesPage: React.FC = () => {
 
   // Modal state
   const [showFormModal, setShowFormModal] = useState(false);
-  const [editingType, setEditingType] = useState<DocumentKindResponse | undefined>(undefined);
-  const [deletingType, setDeletingType] = useState<DocumentKindResponse | undefined>(undefined);
+  const [editingType, setEditingType] = useState<DocumentTypeResponse | undefined>(undefined);
+  const [deletingType, setDeletingType] = useState<DocumentTypeResponse | undefined>(undefined);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
@@ -26,7 +25,7 @@ export const DocumentTypesPage: React.FC = () => {
       page,
       limit,
       search: searchQuery || undefined,
-      status: (statusFilter as DocumentKindStatus) || undefined,
+      status: (statusFilter as DocumentTypeStatus) || undefined,
     });
   }, [fetchDocumentTypes, page, limit, searchQuery, statusFilter]);
 
@@ -50,20 +49,20 @@ export const DocumentTypesPage: React.FC = () => {
     setShowFormModal(true);
   };
 
-  const handleEditClick = (type: DocumentKindResponse) => {
+  const handleEditClick = (type: DocumentTypeResponse) => {
     setEditingType(type);
     setShowFormModal(true);
   };
 
-  const handleDeleteClick = (type: DocumentKindResponse) => {
+  const handleDeleteClick = (type: DocumentTypeResponse) => {
     setDeletingType(type);
   };
 
-  const handleReactivateClick = async (type: DocumentKindResponse) => {
+  const handleReactivateClick = async (type: DocumentTypeResponse) => {
     if (!window.confirm(`Bạn có chắc chắn muốn kích hoạt lại thể loại văn bản "${type.name}"?`)) {
       return;
     }
-    
+
     setActionError(null);
     try {
       await reactivate(type.id);
@@ -95,14 +94,12 @@ export const DocumentTypesPage: React.FC = () => {
           </button>
         </div>
       </div>
-
       <div className="page-content">
         {error && (
           <div className="alert alert-error" style={{ marginBottom: 16 }}>
             {error}
           </div>
         )}
-
         {actionError && (
           <div className="alert alert-error" style={{ marginBottom: 16 }}>
             ⚠ {actionError}
@@ -111,7 +108,6 @@ export const DocumentTypesPage: React.FC = () => {
             </button>
           </div>
         )}
-
         <div className="card">
           <div className="card-header">
             <h2>Tất cả Thể loại ({data?.total || 0})</h2>
@@ -129,13 +125,12 @@ export const DocumentTypesPage: React.FC = () => {
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
                 <option value="">Tất cả trạng thái</option>
-                <option value="ACTIVE">Đang hoạt động</option>
+                <option value="ACTIVE">�ang hoạt động</option>
                 <option value="INACTIVE">Ngừng hoạt động</option>
               </select>
               <button type="submit" className="btn btn-secondary">Tìm kiếm</button>
             </form>
           </div>
-
           <div className="card-body" style={{ padding: 0 }}>
             <DocumentTypeTable
               documentTypes={data?.data || []}
@@ -145,7 +140,6 @@ export const DocumentTypesPage: React.FC = () => {
               onReactivate={handleReactivateClick}
             />
           </div>
-
           {data && data.totalPages > 1 && (
             <div className="pagination">
               <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Trước</button>
@@ -171,7 +165,6 @@ export const DocumentTypesPage: React.FC = () => {
             </div>
           )}
         </div>
-
         {showFormModal && (
           <DocumentTypeFormModal
             documentType={editingType}
@@ -179,7 +172,6 @@ export const DocumentTypesPage: React.FC = () => {
             onSuccess={handleFormSuccess}
           />
         )}
-
         {deletingType && (
           <DeleteDocumentTypeModal
             documentType={deletingType}

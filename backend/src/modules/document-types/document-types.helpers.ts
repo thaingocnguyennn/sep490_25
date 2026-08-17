@@ -1,12 +1,12 @@
 ﻿/**
- * Normalise document kind name:
+ * Normalise document type name:
  * - Strip Vietnamese diacritics (NFD decomposition)
  * - Convert to lowercase
  * - Collapse multiple spaces
  *
  * Example: "Công   Văn" → "cong van"
  */
-export function normalizeDocumentKindName(value: string): string {
+export function normalizeDocumentTypeName(value: string): string {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -18,7 +18,7 @@ export function normalizeDocumentKindName(value: string): string {
 }
 
 /**
- * Normalise document kind code:
+ * Normalise document type code:
  * - Trim whitespace
  * - Convert to uppercase
  * - Remove all internal whitespace
@@ -26,7 +26,7 @@ export function normalizeDocumentKindName(value: string): string {
  * Example: "q đ" → "QĐ"
  * Note: We use NFC so composed Vietnamese chars like Đ are preserved.
  */
-export function normalizeDocumentKindCode(value: string): string {
+export function normalizeDocumentTypeCode(value: string): string {
   return value
     .normalize('NFC')
     .trim()
@@ -35,4 +35,4 @@ export function normalizeDocumentKindCode(value: string): string {
 }
 
 /** Pattern: letters / digits / Vietnamese chars, optionally separated by hyphens. No slash allowed. */
-export const DOCUMENT_KIND_CODE_PATTERN = /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u;
+export const DOCUMENT_TYPE_CODE_PATTERN = /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u;

@@ -475,9 +475,9 @@ async function main() {
     console.log(`Backfilled category for ${incomingBackfill.count} incoming and ${outgoingBackfill.count} outgoing documents`);
   }
 
-  // Seed Document Kinds (Thể loại văn bản – UC-71 to UC-74)
+  // Seed Document Types (Thể loại văn bản – UC-71 to UC-74)
   // isSystem = false so Document Clerk can manage these entries
-  const documentKinds = [
+  const documentTypes = [
     { code: 'CV',    name: 'CÔNG VĂN',          normalizedName: 'cong van',          description: 'Công văn hành chính' },
     { code: 'QĐ',    name: 'QUYẾT ĐỊNH',        normalizedName: 'quyet dinh',        description: 'Văn bản quyết định của cơ quan' },
     { code: 'NQ',    name: 'NGHỊ QUYẾT',        normalizedName: 'nghi quyet',        description: 'Văn bản nghị quyết của cơ quan' },
@@ -514,83 +514,18 @@ async function main() {
     { code: 'OTHER', name: 'KHÁC',              normalizedName: 'khac',              description: 'Các loại văn bản khác', isSystem: true },
   ];
 
-  for (const kind of documentKinds) {
-    await prisma.documentKind.upsert({
-      where: { code: kind.code },
+  for (const type of documentTypes) {
+    await prisma.documentType.upsert({
+      where: { code: type.code },
       update: {},
       create: {
-        ...kind,
-        isSystem: kind.isSystem ?? false,
+        ...type,
+        isSystem: type.isSystem ?? false,
         createdById: adminUser.id,
       },
     });
   }
-  console.log('Document Kinds seeded');
-
-  // Backfill: map legacy documentType String → documentTypeId
-  const legacyTypeMapping: Record<string, string> = {
-    'cong van': 'CV',
-    'quyet dinh': 'QD',
-    'thong bao': 'TB',
-    'bao cao': 'BC',
-    'ke hoach': 'KH',
-    'to trinh': 'TTR',
-    'bien ban': 'BB',
-    'huong dan': 'HD',
-  };
-
-  function normalizeLegacy(value: string): string {
-    return value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .replace(/Đ/g, 'D')
-      .trim()
-      .replace(/\s+/g, ' ')
-      .toLowerCase();
-  }
-
-  const otherKind = await prisma.documentKind.findUnique({ where: { code: 'OTHER' } });
-
-  if (otherKind) {
-    // Backfill IncomingDocument
-    const incomingDocs = await prisma.incomingDocument.findMany({
-      where: { documentTypeId: null },
-      select: { id: true, documentType: true },
-    });
-
-    for (const doc of incomingDocs) {
-      const normalized = normalizeLegacy(doc.documentType ?? '');
-      const code = legacyTypeMapping[normalized] ?? 'OTHER';
-      const kind = await prisma.documentKind.findUnique({ where: { code } });
-      if (kind) {
-        await prisma.incomingDocument.update({
-          where: { id: doc.id },
-          data: { documentTypeId: kind.id },
-        });
-      }
-    }
-    console.log(`Backfilled documentTypeId for ${incomingDocs.length} incoming documents`);
-
-    // Backfill OutgoingDocument
-    const outgoingDocs = await prisma.outgoingDocument.findMany({
-      where: { documentTypeId: null },
-      select: { id: true, documentType: true },
-    });
-
-    for (const doc of outgoingDocs) {
-      const normalized = normalizeLegacy(doc.documentType ?? '');
-      const code = legacyTypeMapping[normalized] ?? 'OTHER';
-      const kind = await prisma.documentKind.findUnique({ where: { code } });
-      if (kind) {
-        await prisma.outgoingDocument.update({
-          where: { id: doc.id },
-          data: { documentTypeId: kind.id },
-        });
-      }
-    }
-    console.log(`Backfilled documentTypeId for ${outgoingDocs.length} outgoing documents`);
-  }
+  console.log('Document Types seeded');
 
   console.log('Database seeding completed!');
 

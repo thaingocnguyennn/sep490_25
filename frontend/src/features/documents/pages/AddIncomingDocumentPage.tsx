@@ -180,7 +180,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
           issuer: doc.issuer || '',
           documentNumber: doc.documentNumber || '',
           dateLetter: doc.dateLetter || '',
-          documentTypeId: doc.documentTypeId?.toString() || '',
+          documentTypeId: doc.document.documentTypeId?.toString() || '',
           summary: doc.summary || '',
           pageCount: doc.pageCount?.toString() || '',
           signerName: doc.signerName || '',

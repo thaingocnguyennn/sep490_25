@@ -3,7 +3,6 @@ import { documentsApi } from '../../api';
 import type {
   Document,
   DocumentFilterParams,
-  DocumentType,
   DocumentStatus,
 } from '../../types';
 

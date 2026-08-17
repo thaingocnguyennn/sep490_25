@@ -1,5 +1,5 @@
 import { body, query, param } from 'express-validator';
-import { DocumentType, DocumentLifecycleStatus } from '@prisma/client';
+import { DocumentDirection, DocumentLifecycleStatus } from '@prisma/client';
 
 // Allowed urgency lookup values (seeded names, legacy aliases, numeric ids)
 const URGENCY_ALLOWED = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];

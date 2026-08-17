@@ -414,11 +414,11 @@ export class IncomingDocumentsService {
         : data.documentBookId
       : undefined;
 
-    // Fetch document kind name for title if documentTypeId is provided
-    let documentKindName = '';
+    // Fetch document type name for title if documentTypeId is provided
+    let documentTypeName = '';
     if (data.documentTypeId) {
-      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
-      if (typeDoc) documentKindName = typeDoc.name;
+      const typeDoc = await prisma.documentType.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (typeDoc) documentTypeName = typeDoc.name;
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -426,12 +426,13 @@ export class IncomingDocumentsService {
         data: {
           documentNumber,
           title: data.summary
-            ? `${documentKindName} ${data.summary}`.trim()
+            ? `${documentTypeName} ${data.summary}`.trim()
             : data.issuer || `Văn bản đến số ${documentNumber}`,
           type: 'INCOMING',
           status: DocumentStatus.PENDING,
           urgencyId,
           confidentialityId,
+          documentTypeId: data.documentTypeId,
           createdBy: data.createdBy,
         },
       });
@@ -440,7 +441,6 @@ export class IncomingDocumentsService {
         data: {
           documentId: document.id,
           issuer: data.issuer,
-          documentTypeId: data.documentTypeId,
           documentNumber: data.documentNumber,
           arrivalNumber: data.arrivalNumber,
           signerName: data.signerName,
@@ -554,11 +554,11 @@ export class IncomingDocumentsService {
         : data.documentBookId
       : undefined;
 
-    // Fetch document kind name for title if documentTypeId is provided
-    let documentKindName = '';
+    // Fetch document type name for title if documentTypeId is provided
+    let documentTypeName = '';
     if (data.documentTypeId) {
-      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
-      if (typeDoc) documentKindName = typeDoc.name;
+      const typeDoc = await prisma.documentType.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (typeDoc) documentTypeName = typeDoc.name;
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -566,12 +566,13 @@ export class IncomingDocumentsService {
         data: {
           documentNumber,
           title: data.summary
-            ? `${documentKindName} ${data.summary}`.trim()
+            ? `${documentTypeName} ${data.summary}`.trim()
             : data.issuer || `Văn bản đến số ${documentNumber}`,
           type: 'INCOMING',
           status: DocumentStatus.DRAFT, // Draft status - not processed yet
           urgencyId,
           confidentialityId,
+          documentTypeId: data.documentTypeId,
           createdBy: data.createdBy,
         },
       });
@@ -580,7 +581,6 @@ export class IncomingDocumentsService {
         data: {
           documentId: document.id,
           issuer: data.issuer,
-          documentTypeId: data.documentTypeId,
           documentNumber: data.documentNumber,
           arrivalNumber: data.arrivalNumber,
           signerName: data.signerName,
@@ -666,11 +666,11 @@ export class IncomingDocumentsService {
       : undefined;
 
     try {
-      // Fetch document kind name for title if documentTypeId is provided
-      let documentKindName = '';
+      // Fetch document type name for title if documentTypeId is provided
+      let documentTypeName = '';
       if (documentTypeId) {
-        const typeDoc = await prisma.documentKind.findUnique({ where: { id: documentTypeId }, select: { name: true } });
-        if (typeDoc) documentKindName = typeDoc.name;
+        const typeDoc = await prisma.documentType.findUnique({ where: { id: documentTypeId }, select: { name: true } });
+        if (typeDoc) documentTypeName = typeDoc.name;
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -680,7 +680,7 @@ export class IncomingDocumentsService {
           data: {
             documentNumber,
             title: data.summary
-              ? `${documentKindName} ${data.summary}`.trim()
+              ? `${documentTypeName} ${data.summary}`.trim()
               : data.issuer || `Văn bản đến số ${documentNumber}`,
             type: 'INCOMING',
             status: DocumentStatus.DRAFT, // Draft status
@@ -688,6 +688,7 @@ export class IncomingDocumentsService {
             originalFileName: file.originalname,
             fileSize: file.size,
             mimeType: file.mimetype,
+            documentTypeId,
             urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
               ? await resolveUrgencyIdWithDefault(data.urgency)
               : await resolveUrgencyIdWithDefault(null),
@@ -702,7 +703,6 @@ export class IncomingDocumentsService {
           data: {
             documentId: document.id,
             issuer: data.issuer,
-            documentTypeId,
             documentNumber: data.documentNumber,
             arrivalNumber: data.arrivalNumber,
             signerName: data.signerName,
@@ -796,15 +796,15 @@ export class IncomingDocumentsService {
     const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
     const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
 
-    // Fetch document kind name for title if documentTypeId is provided
-    let documentKindName = '';
+    // Fetch document type name for title if documentTypeId is provided
+    let documentTypeName = '';
     if (data.documentTypeId) {
-      const typeDoc = await prisma.documentKind.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
-      if (typeDoc) documentKindName = typeDoc.name;
+      const typeDoc = await prisma.documentType.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
+      if (typeDoc) documentTypeName = typeDoc.name;
     }
 
     const title = data.summary
-      ? `${documentKindName} ${data.summary}`.trim()
+      ? `${documentTypeName} ${data.summary}`.trim()
       : data.issuer || incoming.document.title;
 
     await prisma.$transaction(async (tx) => {
@@ -815,6 +815,7 @@ export class IncomingDocumentsService {
           title,
           urgencyId,
           confidentialityId,
+          documentTypeId: data.documentTypeId,
           updatedBy: data.updatedBy,
         },
       });
@@ -824,7 +825,6 @@ export class IncomingDocumentsService {
         where: { id },
         data: {
           issuer: data.issuer,
-          documentTypeId: data.documentTypeId,
           documentNumber: data.documentNumber,
           arrivalNumber: data.arrivalNumber,
           signerName: data.signerName,
@@ -899,15 +899,15 @@ export class IncomingDocumentsService {
         : data.documentBookId
       : undefined;
 
-    // Fetch document kind name for title if documentTypeId is provided
-    let documentKindName = '';
+    // Fetch document type name for title if documentTypeId is provided
+    let documentTypeName = '';
     if (documentTypeId) {
-      const typeDoc = await prisma.documentKind.findUnique({ where: { id: documentTypeId }, select: { name: true } });
-      if (typeDoc) documentKindName = typeDoc.name;
+      const typeDoc = await prisma.documentType.findUnique({ where: { id: documentTypeId }, select: { name: true } });
+      if (typeDoc) documentTypeName = typeDoc.name;
     }
 
     const title = data.summary
-      ? `${documentKindName} ${data.summary}`.trim()
+      ? `${documentTypeName} ${data.summary}`.trim()
       : data.issuer || incoming.document.title;
 
     try {
@@ -923,6 +923,7 @@ export class IncomingDocumentsService {
             mimeType: file.mimetype,
             urgencyId,
             confidentialityId,
+            documentTypeId,
             updatedBy: userId,
           },
         });
@@ -932,7 +933,6 @@ export class IncomingDocumentsService {
           where: { id },
           data: {
             issuer: data.issuer,
-            documentTypeId,
             documentNumber: data.documentNumber,
             arrivalNumber: data.arrivalNumber,
             signerName: data.signerName,
@@ -995,11 +995,11 @@ export class IncomingDocumentsService {
       : undefined;
 
     try {
-      // Fetch document kind name for title if documentTypeId is provided
-      let documentKindName = '';
+      // Fetch document type name for title if documentTypeId is provided
+      let documentTypeName = '';
       if (documentTypeId) {
-        const typeDoc = await prisma.documentKind.findUnique({ where: { id: documentTypeId }, select: { name: true } });
-        if (typeDoc) documentKindName = typeDoc.name;
+        const typeDoc = await prisma.documentType.findUnique({ where: { id: documentTypeId }, select: { name: true } });
+        if (typeDoc) documentTypeName = typeDoc.name;
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1009,7 +1009,7 @@ export class IncomingDocumentsService {
           data: {
             documentNumber,
             title: data.summary
-              ? `${documentKindName} ${data.summary}`.trim()
+              ? `${documentTypeName} ${data.summary}`.trim()
               : data.issuer || `Văn bản đến số ${documentNumber}`,
             type: 'INCOMING',
             status: DocumentStatus.PENDING,
@@ -1017,6 +1017,7 @@ export class IncomingDocumentsService {
             originalFileName: file.originalname,
             fileSize: file.size,
             mimeType: file.mimetype,
+            documentTypeId,
             urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
               ? await resolveUrgencyIdWithDefault(data.urgency)
               : await resolveUrgencyIdWithDefault(null),
@@ -1031,7 +1032,6 @@ export class IncomingDocumentsService {
           data: {
             documentId: document.id,
             issuer: data.issuer,
-            documentTypeId,
             documentNumber: data.documentNumber,
             arrivalNumber: data.arrivalNumber,
             signerName: data.signerName,
@@ -1743,16 +1743,16 @@ export class IncomingDocumentsService {
       count: r._count.id,
     }));
 
-    const byDocTypeRaw = await prisma.incomingDocument.groupBy({
+    const byDocTypeRaw = await prisma.document.groupBy({
       by: ['documentTypeId'],
-      where: baseFilter as any,
+      where: { ...baseDocFilter, documentTypeId: { not: null } } as any,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
-    
-    // fetch document kind names
+
+    // fetch document type names
     const typeIds = byDocTypeRaw.map(r => r.documentTypeId).filter((id): id is number => id !== null);
-    const typeDocs = await prisma.documentKind.findMany({
+    const typeDocs = await prisma.documentType.findMany({
       where: { id: { in: typeIds } },
       select: { id: true, name: true },
     });

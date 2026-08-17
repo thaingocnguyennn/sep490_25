@@ -1,12 +1,12 @@
 import React from 'react';
-import { DocumentKindResponse } from '../types/documentType.types';
+import { DocumentTypeResponse } from '../types/documentType.types';
 
 interface DocumentTypeTableProps {
-  documentTypes: DocumentKindResponse[];
+  documentTypes: DocumentTypeResponse[];
   loading: boolean;
-  onEdit: (type: DocumentKindResponse) => void;
-  onDelete: (type: DocumentKindResponse) => void;
-  onReactivate: (type: DocumentKindResponse) => void;
+  onEdit: (type: DocumentTypeResponse) => void;
+  onDelete: (type: DocumentTypeResponse) => void;
+  onReactivate: (type: DocumentTypeResponse) => void;
 }
 
 export const DocumentTypeTable: React.FC<DocumentTypeTableProps> = ({
@@ -91,7 +91,7 @@ export const DocumentTypeTable: React.FC<DocumentTypeTableProps> = ({
                       ♻
                     </button>
                   )}
-                  
+
                   {!type.isSystem && (
                     <button
                       className="action-btn edit"

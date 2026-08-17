@@ -120,7 +120,7 @@ export interface ApiResponse<T = unknown> {
 
 // ─── Document Management Types ──────────────────────────────────────────────
 
-export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentDirection = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'ACTIVE' | 'DELETED';
 
 /**
@@ -165,7 +165,7 @@ export interface Document {
   documentNumber: string;
   title: string;
   description: string | null;
-  type: DocumentType;
+  type: DocumentDirection;
   fileUrl: string | null;
   documentStatus: DocumentStatus;
   isArchived: boolean;
@@ -173,6 +173,8 @@ export interface Document {
   urgency: Urgency | null;
   confidentialityId: number | null;
   confidentiality: Confidentiality | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string } | null;
   sendingAgency: string | null;
   issuanceDate: string | null;
   category: string | null;
@@ -216,7 +218,7 @@ export interface DocumentFilterParams {
   page?: number;
   limit?: number;
   search?: string;
-  type?: DocumentType;
+  type?: DocumentDirection;
   status?: DocumentStatus;
   isArchived?: boolean;
   /** Seeded urgency name, legacy alias, or numeric id */
@@ -234,7 +236,7 @@ export interface UpdateDocumentRequest {
   documentNumber?: string;
   title?: string;
   description?: string;
-  type?: DocumentType;
+  type?: DocumentDirection;
   issuanceDate?: string | null;
   sendingAgency?: string;
   /** Seeded urgency name, legacy alias, or numeric id; null to clear */

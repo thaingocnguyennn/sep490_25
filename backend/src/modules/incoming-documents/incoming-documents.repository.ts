@@ -7,9 +7,6 @@ export interface IncomingDocumentWithRelations {
   id: number;
   documentId: number;
   issuer: string | null;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   arrivalNumber: number | null;
   signerName: string | null;
@@ -52,6 +49,8 @@ export interface IncomingDocumentWithRelations {
     } | null;
     deadline: Date | null;
     ocrText: string | null;
+    documentTypeId: number | null;
+    documentTypeRef: { id: number; name: string } | null;
     createdAt: Date;
     updatedAt: Date;
     createdByUser: { id: number; fullName: string } | null;
@@ -109,7 +108,7 @@ export class IncomingDocumentsRepository {
     }
     if (status) documentWhere.status = status as any;
     if (documentTypeId !== undefined) {
-      where.documentTypeId = documentTypeId;
+      documentWhere.documentTypeId = documentTypeId;
     }
     if (urgency) {
       const urgencyId = await resolveUrgencyId(urgency);
@@ -141,12 +140,12 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           createdByClerk: { select: { id: true, fullName: true } },
-          documentTypeRef: { select: { id: true, name: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
               urgency: { select: { id: true, name: true, description: true } },
               confidentiality: { select: { id: true, code: true, name: true, description: true } },
+              documentTypeRef: { select: { id: true, name: true } },
               processors: {
                 select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
               },
@@ -173,7 +172,6 @@ export class IncomingDocumentsRepository {
       where: { id },
       include: {
         createdByClerk: { select: { id: true, fullName: true } },
-        documentTypeRef: { select: { id: true, name: true } },
         documentBook: { select: { id: true, name: true, code: true } },
         document: {
           include: {
@@ -181,6 +179,7 @@ export class IncomingDocumentsRepository {
             updatedByUser: { select: { id: true, fullName: true } },
             urgency: { select: { id: true, name: true, description: true } },
             confidentiality: { select: { id: true, code: true, name: true, description: true } },
+            documentTypeRef: { select: { id: true, name: true } },
             processors: {
               select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
             },
@@ -219,8 +218,7 @@ export class IncomingDocumentsRepository {
         { title: { contains: search, mode: 'insensitive' } },
         { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
+        { documentTypeRef: { is: { name: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
@@ -235,12 +233,12 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           createdByClerk: { select: { id: true, fullName: true } },
-          documentTypeRef: { select: { id: true, name: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
               urgency: { select: { id: true, name: true, description: true } },
               confidentiality: { select: { id: true, code: true, name: true, description: true } },
+              documentTypeRef: { select: { id: true, name: true } },
               processors: {
                 select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
               },
@@ -281,8 +279,7 @@ export class IncomingDocumentsRepository {
         { title: { contains: search, mode: 'insensitive' } },
         { incomingDocuments: { some: { documentNumber: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { issuer: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { documentType: { contains: search, mode: 'insensitive' } } } },
-        { incomingDocuments: { some: { documentTypeRef: { name: { contains: search, mode: 'insensitive' } } } } },
+        { documentTypeRef: { is: { name: { contains: search, mode: 'insensitive' } } } },
         { incomingDocuments: { some: { summary: { contains: search, mode: 'insensitive' } } } },
       ];
     }
@@ -297,12 +294,12 @@ export class IncomingDocumentsRepository {
         orderBy: { document: { createdAt: 'desc' } },
         include: {
           createdByClerk: { select: { id: true, fullName: true } },
-          documentTypeRef: { select: { id: true, name: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
               urgency: { select: { id: true, name: true, description: true } },
               confidentiality: { select: { id: true, code: true, name: true, description: true } },
+              documentTypeRef: { select: { id: true, name: true } },
               processors: {
                 select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
               },

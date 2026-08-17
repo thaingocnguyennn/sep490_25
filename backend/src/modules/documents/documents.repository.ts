@@ -1,5 +1,5 @@
 import prisma from '../../config/database';
-import { DocumentType, DocumentLifecycleStatus, Prisma } from '@prisma/client';
+import { DocumentDirection, DocumentLifecycleStatus, Prisma } from '@prisma/client';
 import { resolveConfidentialityId, resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 
@@ -10,7 +10,7 @@ export interface DocumentListParams {
   page?: number;
   limit?: number;
   search?: string;
-  type?: DocumentType;
+  type?: DocumentDirection;
   status?: DocumentLifecycleStatus;
   /** Accepts a seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
   urgencyId?: number | string;
@@ -51,7 +51,7 @@ export interface DocumentSummary {
   id: number;
   documentNumber: string;
   title: string;
-  type: DocumentType;
+  type: DocumentDirection;
   status: string;               // Workflow status: DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
   documentStatus: DocumentLifecycleStatus;  // Lifecycle: ACTIVE or DELETED (soft-delete)
   urgencyId: number | null;
@@ -199,7 +199,7 @@ export class DocumentsRepository {
     documentNumber: string;
     title: string;
     description?: string;
-    type: DocumentType;
+    type: DocumentDirection;
     fileUrl?: string;
     issuanceDate?: Date;
     sendingAgency?: string;
@@ -252,7 +252,7 @@ export class DocumentsRepository {
       documentNumber?: string;
       title?: string;
       description?: string;
-      type?: DocumentType;
+      type?: DocumentDirection;
       issuanceDate?: Date | null;
       sendingAgency?: string;
       /** Accepts a seeded name, legacy alias, numeric id, or null to clear */
@@ -415,7 +415,7 @@ export class DocumentsRepository {
     id: number;
     documentNumber: string;
     title: string;
-    type: DocumentType;
+    type: DocumentDirection;
     documentStatus: DocumentLifecycleStatus;
     urgencyId: number | null;
     urgency: DocumentUrgency | null;
@@ -463,7 +463,7 @@ export class DocumentsRepository {
     documentNumber: string;
     title: string;
     description: string | null;
-    type: DocumentType;
+    type: DocumentDirection;
     fileUrl: string | null;
     documentStatus: DocumentLifecycleStatus;
     urgencyId: number | null;

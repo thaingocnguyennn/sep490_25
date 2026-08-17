@@ -1,7 +1,7 @@
 import api from '../axios';
 import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest, ConfidentialityCodeOrName, OcrResult } from '../../types';
 
-export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentDirection = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
 export type ProcessorType = 'XLC' | 'PHXL' | 'XDB';
 export type Urgency = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
@@ -54,9 +54,6 @@ export interface IncomingDocumentDetail {
   id: number;
   documentId: number;
   issuer: string | null;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   arrivalNumber: number | null;
   signerName: string | null;
@@ -78,9 +75,6 @@ export interface IncomingDocumentListItem {
   id: number;
   documentId: number;
   issuer: string | null;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   arrivalNumber: number | null;
   signerName: string | null;
@@ -102,7 +96,6 @@ export interface IncomingDocumentListItem {
 
 export interface CreateIncomingDocumentRequest {
   issuer?: string;
-  documentType?: string;
   documentTypeId?: number;
   documentNumber?: string;
   arrivalNumber?: number;

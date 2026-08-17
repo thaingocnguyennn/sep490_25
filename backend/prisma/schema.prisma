@@ -56,7 +56,7 @@ enum UserStatus {
   LOCKED
 }
 
-enum DocumentType {
+enum DocumentDirection {
   INCOMING
   OUTGOING
   INTERNAL
@@ -74,7 +74,7 @@ enum DocumentCategoryStatus {
   INACTIVE
 }
 
-enum DocumentKindStatus {
+enum DocumentTypeStatus {
   ACTIVE
   INACTIVE
 }
@@ -196,8 +196,8 @@ model User {
   updatedDocumentCategories DocumentCategory[] @relation("DocumentCategoryUpdatedBy")
 
   // Document type (kind) relations
-  createdDocumentKinds DocumentKind[] @relation("DocumentKindCreatedBy")
-  updatedDocumentKinds DocumentKind[] @relation("DocumentKindUpdatedBy")
+  createdDocumentTypes DocumentType[] @relation("DocumentTypeCreatedBy")
+  updatedDocumentTypes DocumentType[] @relation("DocumentTypeUpdatedBy")
 
   @@index([departmentId])
 }
@@ -266,7 +266,7 @@ model Document {
   documentNumber String         @unique
   title          String
   description    String?
-  type           DocumentType
+  type           DocumentDirection
   fileUrl        String?
   ocrText        String?
   ocrStatus      OcrStatus      @default(PENDING)
@@ -291,6 +291,10 @@ model Document {
   department   Department? @relation("DocumentDepartment", fields: [departmentId], references: [id])
   processorId  Int?
   processor    User?       @relation("DocumentProcessor", fields: [processorId], references: [id])
+
+  // Lookup ref: loại văn bản hành chính (Công văn, Quyết định, ...)
+  documentTypeId  Int?
+  documentTypeRef DocumentType? @relation("DocumentDocumentType", fields: [documentTypeId], references: [id])
 
   // Confidentiality & urgency relations
   confidentiality Confidentiality? @relation(fields: [confidentialityId], references: [id])
@@ -355,15 +359,10 @@ model IncomingDocument {
   categoryId Int?
   category   DocumentCategory? @relation(fields: [categoryId], references: [id])
 
-  // FK mới sang bảng DocumentKind (thay thế field String cũ)
-  documentTypeId  Int?
-  documentTypeRef DocumentKind? @relation("IncomingDocumentKind", fields: [documentTypeId], references: [id])
-
   outgoingResponses   OutgoingDocument[]
   bookEntry           IncomingBookEntry?
 
   @@index([categoryId])
-  @@index([documentTypeId])
   @@index([createdByClerkId])
   @@index([departmentId])
   @@index([dateReceived])
@@ -436,9 +435,9 @@ model OutgoingDocument {
   categoryId Int?
   category   DocumentCategory? @relation(fields: [categoryId], references: [id])
 
-  // FK mới sang bảng DocumentKind (thay thế field String cũ)
+  // FK sang bảng DocumentType (model mới, tên cũ DocumentKind)
   documentTypeId  Int?
-  documentTypeRef DocumentKind? @relation("OutgoingDocumentKind", fields: [documentTypeId], references: [id])
+  documentTypeRef DocumentType? @relation("OutgoingDocumentType", fields: [documentTypeId], references: [id])
 
   bookEntry OutgoingBookEntry?
 
@@ -688,13 +687,13 @@ model OutgoingBookEntry {
   @@index([registeredById])
 }
 
-model DocumentKind {
+model DocumentType {
   id             Int                @id @default(autoincrement())
   name           String
   normalizedName String             @unique
   code           String             @unique
   description    String?
-  status         DocumentKindStatus @default(ACTIVE)
+  status         DocumentTypeStatus @default(ACTIVE)
 
   isSystem       Boolean            @default(false)
   deletedAt      DateTime?
@@ -705,11 +704,11 @@ model DocumentKind {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  createdBy User  @relation("DocumentKindCreatedBy", fields: [createdById], references: [id])
-  updatedBy User? @relation("DocumentKindUpdatedBy", fields: [updatedById], references: [id])
+  createdBy User  @relation("DocumentTypeCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("DocumentTypeUpdatedBy", fields: [updatedById], references: [id])
 
-  incomingDocuments IncomingDocument[] @relation("IncomingDocumentKind")
-  outgoingDocuments OutgoingDocument[] @relation("OutgoingDocumentKind")
+  documents          Document[]          @relation("DocumentDocumentType")
+  outgoingDocuments  OutgoingDocument[]  @relation("OutgoingDocumentType")
 
   @@index([status, deletedAt])
   @@index([name])
