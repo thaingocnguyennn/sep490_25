@@ -39,8 +39,8 @@ enum DocumentBookType {
 
 // Trạng thái sổ văn bản
 enum DocumentBookStatus {
-  ACTIVE   // Đang hoạt động
-  CLOSED   // Đã đóng sổ (cuối năm)
+  ACTIVE // Đang hoạt động
+  CLOSED // Đã đóng sổ (cuối năm)
   INACTIVE // Vô hiệu hóa
 }
 
@@ -102,11 +102,8 @@ model Department {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  primaryUserId Int?
-
   parent   Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children Department[] @relation("DepartmentHierarchy")
-  primaryUser User?     @relation("DepartmentPrimaryUser", fields: [primaryUserId], references: [id])
 
   // Many-to-many: a user can belong to multiple departments, and a department can have multiple users
   members           DepartmentMember[]
@@ -117,7 +114,6 @@ model Department {
 
   @@unique([name, parentId])
   @@index([parentId])
-  @@index([primaryUserId])
 }
 
 model DepartmentMember {
@@ -134,29 +130,28 @@ model DepartmentMember {
 }
 
 model User {
-  id           Int        @id @default(autoincrement())
-  username     String     @unique
-  email        String     @unique
-  password     String
-  passwordChangedAt DateTime?
+  id                  Int                  @id @default(autoincrement())
+  username            String               @unique
+  email               String               @unique
+  password            String
+  passwordChangedAt   DateTime?
   passwordResetTokens PasswordResetToken[]
-  fullName     String
-  phone        String?
-  avatar       String?
-  status       UserStatus @default(ACTIVE)
-  isFirstLogin Boolean    @default(true)
-  lastLogin    DateTime?
-  lockUntil    DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  createdBy    Int?
-  updatedBy    Int?
+  fullName            String
+  phone               String?
+  avatar              String?
+  status              UserStatus           @default(ACTIVE)
+  isFirstLogin        Boolean              @default(true)
+  lastLogin           DateTime?
+  lockUntil           DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  createdBy           Int?
+  updatedBy           Int?
 
   departmentId Int?
   department   Department? @relation(fields: [departmentId], references: [id])
 
   departmentMemberships DepartmentMember[]
-  primaryDepartments    Department[]  @relation("DepartmentPrimaryUser")
 
   userRoles     UserRole[]
   createdByUser User?      @relation("CreatedBy", fields: [createdBy], references: [id])
@@ -168,12 +163,11 @@ model User {
   documentWorkflows  DocumentWorkflow[]
   createdDocuments   Document[]          @relation("CreatedBy")
   updatedDocuments   Document[]          @relation("UpdatedBy")
-  processedDocuments Document[]          @relation("DocumentProcessor")
   documentProcessors DocumentProcessor[]
 
   // Outgoing document workflow relations
-  outgoingSubmitted        OutgoingDocument[] @relation("OutgoingSubmittedBy")
-  outgoingApproved         OutgoingDocument[] @relation("OutgoingApprovedBy")
+  outgoingSubmitted OutgoingDocument[] @relation("OutgoingSubmittedBy")
+  outgoingApproved  OutgoingDocument[] @relation("OutgoingApprovedBy")
   outgoingReturned  OutgoingDocument[] @relation("OutgoingReturnedBy")
   outgoingForwarded OutgoingDocument[] @relation("OutgoingForwardedBy")
   outgoingIssued    OutgoingDocument[] @relation("OutgoingIssuedBy")
@@ -183,13 +177,13 @@ model User {
   outgoingAssignedApprover OutgoingDocument[] @relation("OutgoingAssignedApprover")
   outgoingAssignedClerk    OutgoingDocument[] @relation("OutgoingAssignedClerk")
 
-  incomingDocumentsCreated IncomingDocument[]      @relation("IncomingDocumentClerk")
+  incomingDocumentsCreated IncomingDocument[] @relation("IncomingDocumentClerk")
 
   // Document book relations
-  createdDocumentBooks         DocumentBook[]      @relation("DocumentBookCreatedBy")
-  registeredIncomingEntries    IncomingBookEntry[] @relation("IncomingEntryRegisteredBy")
-  acknowledgedIncomingEntries  IncomingBookEntry[] @relation("IncomingEntryAcknowledgedBy")
-  registeredOutgoingEntries    OutgoingBookEntry[] @relation("OutgoingEntryRegisteredBy")
+  createdDocumentBooks        DocumentBook[]      @relation("DocumentBookCreatedBy")
+  registeredIncomingEntries   IncomingBookEntry[] @relation("IncomingEntryRegisteredBy")
+  acknowledgedIncomingEntries IncomingBookEntry[] @relation("IncomingEntryAcknowledgedBy")
+  registeredOutgoingEntries   OutgoingBookEntry[] @relation("OutgoingEntryRegisteredBy")
 
   // Document category relations
   createdDocumentCategories DocumentCategory[] @relation("DocumentCategoryCreatedBy")
@@ -247,7 +241,7 @@ model Urgency {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  documents         Document[]
+  documents Document[]
 }
 
 model UserRole {
@@ -262,37 +256,34 @@ model UserRole {
 }
 
 model Document {
-  id             Int            @id @default(autoincrement())
-  documentNumber String         @unique
+  id             Int               @id @default(autoincrement())
+  documentNumber String            @unique
   title          String
   description    String?
   type           DocumentDirection
   fileUrl        String?
   ocrText        String?
-  ocrStatus      OcrStatus      @default(PENDING)
-  status         DocumentStatus @default(DRAFT)
+  ocrStatus      OcrStatus         @default(PENDING)
+  status         DocumentStatus    @default(DRAFT)
   deadline       DateTime?
-  searchVector   Unsupported("tsvector")? // Full-text search: title + description + ocrText
 
   // --- Level 2 fields: basic document management ---
-  issuer             String? // Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency)
-  signerName         String? // Họ tên người ký
-  signerTitle        String? // Chức vụ người ký
-  notes              String? // Ghi chú chung
-  issuanceDate       DateTime? // Ngày ban hành (tên c� ở IncomingDocument: dateLetter)
-  urgencyId          Int? // FK -> Urgency (mức độ khẩn)
-  confidentialityId  Int? // FK -> Confidentiality (mức độ mật)
-  documentStatus     DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
-  originalFileName   String? // Tên file gốc khi upload
-  fileSize           Int? // Dung lượng file (bytes)
-  mimeType           String? // Loại MIME (application/pdf, ...)
-  isArchived         Boolean                 @default(false) // Đã lưu trữ
+  issuer            String? // Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency)
+  signerName        String? // Họ tên người ký
+  signerTitle       String? // Chức vụ người ký
+  notes             String? // Ghi chú chung
+  dateOnLetter      DateTime? // Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate)
+  urgencyId         Int? // FK -> Urgency (mức độ khẩn)
+  confidentialityId Int? // FK -> Confidentiality (mức độ mật)
+  documentStatus    DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
+  originalFileName  String? // Tên file gốc khi upload
+  fileSize          Int? // Dung lượng file (bytes)
+  mimeType          String? // Loại MIME (application/pdf, ...)
+  isArchived        Boolean                 @default(false) // Đã lưu trữ
 
-  // Department & processor relations
+  // Department (assigned owner)
   departmentId Int?
   department   Department? @relation("DocumentDepartment", fields: [departmentId], references: [id])
-  processorId  Int?
-  processor    User?       @relation("DocumentProcessor", fields: [processorId], references: [id])
 
   // Lookup ref: loại văn bản hành chính (Công văn, Quyết định, ...)
   documentTypeId  Int?
@@ -322,7 +313,6 @@ model Document {
   @@index([documentStatus])
   @@index([type])
   @@index([departmentId])
-  @@index([processorId])
   @@index([confidentialityId])
   @@index([urgencyId])
   @@index([createdBy])
@@ -330,18 +320,17 @@ model Document {
   @@index([ocrStatus])
   @@index([deadline])
   @@index([isArchived])
-  @@index([searchVector], type: Gin)
 }
 
 model IncomingDocument {
-  id                     Int       @id @default(autoincrement())
-  documentId             Int       @unique
+  id                     Int      @id @default(autoincrement())
+  documentId             Int      @unique
   arrivalNumber          Int? // Số đến (do DocumentBook cấp, không gán thủ công)
   dateReceived           DateTime // Ngày đến
   pageCount              Int? // Số trang văn bản
   processingInstructions String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   // Liên kết sổ văn bản đến
   documentBookId Int?
@@ -354,8 +343,8 @@ model IncomingDocument {
   createdByClerk   User? @relation("IncomingDocumentClerk", fields: [createdByClerkId], references: [id])
   createdByClerkId Int?
 
-  outgoingResponses   OutgoingDocument[]
-  bookEntry           IncomingBookEntry?
+  outgoingResponses OutgoingDocument[]
+  bookEntry         IncomingBookEntry?
 
   @@index([createdByClerkId])
   @@index([departmentId])
@@ -422,13 +411,8 @@ model OutgoingDocument {
   assignedClerkId    Int?
   assignedClerk      User? @relation("OutgoingAssignedClerk", fields: [assignedClerkId], references: [id])
 
-  // FK sang bảng DocumentType (model mới, tên cũ DocumentKind)
-  documentTypeId  Int?
-  documentTypeRef DocumentType? @relation("OutgoingDocumentType", fields: [documentTypeId], references: [id])
-
   bookEntry OutgoingBookEntry?
 
-  @@index([documentTypeId])
   @@index([relatedIncomingDocumentId])
   @@index([dispatchNumber])
   @@index([assignedApproverId])
@@ -458,7 +442,7 @@ model DocumentProcessorHistory {
   documentId    Int
   userId        Int
   processorType ProcessorType
-  action        String        // ASSIGNED | TRANSFERRED | REMOVED | COMPLETED
+  action        String // ASSIGNED | TRANSFERRED | REMOVED | COMPLETED
   reason        String?
   actorId       Int?
   createdAt     DateTime      @default(now())
@@ -549,11 +533,11 @@ model SystemLog {
 // So den/so van ban di duoc cap tuan tu trong pham vi so.
 model DocumentBook {
   id            Int                @id @default(autoincrement())
-  name          String             // VD: "Sổ văn bản đến 2026 - Phòng Hành chính"
-  code          String?            // Ký hiệu sổ (tuỳ chọn)
-  description   String?            // Ghi chú mô tả
+  name          String // VD: "Sổ văn bản đến 2026 - Phòng Hành chính"
+  code          String? // Ký hiệu sổ (tuỳ chọn)
+  description   String? // Ghi chú mô tả
   bookType      DocumentBookType
-  year          Int                // Năm quản lý (VD: 2026)
+  year          Int // Năm quản lý (VD: 2026)
   currentNumber Int                @default(0) // Số hiện tại (tự động tăng, không sửa trực tiếp)
   isDefault     Boolean            @default(false) // Sổ mặc định của dept+type+year
   status        DocumentBookStatus @default(ACTIVE)
@@ -570,10 +554,10 @@ model DocumentBook {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  incomingEntries  IncomingBookEntry[]
-  outgoingEntries  OutgoingBookEntry[]
-  incomingDocuments IncomingDocument[] @relation("IncomingDocumentBook")
-  outgoingDocuments OutgoingDocument[] @relation("OutgoingDocumentBook")
+  incomingEntries   IncomingBookEntry[]
+  outgoingEntries   OutgoingBookEntry[]
+  incomingDocuments IncomingDocument[]  @relation("IncomingDocumentBook")
+  outgoingDocuments OutgoingDocument[]  @relation("OutgoingDocumentBook")
 
   // Trong cùng dept + type + year, tên phải duy nhất
   @@unique([departmentId, bookType, year, name])
@@ -585,10 +569,10 @@ model DocumentBook {
 // Luu snapshot tai thoi diem dang ky de bao toan lich su.
 // Mot van ban den chi duoc dang ky vao mot so duy nhat.
 model IncomingBookEntry {
-  id                 Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  documentBookId     Int
-  documentBook       DocumentBook     @relation(fields: [documentBookId], references: [id])
+  documentBookId Int
+  documentBook   DocumentBook @relation(fields: [documentBookId], references: [id])
 
   incomingDocumentId Int              @unique
   incomingDocument   IncomingDocument @relation(fields: [incomingDocumentId], references: [id])
@@ -598,20 +582,20 @@ model IncomingBookEntry {
   arrivalDate   DateTime
 
   // Snapshot tại thời điểm đăng ký (bảo toàn lịch sử khi metadata thay đổi)
-  senderSnapshot             String   // Cơ quan gửi
-  documentNumberSnapshot     String?  // Số ký hiệu văn bản
-  documentSymbolSnapshot     String?  // Ký hiệu văn bản
+  senderSnapshot             String // Cơ quan gửi
+  documentNumberSnapshot     String? // Số ký hiệu văn bản
+  documentSymbolSnapshot     String? // Ký hiệu văn bản
   documentDateSnapshot       DateTime? // Ngày văn bản
-  documentTypeSnapshot       String?  // Loại văn bản
-  summarySnapshot            String   @db.Text // Trích yếu
-  assignedDepartmentSnapshot String?  // Đơn vị nhận
-  assignedUserSnapshot       String?  // Người nhận
+  documentTypeSnapshot       String? // Loại văn bản
+  summarySnapshot            String    @db.Text // Trích yếu
+  assignedDepartmentSnapshot String? // Đơn vị nhận
+  assignedUserSnapshot       String? // Người nhận
 
   // Theo dõi chuyển giao
   transferDate     DateTime?
   acknowledgedAt   DateTime?
   acknowledgedById Int?
-  acknowledgedBy   User?   @relation("IncomingEntryAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  acknowledgedBy   User?     @relation("IncomingEntryAcknowledgedBy", fields: [acknowledgedById], references: [id])
 
   note String? @db.Text
 
@@ -631,27 +615,27 @@ model IncomingBookEntry {
 // Luu snapshot va so chinh thuc duoc cap tai thoi diem dang ky.
 // Mot van ban di chi duoc dang ky vao mot so duy nhat.
 model OutgoingBookEntry {
-  id                 Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  documentBookId     Int
-  documentBook       DocumentBook     @relation(fields: [documentBookId], references: [id])
+  documentBookId Int
+  documentBook   DocumentBook @relation(fields: [documentBookId], references: [id])
 
   outgoingDocumentId Int              @unique
   outgoingDocument   OutgoingDocument @relation(fields: [outgoingDocumentId], references: [id])
 
   // Số thứ tự và số văn bản chính thức (VD: 001/QĐ-DMS)
   sequenceNumber Int
-  officialNumber String   // Số văn bản đi chính thức
-  documentSymbol String?  // Ký hiệu văn bản
+  officialNumber String // Số văn bản đi chính thức
+  documentSymbol String? // Ký hiệu văn bản
   issuanceDate   DateTime // Ngày ban hành
 
   // Snapshot tại thời điểm đăng ký
-  documentTypeSnapshot     String?  // Loại văn bản
-  summarySnapshot          String   @db.Text // Trích yếu
-  signerSnapshot           String?  // Người ký
-  recipientsSnapshot       String   @db.Text // Nơi nhận
-  archiveRecipientSnapshot String?  // Đơn vị/người nhận bản lưu
-  copyCount                Int      @default(1) // Số lượng bản
+  documentTypeSnapshot     String? // Loại văn bản
+  summarySnapshot          String  @db.Text // Trích yếu
+  signerSnapshot           String? // Người ký
+  recipientsSnapshot       String  @db.Text // Nơi nhận
+  archiveRecipientSnapshot String? // Đơn vị/người nhận bản lưu
+  copyCount                Int     @default(1) // Số lượng bản
 
   // Theo dõi chuyển giao
   transferDate   DateTime?
@@ -681,20 +665,19 @@ model DocumentType {
   description    String?
   status         DocumentTypeStatus @default(ACTIVE)
 
-  isSystem       Boolean            @default(false)
-  deletedAt      DateTime?
+  isSystem  Boolean   @default(false)
+  deletedAt DateTime?
 
-  createdById    Int
-  updatedById    Int?
+  createdById Int
+  updatedById Int?
 
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   createdBy User  @relation("DocumentTypeCreatedBy", fields: [createdById], references: [id])
   updatedBy User? @relation("DocumentTypeUpdatedBy", fields: [updatedById], references: [id])
 
-  documents          Document[]          @relation("DocumentDocumentType")
-  outgoingDocuments  OutgoingDocument[]  @relation("OutgoingDocumentType")
+  documents Document[] @relation("DocumentDocumentType")
 
   @@index([status, deletedAt])
   @@index([name])
@@ -709,16 +692,16 @@ model DocumentCategory {
   description    String?
   status         DocumentCategoryStatus @default(ACTIVE)
 
-  isSystem       Boolean                @default(false)
-  deletedAt      DateTime?
+  isSystem  Boolean   @default(false)
+  deletedAt DateTime?
 
-  createdById    Int
-  updatedById    Int?
+  createdById Int
+  updatedById Int?
 
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  createdBy User @relation("DocumentCategoryCreatedBy", fields: [createdById], references: [id])
+  createdBy User  @relation("DocumentCategoryCreatedBy", fields: [createdById], references: [id])
   updatedBy User? @relation("DocumentCategoryUpdatedBy", fields: [updatedById], references: [id])
 
   documents Document[] @relation("DocumentCategory")

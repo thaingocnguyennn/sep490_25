@@ -173,9 +173,9 @@ export class DocumentBooksRepository {
                 document: {
                   include: {
                     urgency: { select: { name: true } },
+                    documentTypeRef: { select: { name: true } },
                   },
                 },
-                documentTypeRef: { select: { name: true } },
               },
             },
           },

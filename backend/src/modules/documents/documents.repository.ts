@@ -17,6 +17,7 @@ export interface DocumentListParams {
   /** Accepts a code ('A'/'B'/'C'), seeded name ('THUONG', 'MAT', ...), or numeric id */
   confidentialityId?: number | string;
   departmentId?: number;
+  /** Filter documents where the given user is any processor (XLC/PHXL/XDB) */
   processorId?: number;
   dateFrom?: string; // ISO date string
   dateTo?: string;   // ISO date string
@@ -62,7 +63,7 @@ export interface DocumentSummary {
   signerName: string | null;
   signerTitle: string | null;
   notes: string | null;
-  issuanceDate: string | null;
+  dateOnLetter: string | null;
   originalFileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
@@ -70,7 +71,6 @@ export interface DocumentSummary {
   updatedAt: string;
   createdByUser: { id: number; fullName: string } | null;
   department: { id: number; name: string } | null;
-  processor: { id: number; fullName: string } | null;
   isArchived: boolean;
 }
 
@@ -90,7 +90,6 @@ export interface DocumentDetail extends DocumentSummary {
 const summaryInclude = {
   createdByUser: { select: { id: true, fullName: true } },
   department: { select: { id: true, name: true } },
-  processor: { select: { id: true, fullName: true } },
   confidentiality: { select: { id: true, code: true, name: true, description: true } },
   urgency: { select: { id: true, name: true, description: true } },
   documentTypeRef: { select: { id: true, name: true, code: true } },
@@ -118,7 +117,7 @@ export class DocumentsRepository {
 
     // Default: show only ACTIVE documents unless explicitly filtering
     where.documentStatus = params.status || 'ACTIVE';
-    
+
     // Default: show only non-archived documents unless explicitly filtering
     where.isArchived = params.isArchived !== undefined ? params.isArchived : false;
 
@@ -149,21 +148,22 @@ export class DocumentsRepository {
       where.departmentId = params.departmentId;
     }
     if (params.processorId) {
-      where.processorId = params.processorId;
+      // Filter by users assigned as a processor (any role) via DocumentProcessor table.
+      where.processors = { some: { userId: params.processorId } };
     }
 
-    // Date range filter on issuanceDate
+    // Date range filter on dateOnLetter
     if (params.dateFrom || params.dateTo) {
-      where.issuanceDate = {};
+      where.dateOnLetter = {};
       if (params.dateFrom) {
-        where.issuanceDate.gte = new Date(params.dateFrom);
+        where.dateOnLetter.gte = new Date(params.dateFrom);
       }
       if (params.dateTo) {
-        where.issuanceDate.lte = new Date(params.dateTo);
+        where.dateOnLetter.lte = new Date(params.dateTo);
       }
     }
 
-    // Full-text search across documentNumber, title, description, issuer
+    // Full-text search across documentNumber, title, description, issuer, signerName
     if (params.search) {
       where.OR = [
         { documentNumber: { contains: params.search, mode: 'insensitive' } },
@@ -210,7 +210,7 @@ export class DocumentsRepository {
     description?: string;
     type: DocumentDirection;
     fileUrl?: string;
-    issuanceDate?: Date;
+    dateOnLetter?: Date;
     issuer?: string;
     signerName?: string;
     signerTitle?: string;
@@ -225,7 +225,6 @@ export class DocumentsRepository {
     fileSize?: number;
     mimeType?: string;
     departmentId?: number;
-    processorId?: number;
     createdBy: number;
   }): Promise<DocumentDetail> {
     const confidentialityId = data.confidentialityId !== undefined && data.confidentialityId !== null && data.confidentialityId !== ''
@@ -241,7 +240,7 @@ export class DocumentsRepository {
         description: data.description,
         type: data.type,
         fileUrl: data.fileUrl,
-        issuanceDate: data.issuanceDate,
+        dateOnLetter: data.dateOnLetter,
         issuer: data.issuer,
         signerName: data.signerName,
         signerTitle: data.signerTitle,
@@ -254,7 +253,6 @@ export class DocumentsRepository {
         fileSize: data.fileSize,
         mimeType: data.mimeType,
         departmentId: data.departmentId,
-        processorId: data.processorId,
         createdBy: data.createdBy,
       },
       include: detailInclude,
@@ -270,7 +268,7 @@ export class DocumentsRepository {
       title?: string;
       description?: string;
       type?: DocumentDirection;
-      issuanceDate?: Date | null;
+      dateOnLetter?: Date | null;
       issuer?: string | null;
       signerName?: string | null;
       signerTitle?: string | null;
@@ -282,7 +280,6 @@ export class DocumentsRepository {
       categoryId?: number | null;
       documentTypeId?: number | null;
       departmentId?: number | null;
-      processorId?: number | null;
       updatedBy: number;
     }
   ): Promise<DocumentDetail> {
@@ -376,12 +373,14 @@ export class DocumentsRepository {
       }
     }
     if (params.departmentId) where.departmentId = params.departmentId;
-    if (params.processorId) where.processorId = params.processorId;
+    if (params.processorId) {
+      where.processors = { some: { userId: params.processorId } };
+    }
 
     if (params.dateFrom || params.dateTo) {
-      where.issuanceDate = {};
-      if (params.dateFrom) where.issuanceDate.gte = new Date(params.dateFrom);
-      if (params.dateTo) where.issuanceDate.lte = new Date(params.dateTo);
+      where.dateOnLetter = {};
+      if (params.dateFrom) where.dateOnLetter.gte = new Date(params.dateFrom);
+      if (params.dateTo) where.dateOnLetter.lte = new Date(params.dateTo);
     }
 
     if (params.search) {
@@ -447,7 +446,7 @@ export class DocumentsRepository {
     signerName: string | null;
     signerTitle: string | null;
     notes: string | null;
-    issuanceDate: Date | null;
+    dateOnLetter: Date | null;
     originalFileName: string | null;
     fileSize: number | null;
     mimeType: string | null;
@@ -456,7 +455,6 @@ export class DocumentsRepository {
     updatedAt: Date;
     createdByUser: { id: number; fullName: string } | null;
     department: { id: number; name: string } | null;
-    processor: { id: number; fullName: string } | null;
   }): DocumentSummary {
     return {
       id: doc.id,
@@ -473,7 +471,7 @@ export class DocumentsRepository {
       signerName: doc.signerName,
       signerTitle: doc.signerTitle,
       notes: doc.notes,
-      issuanceDate: doc.issuanceDate?.toISOString() ?? null,
+      dateOnLetter: doc.dateOnLetter?.toISOString() ?? null,
       originalFileName: doc.originalFileName,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType,
@@ -481,7 +479,6 @@ export class DocumentsRepository {
       updatedAt: doc.updatedAt.toISOString(),
       createdByUser: doc.createdByUser,
       department: doc.department,
-      processor: doc.processor,
       isArchived: doc.isArchived,
     };
   }
@@ -502,7 +499,7 @@ export class DocumentsRepository {
     signerName: string | null;
     signerTitle: string | null;
     notes: string | null;
-    issuanceDate: Date | null;
+    dateOnLetter: Date | null;
     categoryId: number | null;
     category: { id: number; name: string; code: string } | null;
     documentTypeId: number | null;
@@ -516,7 +513,6 @@ export class DocumentsRepository {
     createdByUser: { id: number; fullName: string } | null;
     updatedByUser: { id: number; fullName: string } | null;
     department: { id: number; name: string } | null;
-    processor: { id: number; fullName: string } | null;
   }): DocumentDetail {
     return {
       ...this.formatSummary(doc),

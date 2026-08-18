@@ -179,7 +179,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         setForm({
           issuer: doc.document.issuer || '',
           documentNumber: doc.document.documentNumber || '',
-          dateLetter: doc.document.issuanceDate || '',
+          dateLetter: doc.document.dateOnLetter || '',
           documentTypeId: doc.document.documentTypeId?.toString() || '',
           summary: doc.document.description || '',
           pageCount: doc.pageCount?.toString() || '',

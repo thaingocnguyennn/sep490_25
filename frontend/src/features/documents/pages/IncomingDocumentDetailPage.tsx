@@ -349,7 +349,7 @@ export default function IncomingDocumentDetailPage() {
                 </div>
                 <div className="detail-item">
                   <label>Ngày văn bản</label>
-                  <span>{doc.document.issuanceDate ? new Date(doc.document.issuanceDate).toLocaleDateString('vi-VN') : '—'}</span>
+                  <span>{doc.document.dateOnLetter ? new Date(doc.document.dateOnLetter).toLocaleDateString('vi-VN') : '—'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Độ khẩn</label>

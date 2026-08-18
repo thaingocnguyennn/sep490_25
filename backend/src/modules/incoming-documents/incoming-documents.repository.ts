@@ -48,7 +48,7 @@ export interface IncomingDocumentWithRelations {
     signerName: string | null;
     signerTitle: string | null;
     notes: string | null;
-    issuanceDate: Date | null;
+    dateOnLetter: Date | null;
     categoryId: number | null;
     category: { id: number; name: string } | null;
     createdAt: Date;

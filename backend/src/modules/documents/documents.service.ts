@@ -60,6 +60,8 @@ export class DocumentsService {
       title: string;
       description?: string;
       type: string;
+      dateOnLetter?: string;
+      /** @deprecated Use dateOnLetter — kept for legacy API compatibility. */
       issuanceDate?: string;
       issuer?: string;
       signerName?: string;
@@ -73,7 +75,6 @@ export class DocumentsService {
       categoryId?: string;
       documentTypeId?: string;
       departmentId?: string;
-      processorId?: string;
       // Incoming-specific fields
       pageCount?: string;
       arrivalNumber?: string;
@@ -99,7 +100,11 @@ export class DocumentsService {
       description: data.description,
       type: data.type as any,
       fileUrl,
-      issuanceDate: data.issuanceDate ? new Date(data.issuanceDate) : undefined,
+      dateOnLetter: data.dateOnLetter
+        ? new Date(data.dateOnLetter)
+        : data.issuanceDate
+          ? new Date(data.issuanceDate)
+          : undefined,
       issuer: data.issuer,
       signerName: data.signerName,
       signerTitle: data.signerTitle,
@@ -112,7 +117,6 @@ export class DocumentsService {
       fileSize: file?.size,
       mimeType: file?.mimetype,
       departmentId: data.departmentId ? Number(data.departmentId) : undefined,
-      processorId: data.processorId ? Number(data.processorId) : undefined,
       createdBy,
     });
 
@@ -151,8 +155,9 @@ export class DocumentsService {
       title?: string;
       description?: string;
       type?: string;
+      dateOnLetter?: string | null;
+      /** @deprecated Use dateOnLetter — kept for legacy API compatibility. */
       issuanceDate?: string | null;
-      sendingAgency?: string;
       /** New canonical urgency: seeded name, legacy alias, numeric id, or null to clear */
       urgency?: string | null;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
@@ -165,7 +170,6 @@ export class DocumentsService {
       signerTitle?: string | null;
       notes?: string | null;
       departmentId?: number | null;
-      processorId?: number | null;
     },
     updatedBy: number
   ): Promise<DocumentDetail> {
@@ -197,7 +201,13 @@ export class DocumentsService {
       title: data.title,
       description: data.description,
       type: data.type as any,
-      issuanceDate: data.issuanceDate === null ? null : data.issuanceDate ? new Date(data.issuanceDate) : undefined,
+      dateOnLetter: data.dateOnLetter === null
+        ? null
+        : data.dateOnLetter
+          ? new Date(data.dateOnLetter)
+          : data.issuanceDate
+            ? new Date(data.issuanceDate)
+            : undefined,
       issuer: data.issuer,
       signerName: data.signerName,
       signerTitle: data.signerTitle,
@@ -212,7 +222,6 @@ export class DocumentsService {
       categoryId: data.categoryId,
       documentTypeId: data.documentTypeId,
       departmentId: data.departmentId,
-      processorId: data.processorId,
       updatedBy,
     });
 
@@ -595,9 +604,8 @@ export class DocumentsService {
       { header: 'Urgency', key: 'urgencyName', width: 14 },
       { header: 'Confidentiality', key: 'confidentialityName', width: 16 },
       { header: 'Issuer', key: 'issuer', width: 25 },
-      { header: 'Issuance Date', key: 'issuanceDate', width: 16 },
+      { header: 'Date on Letter', key: 'dateOnLetter', width: 16 },
       { header: 'Department', key: 'department', width: 20 },
-      { header: 'Processor', key: 'processor', width: 20 },
       { header: 'Status', key: 'documentStatus', width: 10 },
       { header: 'Created At', key: 'createdAt', width: 20 },
     ];
@@ -618,9 +626,8 @@ export class DocumentsService {
           ? `${doc.confidentiality.code ? `(${doc.confidentiality.code}) ` : ''}${doc.confidentiality.name}`
           : '—',
         issuer: doc.issuer || '—',
-        issuanceDate: doc.issuanceDate ? new Date(doc.issuanceDate).toLocaleDateString() : '—',
+        dateOnLetter: doc.dateOnLetter ? new Date(doc.dateOnLetter).toLocaleDateString() : '—',
         department: doc.department?.name || '—',
-        processor: doc.processor?.fullName || '—',
         documentStatus: doc.documentStatus,
         createdAt: new Date(doc.createdAt).toLocaleString(),
       });
@@ -656,7 +663,7 @@ export class DocumentsService {
       const startX = 40;
       let y = doc.y;
       const colWidths = [30, 100, 200, 80, 70, 80, 100];
-      const headers = ['#', 'Doc Number', 'Title', 'Type', 'Urgency', 'Status', 'Issuance Date'];
+      const headers = ['#', 'Doc Number', 'Title', 'Type', 'Urgency', 'Status', 'Date on Letter'];
 
       doc.fontSize(9).font('Helvetica-Bold');
       headers.forEach((header, i) => {
@@ -685,7 +692,7 @@ export class DocumentsService {
           item.type,
           item.urgency ? item.urgency.name : '—',
           item.documentStatus,
-          item.issuanceDate ? new Date(item.issuanceDate).toLocaleDateString() : '—',
+          item.dateOnLetter ? new Date(item.dateOnLetter).toLocaleDateString() : '—',
         ];
 
         row.forEach((cell, i) => {

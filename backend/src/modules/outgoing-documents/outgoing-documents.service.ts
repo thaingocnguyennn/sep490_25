@@ -944,9 +944,12 @@ export class OutgoingDocumentsService {
     }));
 
     // ── 3. Phân bổ theo loại văn bản ──────────────────────────────────────
-    const byDocumentTypeRaw = await prisma.outgoingDocument.groupBy({
+    const byDocumentTypeRaw = await prisma.document.groupBy({
       by: ['documentTypeId'],
-      where: baseOutgoingFilter as any,
+      where: {
+        ...baseDocumentFilter,
+        type: 'OUTGOING',
+      } as any,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
@@ -1106,7 +1109,7 @@ export class OutgoingDocumentsService {
         recipientName: item.recipientName || '—',
         title: item.document.title || '—',
         signerName: item.document.signerName || '—',
-        documentType: item.documentTypeRef?.name || '—',
+        documentType: item.document.documentTypeRef?.name || '—',
         urgencyName: item.document.urgency?.name || '—',
         sentDate: item.sentDate ? new Date(item.sentDate).toLocaleDateString('vi-VN') : '—',
         issuedAt: item.issuedAt ? new Date(item.issuedAt).toLocaleDateString('vi-VN') : '—',

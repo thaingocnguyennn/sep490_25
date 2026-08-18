@@ -16,7 +16,7 @@ const typeInclude = {
   createdBy: { select: { id: true, fullName: true } },
   _count: {
     select: {
-      outgoingDocuments: true,
+      documents: true,
     },
   },
 } as const satisfies Prisma.DocumentTypeInclude;
@@ -38,10 +38,10 @@ function mapToResponse(type: TypeWithInclude): DocumentTypeResponse {
       id: type.createdBy.id,
       fullName: type.createdBy.fullName,
     },
-    usageCount: type._count.outgoingDocuments,
+    usageCount: type._count.documents,
     usageDetail: {
       incoming: 0,
-      outgoing: type._count.outgoingDocuments,
+      outgoing: type._count.documents,
     },
   };
 }
@@ -152,11 +152,22 @@ export class DocumentTypesRepository {
   // ────────────────────────────────────────────────────────────────────────────
 
   async countUsage(typeId: number): Promise<DocumentTypeUsage> {
-    const outgoing = await prisma.outgoingDocument.count({
-      where: { documentTypeId: typeId },
+    const total = await prisma.document.count({
+      where: {
+        documentTypeId: typeId,
+        documentStatus: { not: 'DELETED' },
+      },
     });
 
-    return { incoming: 0, outgoing, total: outgoing };
+    const outgoing = await prisma.document.count({
+      where: {
+        documentTypeId: typeId,
+        type: 'OUTGOING',
+        documentStatus: { not: 'DELETED' },
+      },
+    });
+
+    return { incoming: total - outgoing, outgoing, total };
   }
 
   // ────────────────────────────────────────────────────────────────────────────

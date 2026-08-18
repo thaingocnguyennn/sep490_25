@@ -88,7 +88,7 @@ export class DocumentRegistrationService {
           senderSnapshot: doc.document.issuer || '',
           documentNumberSnapshot: docNumber,
           documentSymbolSnapshot: docNumber && docNumber.includes('/') ? docNumber.split('/')[1] : null,
-          documentDateSnapshot: doc.document.issuanceDate,
+          documentDateSnapshot: doc.document.dateOnLetter,
           documentTypeSnapshot: doc.document.documentTypeRef?.name ?? '',
           summarySnapshot: doc.document.description || doc.document.title,
           assignedDepartmentSnapshot: assignedDept,

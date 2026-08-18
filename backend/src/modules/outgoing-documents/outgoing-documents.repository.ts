@@ -9,8 +9,6 @@ import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 export interface OutgoingDocumentWithRelations {
   id: number;
   documentId: number;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: Date | null;
@@ -68,7 +66,7 @@ export interface OutgoingDocumentWithRelations {
     signerTitle: string | null;
     notes: string | null;
     issuer: string | null;
-    issuanceDate: Date | null;
+    dateOnLetter: Date | null;
     categoryId: number | null;
     category: { id: number; name: string; code: string } | null;
     documentStatus: string;
@@ -108,6 +106,7 @@ const OUTGOING_INCLUDE = {
       department: { select: { id: true, name: true } },
       confidentiality: { select: { id: true, code: true, name: true, description: true } },
       urgency: { select: { id: true, name: true, description: true } },
+      documentTypeRef: { select: { id: true, name: true } },
       // Include lĩnh vực văn bản (chỉ lấy ACTIVE, nhưng include không filter - filter ở service)
       category: { select: { id: true, name: true, code: true } },
       attachments: {
@@ -121,7 +120,6 @@ const OUTGOING_INCLUDE = {
       },
     },
   },
-  documentTypeRef: { select: { id: true, name: true } },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },
@@ -267,7 +265,10 @@ export class OutgoingDocumentsRepository {
     }
 
     if (documentTypeId !== undefined) {
-      where.documentTypeId = documentTypeId;
+      where.document = {
+        ...(where.document as object),
+        documentTypeId,
+      };
     }
 
     if (dateFrom || dateTo) {

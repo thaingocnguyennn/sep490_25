@@ -438,7 +438,7 @@ export class IncomingDocumentsService {
           signerTitle: data.signerTitle,
           notes: data.notes,
           description: data.summary,
-          issuanceDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
           createdBy: data.createdBy,
         },
       });
@@ -577,7 +577,7 @@ export class IncomingDocumentsService {
           signerTitle: data.signerTitle,
           notes: data.notes,
           description: data.summary,
-          issuanceDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
           createdBy: data.createdBy,
         },
       });
@@ -692,7 +692,7 @@ export class IncomingDocumentsService {
             signerTitle: data.signerTitle,
             notes: data.notes,
             description: data.summary,
-            issuanceDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
             urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
               ? await resolveUrgencyIdWithDefault(data.urgency)
               : await resolveUrgencyIdWithDefault(null),
@@ -818,7 +818,7 @@ export class IncomingDocumentsService {
           signerTitle: data.signerTitle,
           notes: data.notes,
           description: data.summary,
-          issuanceDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
           updatedBy: data.updatedBy,
         },
       });
@@ -925,7 +925,7 @@ export class IncomingDocumentsService {
             signerTitle: data.signerTitle,
             notes: data.notes,
             description: data.summary,
-            issuanceDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
             updatedBy: userId,
           },
         });
@@ -1018,7 +1018,7 @@ export class IncomingDocumentsService {
             signerTitle: data.signerTitle,
             notes: data.notes,
             description: data.summary,
-            issuanceDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
             urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
               ? await resolveUrgencyIdWithDefault(data.urgency)
               : await resolveUrgencyIdWithDefault(null),

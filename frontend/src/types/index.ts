@@ -180,7 +180,8 @@ export interface Document {
   signerName: string | null;
   signerTitle: string | null;
   notes: string | null;
-  issuanceDate: string | null;
+  /** Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate) */
+  dateOnLetter: string | null;
   categoryId: number | null;
   category: { id: number; name: string; code: string } | null;
   originalFileName: string | null;
@@ -191,7 +192,6 @@ export interface Document {
   createdByUser: { id: number; fullName: string } | null;
   updatedByUser?: { id: number; fullName: string } | null;
   department: { id: number; name: string } | null;
-  processor: { id: number; fullName: string } | null;
   // Optional fields from dev schema (DocumentWorkflow, processors, attachments)
   status: string; // DocumentStatus enum - DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
   workflows?: Array<{
@@ -242,6 +242,9 @@ export interface UpdateDocumentRequest {
   title?: string;
   description?: string;
   type?: DocumentDirection;
+  /** Ngày ghi trên văn bản */
+  dateOnLetter?: string | null;
+  /** @deprecated Use dateOnLetter — kept for legacy client compatibility. */
   issuanceDate?: string | null;
   issuer?: string | null;
   signerName?: string | null;

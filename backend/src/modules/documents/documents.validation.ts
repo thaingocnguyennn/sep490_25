@@ -24,15 +24,24 @@ export const uploadDocumentValidation = [
     .withMessage('Document type is required')
     .isIn(['INCOMING', 'OUTGOING', 'INTERNAL', 'ARCHIVAL'])
     .withMessage('Type must be INCOMING, OUTGOING, INTERNAL, or ARCHIVAL'),
+  body('dateOnLetter')
+    .optional()
+    .isISO8601()
+    .withMessage('Date on letter must be a valid ISO 8601 date'),
   body('issuanceDate')
     .optional()
     .isISO8601()
-    .withMessage('Issuance date must be a valid ISO 8601 date'),
+    .withMessage('Issuance date must be a valid ISO 8601 date (deprecated alias)'),
   body('sendingAgency')
     .optional()
     .trim()
     .isLength({ max: 200 })
     .withMessage('Sending agency must be at most 200 characters'),
+  body('issuer')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Issuer must be at most 200 characters'),
   body('urgency')
     .optional()
     .custom((value) => {
@@ -108,10 +117,21 @@ export const uploadDocumentValidation = [
     .optional()
     .isInt({ min: 1 })
     .withMessage('Invalid department ID'),
-  body('processorId')
+  body('signerName')
     .optional()
-    .isInt({ min: 1 })
-    .withMessage('Invalid processor ID'),
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer name must be at most 200 characters'),
+  body('signerTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer title must be at most 200 characters'),
+  body('notes')
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Notes must be at most 2000 characters'),
 ];
 
 // ─── Validation for updating document metadata ──────────────────────────────
@@ -141,6 +161,10 @@ export const updateDocumentValidation = [
     .optional({ nullable: true })
     .isISO8601()
     .withMessage('Issuance date must be a valid ISO 8601 date'),
+  body('dateOnLetter')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('Date on letter must be a valid ISO 8601 date'),
   body('sendingAgency')
     .optional()
     .trim()
@@ -230,10 +254,6 @@ export const updateDocumentValidation = [
     .optional({ nullable: true })
     .isInt({ min: 1 })
     .withMessage('Invalid department ID'),
-  body('processorId')
-    .optional({ nullable: true })
-    .isInt({ min: 1 })
-    .withMessage('Invalid processor ID'),
 ];
 
 // ─── Validation for list/filter query parameters ────────────────────────────
