@@ -126,7 +126,6 @@ export class DocumentsService {
         data: {
           documentId: doc.id,
           dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
-          departmentId: data.departmentId ? Number(data.departmentId) : undefined,
           pageCount: data.pageCount ? Number(data.pageCount) : undefined,
           arrivalNumber: data.arrivalNumber ? Number(data.arrivalNumber) : undefined,
         },

@@ -181,7 +181,7 @@ export default function PendingIncomingDocumentsPage() {
                           : '—'}
                       </td>
                       <td><DocumentStatusBadge status={item.document.status} /></td>
-                      <td>{item.createdByClerk?.fullName || '—'}</td>
+                      <td>{item.document.createdByUser?.fullName || '—'}</td>
                       <td>
                         <button
                           className="btn btn-sm btn-primary"

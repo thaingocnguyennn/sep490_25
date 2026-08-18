@@ -32,7 +32,6 @@ export class DocumentRegistrationService {
               }
             }
           },
-          department: true,
         }
       });
 
@@ -61,14 +60,14 @@ export class DocumentRegistrationService {
       const arrivalNumber = updatedBook.currentNumber;
 
       // 4. Lấy thông tin snapshot từ processing details
-      let assignedDept = doc.department?.name || '';
+      let assignedDept = '';
       let assignedUser = '';
       if (doc.document.processors && doc.document.processors.length > 0) {
         // Ưu tiên người xử lý chính (XLC) hoặc trưởng phòng
         const mainProcessor = doc.document.processors.find(p => p.processorType === 'XLC') || doc.document.processors[0];
         if (mainProcessor.user) {
           assignedUser = mainProcessor.user.fullName || '';
-          if (!assignedDept && mainProcessor.user.department) {
+          if (mainProcessor.user.department) {
             assignedDept = mainProcessor.user.department.name;
           }
         }

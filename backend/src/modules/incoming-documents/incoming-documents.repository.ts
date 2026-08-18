@@ -11,8 +11,6 @@ export interface IncomingDocumentWithRelations {
   receivedDate: Date;
   pageCount: number | null;
   processingInstructions: string | null;
-  createdByClerkId: number | null;
-  createdByClerk: { id: number; fullName: string } | null;
   documentBookId: number | null;
   documentBook: {
     id: number;
@@ -142,7 +140,6 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
-          createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
@@ -175,7 +172,6 @@ export class IncomingDocumentsRepository {
     const incoming = await prisma.incomingDocument.findUnique({
       where: { id },
       include: {
-        createdByClerk: { select: { id: true, fullName: true } },
         documentBook: { select: { id: true, name: true, code: true } },
         document: {
           include: {
@@ -238,7 +234,6 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
-          createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },
@@ -300,7 +295,6 @@ export class IncomingDocumentsRepository {
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
         include: {
-          createdByClerk: { select: { id: true, fullName: true } },
           document: {
             include: {
               createdByUser: { select: { id: true, fullName: true } },

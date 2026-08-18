@@ -57,8 +57,6 @@ export interface IncomingDocumentDetail {
   dateReceived: string;
   pageCount: number | null;
   processingInstructions: string | null;
-  createdByClerkId: number | null;
-  createdByClerk: { id: number; fullName: string } | null;
   documentBookId: number | null;
   documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
@@ -71,8 +69,6 @@ export interface IncomingDocumentListItem {
   dateReceived: string;
   pageCount: number | null;
   processingInstructions: string | null;
-  createdByClerkId: number | null;
-  createdByClerk: { id: number; fullName: string } | null;
   documentBookId: number | null;
   documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;

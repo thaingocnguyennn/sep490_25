@@ -361,7 +361,7 @@ export default function IncomingDocumentDetailPage() {
                 </div>
                 <div className="detail-item">
                   <label>Văn thư tạo</label>
-                  <span>{doc.createdByClerk?.fullName || '—'}</span>
+                  <span>{doc.document.createdByUser?.fullName || '—'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Ngày tạo</label>

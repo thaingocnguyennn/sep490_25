@@ -7,7 +7,7 @@ import {
   ForbiddenError,
   ConflictError,
 } from '../../shared/exceptions/app-error';
-import { DocumentStatus, WorkflowStatus, ProcessorType, OcrStatus } from '@prisma/client';
+import { DocumentStatus, WorkflowStatus, OcrStatus } from '@prisma/client';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import {
@@ -171,37 +171,12 @@ export class IncomingDocumentsService {
 
       const forwardedUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
-        // Capture the previous set for history
-        const previous = await tx.documentProcessor.findMany({
-          where: { documentId },
-          select: { userId: true, processorType: true },
-        });
         await tx.documentProcessor.deleteMany({ where: { documentId } });
         await tx.documentProcessor.createMany({
           data: processorIds.map((p) => ({
             documentId,
             userId: p.userId,
             processorType: p.processorType,
-          })),
-        });
-        if (previous.length > 0) {
-          await tx.documentProcessorHistory.createMany({
-            data: previous.map((p) => ({
-              documentId,
-              userId: p.userId,
-              processorType: p.processorType as ProcessorType,
-              action: 'TRANSFERRED',
-              actorId: userId,
-            })),
-          });
-        }
-        await tx.documentProcessorHistory.createMany({
-          data: processorIds.map((p) => ({
-            documentId,
-            userId: p.userId,
-            processorType: p.processorType as ProcessorType,
-            action: 'ASSIGNED',
-            actorId: userId,
           })),
         });
         forwardedUserIds.push(...processorIds.map((p) => p.userId));
@@ -301,9 +276,6 @@ export class IncomingDocumentsService {
       if (!payload.reason?.trim()) {
         throw new BadRequestError('Phải nhập lý do trả lại');
       }
-      const previous = await prisma.documentProcessor.findMany({
-        where: { documentId },
-      });
       await prisma.$transaction(async (tx) => {
         await tx.documentWorkflow.update({
           where: { id: headStep.id },
@@ -321,18 +293,6 @@ export class IncomingDocumentsService {
         });
 
         await tx.documentProcessor.deleteMany({ where: { documentId } });
-        if (previous.length > 0) {
-          await tx.documentProcessorHistory.createMany({
-            data: previous.map((p) => ({
-              documentId,
-              userId: p.userId,
-              processorType: p.processorType as ProcessorType,
-              action: 'REMOVED',
-              reason: payload.reason,
-              actorId: userId,
-            })),
-          });
-        }
       });
       // Notify the clerk who created the document so they can act.
       if (incoming.document.createdBy && incoming.document.createdByUser) {
@@ -450,7 +410,6 @@ export class IncomingDocumentsService {
           dateReceived: new Date(data.dateReceived),
           pageCount: data.pageCount,
           processingInstructions: data.processingInstructions,
-          createdByClerkId: data.createdBy,
           documentBookId,
         },
       });
@@ -589,7 +548,6 @@ export class IncomingDocumentsService {
           dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
           pageCount: data.pageCount,
           processingInstructions: data.processingInstructions,
-          createdByClerkId: data.createdBy,
           documentBookId,
         },
       });
@@ -710,7 +668,6 @@ export class IncomingDocumentsService {
             dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
             pageCount: data.pageCount,
             processingInstructions: data.processingInstructions,
-            createdByClerkId: userId,
             documentBookId,
           },
         });
@@ -1036,7 +993,6 @@ export class IncomingDocumentsService {
             dateReceived: new Date(data.dateReceived),
             pageCount: data.pageCount,
             processingInstructions: data.processingInstructions,
-            createdByClerkId: userId,
             documentBookId,
           },
         });
@@ -1070,19 +1026,6 @@ export class IncomingDocumentsService {
             processorType: p.processorType,
           })),
         });
-
-        // Record the initial processor assignments in history.
-        if (data.processorIds.length > 0) {
-          await tx.documentProcessorHistory.createMany({
-            data: data.processorIds.map((p) => ({
-              documentId: document.id,
-              userId: p.userId,
-              processorType: p.processorType as ProcessorType,
-              action: 'ASSIGNED',
-              actorId: userId,
-            })),
-          });
-        }
 
         const workflowSteps = await tx.workflowStep.findMany({
           orderBy: { stepOrder: 'asc' },
@@ -1365,16 +1308,6 @@ export class IncomingDocumentsService {
           notes: notes ?? null,
         },
       });
-      await tx.documentProcessorHistory.create({
-        data: {
-          documentId: incoming.documentId,
-          userId: processorUserId,
-          processorType: ProcessorType.PHXL,
-          action: 'COMPLETED',
-          actorId,
-          reason: notes ?? null,
-        },
-      });
     });
 
     await logSystemAction({
@@ -1467,36 +1400,12 @@ export class IncomingDocumentsService {
 
       const forwardedUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
-        const previous = await tx.documentProcessor.findMany({
-          where: { documentId },
-          select: { userId: true, processorType: true },
-        });
         await tx.documentProcessor.deleteMany({ where: { documentId } });
         await tx.documentProcessor.createMany({
           data: processorIds.map((p) => ({
             documentId,
             userId: p.userId,
             processorType: p.processorType,
-          })),
-        });
-        if (previous.length > 0) {
-          await tx.documentProcessorHistory.createMany({
-            data: previous.map((p) => ({
-              documentId,
-              userId: p.userId,
-              processorType: p.processorType as ProcessorType,
-              action: 'TRANSFERRED',
-              actorId: userId,
-            })),
-          });
-        }
-        await tx.documentProcessorHistory.createMany({
-          data: processorIds.map((p) => ({
-            documentId,
-            userId: p.userId,
-            processorType: p.processorType as ProcessorType,
-            action: 'ASSIGNED',
-            actorId: userId,
           })),
         });
         forwardedUserIds.push(...processorIds.map((p) => p.userId));
@@ -1596,10 +1505,6 @@ export class IncomingDocumentsService {
       if (!payload.reason?.trim()) {
         throw new BadRequestError('Phải nhập lý do trả lại Trưởng phòng');
       }
-      const previous = await prisma.documentProcessor.findMany({
-        where: { documentId },
-        select: { userId: true, processorType: true },
-      });
       await prisma.$transaction(async (tx) => {
         await tx.documentWorkflow.update({
           where: { id: specialistStep.id },
@@ -1627,19 +1532,6 @@ export class IncomingDocumentsService {
               completedAt: null,
               notes: 'Chuyên viên trả lại — đang chờ Trưởng phòng xem xét',
             },
-          });
-        }
-
-        if (previous.length > 0) {
-          await tx.documentProcessorHistory.createMany({
-            data: previous.map((p) => ({
-              documentId,
-              userId: p.userId,
-              processorType: p.processorType as ProcessorType,
-              action: 'REMOVED',
-              reason: payload.reason,
-              actorId: userId,
-            })),
           });
         }
 

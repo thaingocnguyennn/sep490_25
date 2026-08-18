@@ -87,13 +87,6 @@ enum WorkflowStatus {
   CANCELLED
 }
 
-enum StepStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  SKIPPED
-}
-
 model Department {
   id          Int      @id @default(autoincrement())
   name        String
@@ -106,11 +99,10 @@ model Department {
   children Department[] @relation("DepartmentHierarchy")
 
   // Many-to-many: a user can belong to multiple departments, and a department can have multiple users
-  members           DepartmentMember[]
-  documents         Document[]         @relation("DocumentDepartment")
-  incomingDocuments IncomingDocument[]
-  User              User[]
-  documentBooks     DocumentBook[]
+  members       DepartmentMember[]
+  documents     Document[]         @relation("DocumentDepartment")
+  User          User[]
+  documentBooks DocumentBook[]
 
   @@unique([name, parentId])
   @@index([parentId])
@@ -176,8 +168,6 @@ model User {
 
   outgoingAssignedApprover OutgoingDocument[] @relation("OutgoingAssignedApprover")
   outgoingAssignedClerk    OutgoingDocument[] @relation("OutgoingAssignedClerk")
-
-  incomingDocumentsCreated IncomingDocument[] @relation("IncomingDocumentClerk")
 
   // Document book relations
   createdDocumentBooks        DocumentBook[]      @relation("DocumentBookCreatedBy")
@@ -336,18 +326,11 @@ model IncomingDocument {
   documentBookId Int?
   documentBook   DocumentBook? @relation("IncomingDocumentBook", fields: [documentBookId], references: [id])
 
-  document     Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  department   Department? @relation(fields: [departmentId], references: [id])
-  departmentId Int?
-
-  createdByClerk   User? @relation("IncomingDocumentClerk", fields: [createdByClerkId], references: [id])
-  createdByClerkId Int?
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   outgoingResponses OutgoingDocument[]
   bookEntry         IncomingBookEntry?
 
-  @@index([createdByClerkId])
-  @@index([departmentId])
   @@index([dateReceived])
   @@index([arrivalNumber])
   @@index([documentBookId])
@@ -433,21 +416,6 @@ model DocumentProcessor {
   user     User     @relation(fields: [userId], references: [id])
 
   @@unique([documentId, userId, processorType])
-  @@index([userId])
-}
-
-// History of every assignment per document — used for audit and undo.
-model DocumentProcessorHistory {
-  id            Int           @id @default(autoincrement())
-  documentId    Int
-  userId        Int
-  processorType ProcessorType
-  action        String // ASSIGNED | TRANSFERRED | REMOVED | COMPLETED
-  reason        String?
-  actorId       Int?
-  createdAt     DateTime      @default(now())
-
-  @@index([documentId])
   @@index([userId])
 }
 
