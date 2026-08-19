@@ -285,8 +285,6 @@ export default function OutgoingDocumentsPage() {
                       <td>
                         {item.documentTypeRef ? (
                           <span className="badge badge-type">{item.documentTypeRef.name}</span>
-                        ) : item.documentType ? (
-                          <span className="badge badge-type">{item.documentType}</span>
                         ) : '—'}
                       </td>
                       <td style={{ maxWidth: 220 }}>

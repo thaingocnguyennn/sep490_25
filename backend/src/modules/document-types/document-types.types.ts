@@ -1,34 +1,34 @@
-﻿import { DocumentKindStatus } from '@prisma/client';
+﻿import { DocumentTypeStatus } from '@prisma/client';
 
-export interface DocumentKindFilterDto {
+export interface DocumentTypeFilterDto {
   page?: number;
   limit?: number;
   search?: string;
-  status?: DocumentKindStatus;
+  status?: DocumentTypeStatus;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
 
-export interface CreateDocumentKindDto {
+export interface CreateDocumentTypeDto {
   name: string;
   code: string;
   description?: string;
-  status?: DocumentKindStatus;
+  status?: DocumentTypeStatus;
 }
 
-export interface UpdateDocumentKindDto {
+export interface UpdateDocumentTypeDto {
   name?: string;
   code?: string;
   description?: string | null;
-  status?: DocumentKindStatus;
+  status?: DocumentTypeStatus;
 }
 
-export interface DocumentKindResponse {
+export interface DocumentTypeResponse {
   id: number;
   name: string;
   code: string;
   description: string | null;
-  status: DocumentKindStatus;
+  status: DocumentTypeStatus;
   isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -44,30 +44,30 @@ export interface DocumentKindResponse {
   };
 }
 
-export interface PaginatedDocumentKindResponse {
-  data: DocumentKindResponse[];
+export interface PaginatedDocumentTypeResponse {
+  data: DocumentTypeResponse[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
 }
 
-export interface DocumentKindOption {
+export interface DocumentTypeOption {
   id: number;
   name: string;
   code: string;
 }
 
-export interface DocumentKindUsage {
+export interface DocumentTypeUsage {
   incoming: number;
   outgoing: number;
   total: number;
 }
 
-export type DeleteDocumentKindOperation = 'SOFT_DELETED' | 'DEACTIVATED';
+export type DeleteDocumentTypeOperation = 'SOFT_DELETED' | 'DEACTIVATED';
 
-export interface DeleteDocumentKindResult {
-  kind: DocumentKindResponse;
-  operation: DeleteDocumentKindOperation;
-  usage: DocumentKindUsage;
+export interface DeleteDocumentTypeResult {
+  kind: DocumentTypeResponse;
+  operation: DeleteDocumentTypeOperation;
+  usage: DocumentTypeUsage;
 }

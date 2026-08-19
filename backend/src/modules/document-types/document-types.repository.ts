@@ -1,48 +1,47 @@
-﻿import { DocumentKindStatus, Prisma } from '@prisma/client';
+﻿import { DocumentTypeStatus, Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import {
-  DocumentKindFilterDto,
-  PaginatedDocumentKindResponse,
-  DocumentKindResponse,
-  DocumentKindOption,
-  DocumentKindUsage,
+  DocumentTypeFilterDto,
+  PaginatedDocumentTypeResponse,
+  DocumentTypeResponse,
+  DocumentTypeOption,
+  DocumentTypeUsage,
 } from './document-types.types';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Shared include clause
 // ──────────────────────────────────────────────────────────────────────────────
 
-const kindInclude = {
+const typeInclude = {
   createdBy: { select: { id: true, fullName: true } },
   _count: {
     select: {
-      incomingDocuments: true,
-      outgoingDocuments: true,
+      documents: true,
     },
   },
-} as const satisfies Prisma.DocumentKindInclude;
+} as const satisfies Prisma.DocumentTypeInclude;
 
-type KindWithInclude = Prisma.DocumentKindGetPayload<{ include: typeof kindInclude }>;
+type TypeWithInclude = Prisma.DocumentTypeGetPayload<{ include: typeof typeInclude }>;
 
-function mapToResponse(kind: KindWithInclude): DocumentKindResponse {
+function mapToResponse(type: TypeWithInclude): DocumentTypeResponse {
   return {
-    id: kind.id,
-    name: kind.name,
-    code: kind.code,
-    description: kind.description,
-    status: kind.status,
-    isSystem: kind.isSystem,
-    createdAt: kind.createdAt,
-    updatedAt: kind.updatedAt,
-    deletedAt: kind.deletedAt,
+    id: type.id,
+    name: type.name,
+    code: type.code,
+    description: type.description,
+    status: type.status,
+    isSystem: type.isSystem,
+    createdAt: type.createdAt,
+    updatedAt: type.updatedAt,
+    deletedAt: type.deletedAt,
     createdBy: {
-      id: kind.createdBy.id,
-      fullName: kind.createdBy.fullName,
+      id: type.createdBy.id,
+      fullName: type.createdBy.fullName,
     },
-    usageCount: kind._count.incomingDocuments + kind._count.outgoingDocuments,
+    usageCount: type._count.documents,
     usageDetail: {
-      incoming: kind._count.incomingDocuments,
-      outgoing: kind._count.outgoingDocuments,
+      incoming: 0,
+      outgoing: type._count.documents,
     },
   };
 }
@@ -52,7 +51,7 @@ export class DocumentTypesRepository {
   // READ
   // ────────────────────────────────────────────────────────────────────────────
 
-  async findAll(filter: DocumentKindFilterDto): Promise<PaginatedDocumentKindResponse> {
+  async findAll(filter: DocumentTypeFilterDto): Promise<PaginatedDocumentTypeResponse> {
     const {
       page = 1,
       limit = 10,
@@ -64,7 +63,7 @@ export class DocumentTypesRepository {
 
     const skip = (page - 1) * limit;
 
-    const where: Prisma.DocumentKindWhereInput = {
+    const where: Prisma.DocumentTypeWhereInput = {
       deletedAt: null,
     };
 
@@ -79,19 +78,19 @@ export class DocumentTypesRepository {
       where.status = status;
     }
 
-    const [kinds, total] = await Promise.all([
-      prisma.documentKind.findMany({
+    const [types, total] = await Promise.all([
+      prisma.documentType.findMany({
         where,
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
-        include: kindInclude,
+        include: typeInclude,
       }),
-      prisma.documentKind.count({ where }),
+      prisma.documentType.count({ where }),
     ]);
 
     return {
-      data: kinds.map(mapToResponse),
+      data: types.map(mapToResponse),
       total,
       page,
       limit,
@@ -99,10 +98,10 @@ export class DocumentTypesRepository {
     };
   }
 
-  async findActiveOptions(): Promise<DocumentKindOption[]> {
-    return prisma.documentKind.findMany({
+  async findActiveOptions(): Promise<DocumentTypeOption[]> {
+    return prisma.documentType.findMany({
       where: {
-        status: DocumentKindStatus.ACTIVE,
+        status: DocumentTypeStatus.ACTIVE,
         deletedAt: null,
       },
       orderBy: { name: 'asc' },
@@ -110,14 +109,14 @@ export class DocumentTypesRepository {
     });
   }
 
-  async findById(id: number): Promise<DocumentKindResponse | null> {
-    const kind = await prisma.documentKind.findUnique({
+  async findById(id: number): Promise<DocumentTypeResponse | null> {
+    const type = await prisma.documentType.findUnique({
       where: { id },
-      include: kindInclude,
+      include: typeInclude,
     });
 
-    if (!kind) return null;
-    return mapToResponse(kind);
+    if (!type) return null;
+    return mapToResponse(type);
   }
 
   /** Find by code, optionally excluding a specific ID (for update duplicate check). */
@@ -125,7 +124,7 @@ export class DocumentTypesRepository {
     code: string,
     excludeId?: number,
   ): Promise<{ id: number; code: string } | null> {
-    return prisma.documentKind.findFirst({
+    return prisma.documentType.findFirst({
       where: {
         code,
         ...(excludeId ? { id: { not: excludeId } } : {}),
@@ -139,7 +138,7 @@ export class DocumentTypesRepository {
     normalizedName: string,
     excludeId?: number,
   ): Promise<{ id: number; name: string } | null> {
-    return prisma.documentKind.findFirst({
+    return prisma.documentType.findFirst({
       where: {
         normalizedName,
         ...(excludeId ? { id: { not: excludeId } } : {}),
@@ -152,13 +151,23 @@ export class DocumentTypesRepository {
   // USAGE COUNT
   // ────────────────────────────────────────────────────────────────────────────
 
-  async countUsage(kindId: number): Promise<DocumentKindUsage> {
-    const [incoming, outgoing] = await Promise.all([
-      prisma.incomingDocument.count({ where: { documentTypeId: kindId } }),
-      prisma.outgoingDocument.count({ where: { documentTypeId: kindId } }),
-    ]);
+  async countUsage(typeId: number): Promise<DocumentTypeUsage> {
+    const total = await prisma.document.count({
+      where: {
+        documentTypeId: typeId,
+        documentStatus: { not: 'DELETED' },
+      },
+    });
 
-    return { incoming, outgoing, total: incoming + outgoing };
+    const outgoing = await prisma.document.count({
+      where: {
+        documentTypeId: typeId,
+        type: 'OUTGOING',
+        documentStatus: { not: 'DELETED' },
+      },
+    });
+
+    return { incoming: total - outgoing, outgoing, total };
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -171,17 +180,17 @@ export class DocumentTypesRepository {
       normalizedName: string;
       code: string;
       description?: string | null;
-      status: DocumentKindStatus;
+      status: DocumentTypeStatus;
       createdById: number;
     },
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentKindResponse> {
+  ): Promise<DocumentTypeResponse> {
     const client = tx ?? prisma;
-    const kind = await client.documentKind.create({
+    const type = await client.documentType.create({
       data,
-      include: kindInclude,
+      include: typeInclude,
     });
-    return mapToResponse(kind);
+    return mapToResponse(type);
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -190,16 +199,16 @@ export class DocumentTypesRepository {
 
   async update(
     id: number,
-    data: Prisma.DocumentKindUpdateInput,
+    data: Prisma.DocumentTypeUpdateInput,
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentKindResponse> {
+  ): Promise<DocumentTypeResponse> {
     const client = tx ?? prisma;
-    const kind = await client.documentKind.update({
+    const type = await client.documentType.update({
       where: { id },
       data,
-      include: kindInclude,
+      include: typeInclude,
     });
-    return mapToResponse(kind);
+    return mapToResponse(type);
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -210,53 +219,53 @@ export class DocumentTypesRepository {
     id: number,
     userId: number,
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentKindResponse> {
+  ): Promise<DocumentTypeResponse> {
     const client = tx ?? prisma;
-    const kind = await client.documentKind.update({
+    const type = await client.documentType.update({
       where: { id },
       data: {
-        status: DocumentKindStatus.INACTIVE,
+        status: DocumentTypeStatus.INACTIVE,
         deletedAt: new Date(),
         updatedBy: { connect: { id: userId } },
       },
-      include: kindInclude,
+      include: typeInclude,
     });
-    return mapToResponse(kind);
+    return mapToResponse(type);
   }
 
   async deactivate(
     id: number,
     userId: number,
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentKindResponse> {
+  ): Promise<DocumentTypeResponse> {
     const client = tx ?? prisma;
-    const kind = await client.documentKind.update({
+    const type = await client.documentType.update({
       where: { id },
       data: {
-        status: DocumentKindStatus.INACTIVE,
+        status: DocumentTypeStatus.INACTIVE,
         deletedAt: null,
         updatedBy: { connect: { id: userId } },
       },
-      include: kindInclude,
+      include: typeInclude,
     });
-    return mapToResponse(kind);
+    return mapToResponse(type);
   }
 
   async reactivate(
     id: number,
     userId: number,
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentKindResponse> {
+  ): Promise<DocumentTypeResponse> {
     const client = tx ?? prisma;
-    const kind = await client.documentKind.update({
+    const type = await client.documentType.update({
       where: { id },
       data: {
-        status: DocumentKindStatus.ACTIVE,
+        status: DocumentTypeStatus.ACTIVE,
         deletedAt: null,
         updatedBy: { connect: { id: userId } },
       },
-      include: kindInclude,
+      include: typeInclude,
     });
-    return mapToResponse(kind);
+    return mapToResponse(type);
   }
 }

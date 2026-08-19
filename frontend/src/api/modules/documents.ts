@@ -1,7 +1,7 @@
 import api from '../axios';
 import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest, ConfidentialityCodeOrName, OcrResult } from '../../types';
 
-export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentDirection = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
 export type ProcessorType = 'XLC' | 'PHXL' | 'XDB';
 export type Urgency = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
@@ -53,22 +53,10 @@ export type WorkflowStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED
 export interface IncomingDocumentDetail {
   id: number;
   documentId: number;
-  issuer: string | null;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
-  documentNumber: string | null;
   arrivalNumber: number | null;
-  signerName: string | null;
-  signerTitle: string | null;
-  dateLetter: string | null;
   dateReceived: string;
-  summary: string | null;
   pageCount: number | null;
-  notes: string | null;
   processingInstructions: string | null;
-  createdByClerkId: number | null;
-  createdByClerk: { id: number; fullName: string } | null;
   documentBookId: number | null;
   documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
@@ -77,22 +65,10 @@ export interface IncomingDocumentDetail {
 export interface IncomingDocumentListItem {
   id: number;
   documentId: number;
-  issuer: string | null;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
-  documentNumber: string | null;
   arrivalNumber: number | null;
-  signerName: string | null;
-  signerTitle: string | null;
-  dateLetter: string | null;
   dateReceived: string;
-  summary: string | null;
   pageCount: number | null;
-  notes: string | null;
   processingInstructions: string | null;
-  createdByClerkId: number | null;
-  createdByClerk: { id: number; fullName: string } | null;
   documentBookId: number | null;
   documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
@@ -102,7 +78,6 @@ export interface IncomingDocumentListItem {
 
 export interface CreateIncomingDocumentRequest {
   issuer?: string;
-  documentType?: string;
   documentTypeId?: number;
   documentNumber?: string;
   arrivalNumber?: number;

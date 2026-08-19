@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useDocumentTypeActions } from '../hooks/useDocumentTypes';
 import {
-  DocumentKindResponse,
-  CreateDocumentKindDto,
-  UpdateDocumentKindDto,
+  DocumentTypeResponse,
+  CreateDocumentTypeDto,
+  UpdateDocumentTypeDto,
 } from '../types/documentType.types';
 
 interface DocumentTypeFormModalProps {
-  documentType?: DocumentKindResponse;
+  documentType?: DocumentTypeResponse;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -19,7 +19,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
 }) => {
   const isEditing = !!documentType;
   const { create, update, loading } = useDocumentTypeActions();
-
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -47,7 +46,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
     } else if (formData.name.trim().length > 100) {
       newErrors.name = 'Tên không được vượt quá 100 ký tự';
     }
-
     if (!formData.code.trim()) {
       newErrors.code = 'Mã thể loại văn bản là bắt buộc';
     } else if (formData.code.trim().length > 20) {
@@ -57,7 +55,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
     } else if (formData.code.includes('/')) {
       newErrors.code = 'Mã không được chứa dấu /';
     }
-
     if (formData.description.length > 500) {
       newErrors.description = 'Mô tả không được vượt quá 500 ký tự';
     }
@@ -69,10 +66,9 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
     e.preventDefault();
     setApiError(null);
     if (!validate()) return;
-
     try {
       if (isEditing) {
-        const dto: UpdateDocumentKindDto = {
+        const dto: UpdateDocumentTypeDto = {
           name: formData.name.trim(),
           description: formData.description.trim() || null,
           status: formData.status,
@@ -84,7 +80,7 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
         }
         await update(documentType!.id, dto);
       } else {
-        const dto: CreateDocumentKindDto = {
+        const dto: CreateDocumentTypeDto = {
           name: formData.name.trim(),
           code: formData.code.trim(),
           description: formData.description.trim() || undefined,
@@ -111,7 +107,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
           </h2>
           <button className="modal-close" onClick={onClose} aria-label="Đóng">&times;</button>
         </div>
-
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             {apiError && (
@@ -119,7 +114,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
                 ⚠ {apiError}
               </div>
             )}
-
             <div className="form-group">
               <label>Tên thể loại <span style={{ color: '#e74c3c' }}>*</span></label>
               <input
@@ -133,7 +127,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
               />
               {errors.name && <div className="error-text">{errors.name}</div>}
             </div>
-
             <div className="form-group">
               <label>Mã thể loại <span style={{ color: '#e74c3c' }}>*</span></label>
               <input
@@ -155,7 +148,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
               )}
               {errors.code && <div className="error-text">{errors.code}</div>}
             </div>
-
             <div className="form-group">
               <label>Mô tả</label>
               <textarea
@@ -177,7 +169,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
                 <span style={{ fontSize: 12, color: '#b2bec3' }}>{formData.description.length}/500</span>
               </div>
             </div>
-
             <div className="form-group">
               <label>Trạng thái</label>
               <select
@@ -195,7 +186,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
               )}
             </div>
           </div>
-
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
               Hủy

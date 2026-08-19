@@ -120,7 +120,7 @@ export interface ApiResponse<T = unknown> {
 
 // ─── Document Management Types ──────────────────────────────────────────────
 
-export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentDirection = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'ACTIVE' | 'DELETED';
 
 /**
@@ -165,7 +165,7 @@ export interface Document {
   documentNumber: string;
   title: string;
   description: string | null;
-  type: DocumentType;
+  type: DocumentDirection;
   fileUrl: string | null;
   documentStatus: DocumentStatus;
   isArchived: boolean;
@@ -173,9 +173,17 @@ export interface Document {
   urgency: Urgency | null;
   confidentialityId: number | null;
   confidentiality: Confidentiality | null;
-  sendingAgency: string | null;
-  issuanceDate: string | null;
-  category: string | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string; code?: string } | null;
+  /** Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency) */
+  issuer: string | null;
+  signerName: string | null;
+  signerTitle: string | null;
+  notes: string | null;
+  /** Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate) */
+  dateOnLetter: string | null;
+  categoryId: number | null;
+  category: { id: number; name: string; code: string } | null;
   originalFileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
@@ -184,7 +192,6 @@ export interface Document {
   createdByUser: { id: number; fullName: string } | null;
   updatedByUser?: { id: number; fullName: string } | null;
   department: { id: number; name: string } | null;
-  processor: { id: number; fullName: string } | null;
   // Optional fields from dev schema (DocumentWorkflow, processors, attachments)
   status: string; // DocumentStatus enum - DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
   workflows?: Array<{
@@ -216,7 +223,7 @@ export interface DocumentFilterParams {
   page?: number;
   limit?: number;
   search?: string;
-  type?: DocumentType;
+  type?: DocumentDirection;
   status?: DocumentStatus;
   isArchived?: boolean;
   /** Seeded urgency name, legacy alias, or numeric id */
@@ -234,15 +241,22 @@ export interface UpdateDocumentRequest {
   documentNumber?: string;
   title?: string;
   description?: string;
-  type?: DocumentType;
+  type?: DocumentDirection;
+  /** Ngày ghi trên văn bản */
+  dateOnLetter?: string | null;
+  /** @deprecated Use dateOnLetter — kept for legacy client compatibility. */
   issuanceDate?: string | null;
-  sendingAgency?: string;
+  issuer?: string | null;
+  signerName?: string | null;
+  signerTitle?: string | null;
+  notes?: string | null;
   /** Seeded urgency name, legacy alias, or numeric id; null to clear */
   urgency?: UrgencyCodeOrName | null;
   urgencyId?: UrgencyCodeOrName | null;
   confidentialityLevel?: ConfidentialityCodeOrName;
   confidentialityId?: ConfidentialityCodeOrName | null;
-  category?: string;
+  categoryId?: number | null;
+  documentTypeId?: number | null;
   departmentId?: number | null;
   processorId?: number | null;
 }
@@ -265,14 +279,11 @@ export type OutgoingDocumentStatus =
 export interface OutgoingDocument {
   id: number;
   documentId: number;
-  documentType: string | null;
   documentTypeId: number | null;
   documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: string | null;
-  signerName: string | null;
-  signerTitle: string | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -295,7 +306,6 @@ export interface OutgoingDocument {
   recallReason: string | null;
   trashedAt: string | null;
   trashedBy: number | null;
-  notes: string | null;
   assignedApproverId: number | null;
   assignedClerkId: number | null;
   createdAt: string;
@@ -315,6 +325,15 @@ export interface OutgoingDocument {
     urgency: Urgency | null;
     confidentialityId: number | null;
     confidentiality: Confidentiality | null;
+    documentTypeId: number | null;
+    documentTypeRef: { id: number; name: string } | null;
+    issuer: string | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    notes: string | null;
+    issuanceDate: string | null;
+    categoryId: number | null;
+    category: { id: number; name: string; code: string } | null;
     documentStatus: DocumentStatus;
     isArchived: boolean;
     originalFileName: string | null;

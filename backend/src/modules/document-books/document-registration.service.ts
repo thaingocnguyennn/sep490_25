@@ -22,6 +22,7 @@ export class DocumentRegistrationService {
         include: {
           document: {
             include: {
+              documentTypeRef: { select: { id: true, name: true } },
               processors: {
                 include: {
                   user: {
@@ -31,7 +32,6 @@ export class DocumentRegistrationService {
               }
             }
           },
-          department: true,
         }
       });
 
@@ -60,14 +60,14 @@ export class DocumentRegistrationService {
       const arrivalNumber = updatedBook.currentNumber;
 
       // 4. Lấy thông tin snapshot từ processing details
-      let assignedDept = doc.department?.name || '';
+      let assignedDept = '';
       let assignedUser = '';
       if (doc.document.processors && doc.document.processors.length > 0) {
         // Ưu tiên người xử lý chính (XLC) hoặc trưởng phòng
         const mainProcessor = doc.document.processors.find(p => p.processorType === 'XLC') || doc.document.processors[0];
         if (mainProcessor.user) {
           assignedUser = mainProcessor.user.fullName || '';
-          if (!assignedDept && mainProcessor.user.department) {
+          if (mainProcessor.user.department) {
             assignedDept = mainProcessor.user.department.name;
           }
         }
@@ -75,21 +75,21 @@ export class DocumentRegistrationService {
 
       // 5. Tạo IncomingBookEntry
       const arrivalDate = customArrivalDate || doc.dateReceived || new Date();
-      
-      const docNumber = doc.documentNumber || doc.document.documentNumber;
-      
+
+      const docNumber = doc.document.documentNumber;
+
       const entry = await tx.incomingBookEntry.create({
         data: {
           documentBookId,
           incomingDocumentId,
           arrivalNumber,
           arrivalDate,
-          senderSnapshot: doc.issuer || '',
+          senderSnapshot: doc.document.issuer || '',
           documentNumberSnapshot: docNumber,
           documentSymbolSnapshot: docNumber && docNumber.includes('/') ? docNumber.split('/')[1] : null,
-          documentDateSnapshot: doc.dateLetter,
-          documentTypeSnapshot: doc.documentType || doc.document.type,
-          summarySnapshot: doc.summary || doc.document.description || doc.document.title,
+          documentDateSnapshot: doc.document.dateOnLetter,
+          documentTypeSnapshot: doc.document.documentTypeRef?.name ?? '',
+          summarySnapshot: doc.document.description || doc.document.title,
           assignedDepartmentSnapshot: assignedDept,
           assignedUserSnapshot: assignedUser,
           registeredById,
@@ -135,7 +135,11 @@ export class DocumentRegistrationService {
       const doc = await tx.outgoingDocument.findUnique({
         where: { id: outgoingDocumentId },
         include: {
-          document: true,
+          document: {
+            include: {
+              documentTypeRef: { select: { id: true, name: true } },
+            },
+          },
           issuedByUser: true,
         }
       });
@@ -182,9 +186,9 @@ export class DocumentRegistrationService {
           officialNumber,
           documentSymbol: docSymbol,
           issuanceDate,
-          documentTypeSnapshot: doc.documentType || doc.document.type,
+          documentTypeSnapshot: doc.document.documentTypeRef?.name ?? '',
           summarySnapshot: doc.document.description || doc.document.title,
-          signerSnapshot: doc.signerName || '',
+          signerSnapshot: doc.document.signerName || '',
           recipientsSnapshot: doc.recipientName || '',
           archiveRecipientSnapshot: book.department.name, // Lưu tại phòng ban của sổ
           copyCount: doc.pageCount || 1, // Tạm dùng pageCount hoặc default 1

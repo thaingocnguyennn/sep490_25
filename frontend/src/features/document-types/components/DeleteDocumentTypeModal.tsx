@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useDocumentTypeActions } from '../hooks/useDocumentTypes';
-import { DocumentKindResponse } from '../types/documentType.types';
+import { DocumentTypeResponse } from '../types/documentType.types';
 
 interface DeleteDocumentTypeModalProps {
-  documentType: DocumentKindResponse;
+  documentType: DocumentTypeResponse;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -17,10 +17,9 @@ export const DeleteDocumentTypeModal: React.FC<DeleteDocumentTypeModalProps> = (
   const [apiError, setApiError] = useState<string | null>(null);
 
   const hasUsage = documentType.usageCount > 0;
-  
   const title = hasUsage ? 'Ngừng hoạt động thể loại văn bản' : 'Xóa thể loại văn bản';
   const actionText = hasUsage ? 'Ngừng hoạt động' : 'Xóa';
-  
+
   const handleDelete = async () => {
     setApiError(null);
     try {
@@ -39,14 +38,12 @@ export const DeleteDocumentTypeModal: React.FC<DeleteDocumentTypeModalProps> = (
           <h2 style={{ fontSize: 18, color: hasUsage ? '#e67e22' : '#d63031' }}>{title}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Đóng">&times;</button>
         </div>
-
         <div className="modal-body">
           {apiError && (
             <div className="alert alert-error" style={{ marginBottom: 16 }}>
               ⚠ {apiError}
             </div>
           )}
-
           {hasUsage ? (
             <div>
               <p>
@@ -66,20 +63,19 @@ export const DeleteDocumentTypeModal: React.FC<DeleteDocumentTypeModalProps> = (
                 Bạn có chắc chắn muốn xóa thể loại văn bản <strong>{documentType.name} ({documentType.code})</strong>?
               </p>
               <p style={{ marginTop: 8, color: '#636e72' }}>
-                Hành động này không thể hoàn tác, nhưng hệ thống vẫn lưu trữ thông tin trong thùng rác để phục hồi nếu cần.
+                Hành động này không thể hoàn tác, nhưng hệ thống v�n lưu trữ thông tin trong thùng rác để phục hồi nếu cần.
               </p>
             </div>
           )}
         </div>
-
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
             Hủy
           </button>
-          <button 
-            type="button" 
-            className="btn btn-primary" 
-            onClick={handleDelete} 
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleDelete}
             disabled={loading}
             style={{ backgroundColor: hasUsage ? '#e67e22' : '#d63031' }}
           >

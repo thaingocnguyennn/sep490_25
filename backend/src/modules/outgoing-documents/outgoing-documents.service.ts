@@ -151,6 +151,10 @@ export class OutgoingDocumentsService {
           urgencyId,
           confidentialityId: await resolveConfidentialityIdWithDefault(data.confidentialityLevel),
           departmentId: data.departmentId,
+          documentTypeId: data.documentTypeId,
+          // Lĩnh vực văn bản (chỉ nhận ID hợp lệ, validation đã kiểm tra ACTIVE ở controller)
+          categoryId: data.documentCategoryId,
+          notes: data.notes,
           createdBy: data.createdBy,
         },
       });
@@ -159,13 +163,9 @@ export class OutgoingDocumentsService {
       const outgoing = await tx.outgoingDocument.create({
         data: {
           documentId: document.id,
-          documentTypeId: data.documentTypeId,
-          // Lĩnh vực văn bản (chỉ nhận ID hợp lệ, validation đã kiểm tra ACTIVE ở controller)
-          categoryId: data.documentCategoryId,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
-          notes: data.notes,
           relatedIncomingDocumentId: data.relatedIncomingDocumentId,
         },
       });
@@ -511,6 +511,19 @@ export class OutgoingDocumentsService {
         : await resolveUrgencyIdWithDefault(data.urgency);
     }
 
+    if (data.documentTypeId !== undefined) {
+      documentUpdate.documentTypeId = data.documentTypeId;
+    }
+    if (data.signerName !== undefined) {
+      documentUpdate.signerName = data.signerName;
+    }
+    if (data.signerTitle !== undefined) {
+      documentUpdate.signerTitle = data.signerTitle;
+    }
+    if (data.notes !== undefined) {
+      documentUpdate.notes = data.notes;
+    }
+
     await prisma.$transaction(async (tx) => {
       // Cập nhật Document chính
       await tx.document.update({
@@ -522,15 +535,11 @@ export class OutgoingDocumentsService {
       await tx.outgoingDocument.update({
         where: { id },
         data: {
-          documentTypeId: data.documentTypeId,
           documentNumber: data.documentNumber,
-          signerName: data.signerName,
-          signerTitle: data.signerTitle,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
           pageCount: data.pageCount,
-          notes: data.notes,
         },
       });
     });
@@ -769,8 +778,8 @@ export class OutgoingDocumentsService {
     const issuanceDate = outgoing.issuanceDate
       ? new Date(outgoing.issuanceDate).toLocaleDateString('vi-VN')
       : 'Chưa xác định';
-    const signerName = outgoing.signerName || 'Chưa xác định';
-    const signerTitle = outgoing.signerTitle || '';
+    const signerName = outgoing.document.signerName || 'Chưa xác định';
+    const signerTitle = outgoing.document.signerTitle || '';
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px;">
@@ -935,16 +944,30 @@ export class OutgoingDocumentsService {
     }));
 
     // ── 3. Phân bổ theo loại văn bản ──────────────────────────────────────
-    const byDocumentTypeRaw = await prisma.outgoingDocument.groupBy({
-      by: ['documentType'],
-      where: baseOutgoingFilter as any,
+    const byDocumentTypeRaw = await prisma.document.groupBy({
+      by: ['documentTypeId'],
+      where: {
+        ...baseDocumentFilter,
+        type: 'OUTGOING',
+      } as any,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
 
+    const documentTypeIds = byDocumentTypeRaw
+      .map((row) => row.documentTypeId)
+      .filter((id): id is number => id !== null);
+    const documentTypeNames = await prisma.documentType.findMany({
+      where: { id: { in: documentTypeIds } },
+      select: { id: true, name: true },
+    });
+    const documentTypeNameMap = new Map(documentTypeNames.map((dt) => [dt.id, dt.name]));
+
     const byDocumentType = byDocumentTypeRaw.map((row) => ({
-      documentType: row.documentType ?? 'Chưa phân loại',
-      count: row._count.id,
+      documentType: row.documentTypeId
+        ? (documentTypeNameMap.get(row.documentTypeId) ?? 'Chưa phân loại')
+        : 'Chưa phân loại',
+      count: (row._count as any).id ?? 0,
     }));
 
     // ── 4. Phân bổ theo phòng ban soạn thảo ──────────────────────────────
@@ -1085,8 +1108,8 @@ export class OutgoingDocumentsService {
         documentNumber: item.document.documentNumber || '—',
         recipientName: item.recipientName || '—',
         title: item.document.title || '—',
-        signerName: item.signerName || '—',
-        documentType: item.documentType || '—',
+        signerName: item.document.signerName || '—',
+        documentType: item.document.documentTypeRef?.name || '—',
         urgencyName: item.document.urgency?.name || '—',
         sentDate: item.sentDate ? new Date(item.sentDate).toLocaleDateString('vi-VN') : '—',
         issuedAt: item.issuedAt ? new Date(item.issuedAt).toLocaleDateString('vi-VN') : '—',

@@ -142,7 +142,7 @@ export default function PendingIncomingDocumentsPage() {
                       </td>
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#667eea' }}>
-                          {item.documentNumber || '—'}
+                          {item.document.documentNumber || '—'}
                         </span>
                       </td>
                       <td
@@ -152,15 +152,13 @@ export default function PendingIncomingDocumentsPage() {
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}
-                        title={item.issuer || ''}
+                        title={item.document.issuer || ''}
                       >
-                        {item.issuer || '—'}
+                        {item.document.issuer || '—'}
                       </td>
                       <td>
-                        {item.documentTypeRef ? (
-                          <span className="badge badge-type">{item.documentTypeRef.name}</span>
-                        ) : item.documentType ? (
-                          <span className="badge badge-type">{item.documentType}</span>
+                        {item.document.documentTypeRef ? (
+                          <span className="badge badge-type">{item.document.documentTypeRef.name}</span>
                         ) : '—'}
                       </td>
                       <td style={{ maxWidth: 200 }}>
@@ -183,7 +181,7 @@ export default function PendingIncomingDocumentsPage() {
                           : '—'}
                       </td>
                       <td><DocumentStatusBadge status={item.document.status} /></td>
-                      <td>{item.createdByClerk?.fullName || '—'}</td>
+                      <td>{item.document.createdByUser?.fullName || '—'}</td>
                       <td>
                         <button
                           className="btn btn-sm btn-primary"
