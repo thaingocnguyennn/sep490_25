@@ -222,8 +222,11 @@ export default function DepartmentsPage() {
               Dạng bảng
             </button>
           </div>
-          <button className="btn btn-primary" onClick={() => navigate('/admin/departments/new')}>
-            + Tạo phòng ban
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => navigate('/admin/departments/new')}
+          >
+            Tạo phòng ban
           </button>
         </div>
       </div>

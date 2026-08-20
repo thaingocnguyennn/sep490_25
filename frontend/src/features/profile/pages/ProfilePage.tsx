@@ -86,13 +86,13 @@ export default function ProfilePage() {
         <h1>Hồ sơ của tôi</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            className="btn btn-secondary"
+            className="btn btn-secondary btn-sm"
             onClick={() => navigate(`${profilePath}/change-password`)}
           >
             Đổi mật khẩu
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             onClick={() => navigate(`${profilePath}/edit`)}
           >
             Chỉnh sửa hồ sơ

@@ -218,6 +218,21 @@ button {
   cursor: not-allowed;
 }
 
+.btn-sm {
+  padding: 10px 22px;
+  font-size: 15px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  width: auto;
+}
+
+.top-bar .btn {
+  width: auto;
+}
+
 .btn-secondary {
   background: #dfe6e9;
   color: #2d3436;
@@ -2172,6 +2187,18 @@ textarea:focus {
   color: #ffffff;
 }
 
+/* ─── Action buttons: default (top-bar action) ────────────────────────────── */
+
+.action-btn:not(.edit):not(.delete):not(.lock):not(.unlock):not(.view) {
+  background: #eef0ff;
+  color: #667eea;
+}
+
+.action-btn:not(.edit):not(.delete):not(.lock):not(.unlock):not(.view):hover {
+  background: #667eea;
+  color: #ffffff;
+}
+
 .workflow-step-assignee {
   font-size: 12px;
   color: #667eea;
@@ -2199,35 +2226,6 @@ textarea:focus {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-}
-
-/* Small buttons */
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 12px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.btn-sm.btn-success {
-  background: #27ae60;
-  color: #fff;
-}
-
-.btn-sm.btn-success:hover {
-  background: #1e8449;
-}
-
-.btn-sm.btn-danger {
-  background: #e74c3c;
-  color: #fff;
-}
-
-.btn-sm.btn-danger:hover {
-  background: #c0392b;
 }
 
 /* Attachments Grid */

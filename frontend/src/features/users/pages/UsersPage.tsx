@@ -59,8 +59,11 @@ export default function UsersPage() {
     <>
       <div className="top-bar">
         <h1>Quản lý người dùng</h1>
-        <button className="btn btn-primary" onClick={() => navigate('/admin/users/new')}>
-          + Tạo người dùng
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={() => navigate('/admin/users/new')}
+        >
+          Tạo người dùng
         </button>
       </div>
 
