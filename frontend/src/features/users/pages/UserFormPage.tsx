@@ -24,6 +24,7 @@ type FormState = {
   username: string;
   email: string;
   password: string;
+  confirmPassword: string;
   fullName: string;
   phone: string;
   status: UserStatus;
@@ -40,6 +41,7 @@ export default function UserFormPage() {
     username: '',
     email: '',
     password: '',
+    confirmPassword: '',
     fullName: '',
     phone: '',
     status: 'ACTIVE',
@@ -49,6 +51,7 @@ export default function UserFormPage() {
   const [loading, setLoading] = useState(false);
   const [fetchingUser, setFetchingUser] = useState(isEdit);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Pre-load roles from DB to get their IDs; fall back to static roles
   const [availableRoles, setAvailableRoles] = useState<RoleOption[]>(STATIC_ROLES);
@@ -77,7 +80,7 @@ export default function UserFormPage() {
         const roleIds = availableRoles
           .filter((r) => user.roles.includes(r.name))
           .map((r) => r.id);
-        setForm((prev) => ({ ...prev, username: user.username, email: user.email, password: '', fullName: user.fullName, phone: user.phone || '', status: user.status, roleIds }));
+        setForm((prev) => ({ ...prev, username: user.username, email: user.email, password: '', confirmPassword: '', fullName: user.fullName, phone: user.phone || '', status: user.status, roleIds }));
       } catch {
         navigate('/admin/users');
       } finally {
@@ -114,6 +117,7 @@ export default function UserFormPage() {
       const passwordError = validatePasswordPolicy(form.password);
       if (passwordError) return passwordError;
     }
+    if (!isEdit && form.password !== form.confirmPassword) return 'Mật khẩu xác nhận không khớp';
     if (form.roleIds.length === 0) return 'Phải chỉ định ít nhất một vai trò';
     return null;
   };
@@ -255,6 +259,31 @@ export default function UserFormPage() {
                     <small style={{ fontSize: 12, color: '#636e72' }}>
                       {PASSWORD_POLICY_HINT}
                     </small>
+                  </div>
+                )}
+
+                {!isEdit && (
+                  <div className="form-group">
+                    <label htmlFor="confirmPassword">Xác nhận mật khẩu *</label>
+                    <div className="password-input-wrapper">
+                      <input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={form.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Nhập lại mật khẩu"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      >
+                        {showConfirmPassword ? <Eye /> : <EyeOff />}
+                      </button>
+                    </div>
                   </div>
                 )}
 
