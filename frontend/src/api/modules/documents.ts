@@ -285,9 +285,11 @@ export const incomingDocumentsApi = {
   /**
    * Save a draft incoming document with a PDF/image file attached.
    * Sends metadata and the file in a single multipart request.
+   * Additional "Tệp đính kèm" files (if provided) are uploaded under the
+   * `attachments` field name and persisted as DocumentAttachment rows.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  saveDraftWithFile: (data: any, file: File) => {
+  saveDraftWithFile: (data: any, file: File, attachmentFiles?: File[]) => {
     const formData = new FormData();
     formData.append('file', file);
     const entries: [string, string | number | undefined][] = [
@@ -311,6 +313,13 @@ export const incomingDocumentsApi = {
         formData.append(key, String(value));
       }
     }
+    if (attachmentFiles && attachmentFiles.length > 0) {
+      for (const att of attachmentFiles) {
+        formData.append('attachments', att);
+      }
+    }
+    // `data.attachments` is kept for backwards compatibility (metadata-only
+    // entries). The backend ignores entries with `fileUrl: blob:...`.
     if (data.attachments && data.attachments.length > 0) {
       formData.append('attachments', JSON.stringify(data.attachments));
     }
@@ -328,9 +337,11 @@ export const incomingDocumentsApi = {
 
   /**
    * Update an existing draft incoming document with a new file.
+   * Additional "Tệp đính kèm" files (if provided) are uploaded under the
+   * `attachments` field name and persisted as DocumentAttachment rows.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  updateDraftWithFile: (id: number, data: any, file: File) => {
+  updateDraftWithFile: (id: number, data: any, file: File, attachmentFiles?: File[]) => {
     const formData = new FormData();
     formData.append('file', file);
     const entries: [string, string | number | undefined][] = [
@@ -354,6 +365,11 @@ export const incomingDocumentsApi = {
         formData.append(key, String(value));
       }
     }
+    if (attachmentFiles && attachmentFiles.length > 0) {
+      for (const att of attachmentFiles) {
+        formData.append('attachments', att);
+      }
+    }
     if (data.attachments && data.attachments.length > 0) {
       formData.append('attachments', JSON.stringify(data.attachments));
     }
@@ -366,8 +382,11 @@ export const incomingDocumentsApi = {
    * Create an incoming document with a PDF/image file attached.
    * Sends metadata and the file in a single multipart request.
    * Used when the user has already run OCR and wants to persist the PDF.
+   *
+   * Additional "Tệp đính kèm" files (if provided) are uploaded under the
+   * `attachments` field name and persisted as DocumentAttachment rows.
    */
-  createWithFile: (data: CreateIncomingDocumentRequest, file: File) => {
+  createWithFile: (data: CreateIncomingDocumentRequest, file: File, attachmentFiles?: File[]) => {
     const formData = new FormData();
     // Attach file first so it appears first in the multipart body
     formData.append('file', file);
@@ -396,6 +415,11 @@ export const incomingDocumentsApi = {
     }
     if (data.processorIds && data.processorIds.length > 0) {
       formData.append('processorIds', JSON.stringify(data.processorIds));
+    }
+    if (attachmentFiles && attachmentFiles.length > 0) {
+      for (const att of attachmentFiles) {
+        formData.append('attachments', att);
+      }
     }
     if (data.attachments && data.attachments.length > 0) {
       formData.append('attachments', JSON.stringify(data.attachments));

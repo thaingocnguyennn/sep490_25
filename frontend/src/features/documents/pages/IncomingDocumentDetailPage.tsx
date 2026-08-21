@@ -395,6 +395,7 @@ export default function IncomingDocumentDetailPage() {
                   fileSize={d.fileSize}
                   mimeType={d.mimeType}
                   pageCount={doc.pageCount}
+                  attachments={d.attachments ?? []}
                 />
               </div>
             </div>
@@ -498,31 +499,6 @@ export default function IncomingDocumentDetailPage() {
                       </div>
                     );
                   })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {d.attachments && d.attachments.length > 0 && (
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div className="card-header">
-                <h2>Tệp đính kèm</h2>
-              </div>
-              <div className="card-body">
-                <div className="attachment-grid">
-                  {d.attachments.map((att) => (
-                    <div key={att.id} className="attachment-file-card">
-                      <div className="attachment-file-icon">&#128196;</div>
-                      <div className="attachment-file-info">
-                        <div className="attachment-file-name">{att.fileName}</div>
-                        {att.fileSize && (
-                          <div className="attachment-file-size">
-                            {(att.fileSize / 1024).toFixed(1)} KB
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>

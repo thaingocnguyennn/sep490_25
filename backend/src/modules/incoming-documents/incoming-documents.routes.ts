@@ -117,11 +117,18 @@ function parseJsonFields(
 
 // POST /incoming-documents/with-file — Create + upload file in one request
 // Must be defined before /:id to avoid Express treating "with-file" as an id
+//
+// Accepts:
+//   • file         — the main PDF/image used for OCR (maxCount: 1)
+//   • attachments  — additional "Tệp đính kèm" files (maxCount: 20)
 router.post(
   '/with-file',
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingUpload.single('file'),
+  incomingUpload.fields([
+    { name: 'file', maxCount: 1 },
+    { name: 'attachments', maxCount: 20 },
+  ]),
   parseJsonFields(['processorIds', 'attachments']),
   createIncomingDocumentWithFileValidation,
   validateRequest,
@@ -139,11 +146,18 @@ router.post(
 
 // POST /incoming-documents/draft/with-file — Save a draft document with file attachment
 // Must be defined before /:id to avoid Express treating "with-file" as an id
+//
+// Accepts:
+//   • file         — the main PDF/image used for OCR (maxCount: 1)
+//   • attachments  — additional "Tệp đính kèm" files (maxCount: 20)
 router.post(
   '/draft/with-file',
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingUpload.single('file'),
+  incomingUpload.fields([
+    { name: 'file', maxCount: 1 },
+    { name: 'attachments', maxCount: 20 },
+  ]),
   parseJsonFields(['attachments']),
   incomingDocumentsController.saveDraftWithFile.bind(incomingDocumentsController)
 );
@@ -163,11 +177,18 @@ router.put(
 );
 
 // PUT /incoming-documents/:id/draft/with-file — Update draft with new file
+//
+// Accepts:
+//   • file         — the main PDF/image used for OCR (maxCount: 1)
+//   • attachments  — additional "Tệp đính kèm" files (maxCount: 20)
 router.put(
   '/:id/draft/with-file',
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingUpload.single('file'),
+  incomingUpload.fields([
+    { name: 'file', maxCount: 1 },
+    { name: 'attachments', maxCount: 20 },
+  ]),
   parseJsonFields(['attachments']),
   incomingDocumentsController.updateDraftWithFile.bind(incomingDocumentsController)
 );
