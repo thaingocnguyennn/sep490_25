@@ -106,7 +106,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   const [confidentiality, setConfidentiality] = useState<ConfidentialityCodeOrName>('THUONG');
   const [processingInstructions, setProcessingInstructions] = useState('');
 
-  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
+  const [attachments, setAttachments] = useState<{ file: File; name: string; url: string }[]>([]);
   const [processorsList, setProcessorsList] = useState<ProcessorAssignment[]>([]);
 
   // Document book state
@@ -272,6 +272,17 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     };
   }, [documentPreviewUrl]);
 
+  // Revoke attachment blob URLs on unmount without re-running the cleanup
+  // every time the attachments list changes. Using a ref ensures we always
+  // see the latest list when the component actually unmounts.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach((att) => URL.revokeObjectURL(att.url));
+    };
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -363,11 +374,14 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     const files = e.target.files;
     if (files) {
       const newAttachments = Array.from(files).map((file) => ({
+        file,
         name: file.name,
         url: URL.createObjectURL(file),
       }));
       setAttachments((prev) => [...prev, ...newAttachments]);
     }
+    // Reset the input so picking the same file again still fires onChange
+    e.target.value = '';
   };
 
   const handleRemoveAttachment = (index: number) => {
@@ -443,12 +457,14 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       })),
     };
 
+    const attachmentFiles = attachments.map((a) => a.file);
+
     try {
       // In edit mode, first update the draft, then submit
       if (editMode && id) {
         // Update existing draft with file if changed
         if (selectedFile) {
-          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile);
+          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile, attachmentFiles);
         } else {
           await incomingDocumentsApi.updateDraft(Number(id), payload);
         }
@@ -459,7 +475,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         // Normal create flow
         if (selectedFile) {
           // Persist the PDF file and create the incoming document in one request
-          await incomingDocumentsApi.createWithFile(payload, selectedFile);
+          await incomingDocumentsApi.createWithFile(payload, selectedFile, attachmentFiles);
         } else {
           // No file — create without attachment
           await incomingDocumentsApi.create(payload);
@@ -498,18 +514,20 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       })),
     };
 
+    const attachmentFiles = attachments.map((a) => a.file);
+
     try {
       if (editMode && id) {
         // Update existing draft
         if (selectedFile) {
-          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile);
+          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile, attachmentFiles);
         } else {
           await incomingDocumentsApi.updateDraft(Number(id), payload);
         }
       } else {
         // Create new draft
         if (selectedFile) {
-          await incomingDocumentsApi.saveDraftWithFile(payload, selectedFile);
+          await incomingDocumentsApi.saveDraftWithFile(payload, selectedFile, attachmentFiles);
         } else {
           await incomingDocumentsApi.saveDraft(payload);
         }

@@ -554,16 +554,19 @@ export class IncomingDocumentsService {
 
   /**
    * Save an incoming document as a draft with a file attached.
-   * The file is saved to disk by multer before this method is called. If the
-   * Prisma transaction fails, the uploaded file is deleted to avoid orphaned
+   * The main file (PDF/image used for OCR) and any additional "Tệp đính kèm"
+   * files are saved to disk by multer before this method is called. If the
+   * Prisma transaction fails, the uploaded files are deleted to avoid orphaned
    * files on disk.
    *
-   * @param file  - Multer file object from the multipart upload
-   * @param data  - Document metadata
-   * @param userId - Authenticated user id (passed separately instead of in data)
+   * @param file              - Main multer file (PDF/image used for OCR)
+   * @param attachmentFiles   - Additional "Tệp đính kèm" files uploaded with the request
+   * @param data              - Document metadata
+   * @param userId            - Authenticated user id (passed separately instead of in data)
    */
   async saveDraftWithFile(
     file: Express.Multer.File,
+    attachmentFiles: Express.Multer.File[],
     data: {
       issuer?: string;
       documentTypeId?: number;
@@ -641,10 +644,15 @@ export class IncomingDocumentsService {
           },
         });
 
-        // Add additional attachments if any
-        if (data.attachments && data.attachments.length > 0) {
+        // Persist additional "Tệp đính kèm" files uploaded via multer
+        const persistedAttachmentInputs = buildAttachmentInputsFromFiles(attachmentFiles);
+        const allAttachmentInputs = mergeAttachmentInputs(
+          persistedAttachmentInputs,
+          data.attachments,
+        );
+        if (allAttachmentInputs.length > 0) {
           await tx.documentAttachment.createMany({
-            data: data.attachments.map((a) => ({
+            data: allAttachmentInputs.map((a) => ({
               documentId: document.id,
               fileName: a.fileName,
               fileUrl: a.fileUrl,
@@ -662,17 +670,10 @@ export class IncomingDocumentsService {
     } catch (error) {
       const conflict = (error as { code?: string }).code === 'P2002';
       if (conflict) {
-        throw new ConflictError('Mã văn bản đã tồn tại, vui lòng thử lại');
+        throw new ConflictError('Số ký hiệu đã tồn tại, vui lòng thử lại');
       }
-      // Transaction failed — delete the uploaded file to avoid orphaned files
-      const filePath = path.join(config.uploadDir, file.filename);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch {
-          // best-effort cleanup; log but don't throw
-        }
-      }
+      // Transaction failed — delete the uploaded file(s) to avoid orphaned files
+      cleanupUploadedFiles([file, ...attachmentFiles]);
       throw error;
     } finally {
       void resultDocId;
@@ -762,6 +763,7 @@ export class IncomingDocumentsService {
   async updateDraftWithFile(
     id: number,
     file: Express.Multer.File,
+    attachmentFiles: Express.Multer.File[],
     data: {
       issuer?: string;
       documentTypeId?: number;
@@ -849,19 +851,33 @@ export class IncomingDocumentsService {
             documentBookId,
           },
         });
+
+        // Persist any newly uploaded "Tệp đính kèm" files. Pre-existing
+        // attachments on the document are left untouched; only the new
+        // uploads (plus metadata-only entries from `data.attachments`) are
+        // added in this call.
+        const persistedAttachmentInputs = buildAttachmentInputsFromFiles(attachmentFiles);
+        const newAttachmentInputs = mergeAttachmentInputs(
+          persistedAttachmentInputs,
+          data.attachments,
+        );
+        if (newAttachmentInputs.length > 0) {
+          await tx.documentAttachment.createMany({
+            data: newAttachmentInputs.map((a) => ({
+              documentId: incoming.documentId,
+              fileName: a.fileName,
+              fileUrl: a.fileUrl,
+              fileSize: a.fileSize,
+              mimeType: a.mimeType,
+            })),
+          });
+        }
       });
 
       return this.getById(id);
     } catch (error) {
-      // Transaction failed — delete the uploaded file to avoid orphaned files
-      const filePath = path.join(config.uploadDir, file.filename);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch {
-          // best-effort cleanup; log but don't throw
-        }
-      }
+      // Transaction failed — delete the uploaded file(s) to avoid orphaned files
+      cleanupUploadedFiles([file, ...attachmentFiles]);
       throw error;
     }
   }
@@ -869,16 +885,19 @@ export class IncomingDocumentsService {
   /**
    * Create an incoming document with a file attached in a single request.
    *
-   * The file is saved to disk by multer before this method is called. If the
-   * Prisma transaction fails, the uploaded file is deleted to avoid orphaned
+   * The main file (PDF/image used for OCR) and any additional "Tệp đính kèm"
+   * files are saved to disk by multer before this method is called. If the
+   * Prisma transaction fails, the uploaded files are deleted to avoid orphaned
    * files on disk.
    *
-   * @param file  - Multer file object from the multipart upload
-   * @param data  - Document metadata (same fields as create(), but without createdBy)
-   * @param userId - Authenticated user id (passed separately instead of in data)
+   * @param file              - Main multer file (PDF/image used for OCR)
+   * @param attachmentFiles   - Additional "Tệp đính kèm" files uploaded with the request
+   * @param data              - Document metadata (same fields as create(), but without createdBy)
+   * @param userId            - Authenticated user id (passed separately instead of in data)
    */
   async createWithFile(
     file: Express.Multer.File,
+    attachmentFiles: Express.Multer.File[],
     data: Omit<Parameters<typeof this.create>[0], 'createdBy'>,
     userId: number,
   ) {
@@ -969,6 +988,26 @@ export class IncomingDocumentsService {
           })),
         });
 
+        // Persist "Tệp đính kèm" files uploaded via multer. We also keep any
+        // metadata-only entries passed through `data.attachments` for
+        // backwards compatibility (the frontend used to send blob URLs).
+        const persistedAttachmentInputs = buildAttachmentInputsFromFiles(attachmentFiles);
+        const allAttachmentInputs = mergeAttachmentInputs(
+          persistedAttachmentInputs,
+          data.attachments,
+        );
+        if (allAttachmentInputs.length > 0) {
+          await tx.documentAttachment.createMany({
+            data: allAttachmentInputs.map((a) => ({
+              documentId: document.id,
+              fileName: a.fileName,
+              fileUrl: a.fileUrl,
+              fileSize: a.fileSize,
+              mimeType: a.mimeType,
+            })),
+          });
+        }
+
         const workflowSteps = await tx.workflowStep.findMany({
           orderBy: { stepOrder: 'asc' },
         });
@@ -999,17 +1038,10 @@ export class IncomingDocumentsService {
     } catch (error) {
       const conflict = (error as { code?: string }).code === 'P2002';
       if (conflict) {
-        throw new ConflictError('Mã văn bản đã tồn tại, vui lòng thử lại');
+        throw new ConflictError('Số ký hiệu đã tồn tại, vui lòng thử lại');
       }
-      // Transaction failed — delete the uploaded file to avoid orphaned files
-      const filePath = path.join(config.uploadDir, file.filename);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch {
-          // best-effort cleanup; log but don't throw
-        }
-      }
+      // Transaction failed — delete the uploaded file(s) to avoid orphaned files
+      cleanupUploadedFiles([file, ...attachmentFiles]);
       throw error;
     } finally {
       // nothing — placeholder to keep lint happy
@@ -1641,6 +1673,65 @@ export class IncomingDocumentsService {
     }));
 
     return { totalCount, byStatus, byDocumentType, byDepartment, byMonth };
+  }
+}
+
+// ─── Module-level helpers ─────────────────────────────────────────────────────
+
+/**
+ * Convert a list of multer-uploaded files into AttachmentInput records so
+ * they can be inserted into the DocumentAttachment table. Each uploaded file
+ * gets a `/uploads/<filename>` URL pointing at the on-disk copy that multer
+ * already wrote.
+ */
+function buildAttachmentInputsFromFiles(
+  files: Express.Multer.File[],
+): AttachmentInput[] {
+  return files.map((f) => ({
+    fileName: f.originalname,
+    fileUrl: `/uploads/${f.filename}`,
+    fileSize: f.size,
+    mimeType: f.mimetype,
+  }));
+}
+
+/**
+ * Combine real uploaded attachment files with any metadata-only attachment
+ * descriptors passed in the request body. Metadata-only entries with
+ * `fileUrl` set to a `blob:` URL are skipped because they cannot be served
+ * by the backend.
+ */
+function mergeAttachmentInputs(
+  uploaded: AttachmentInput[],
+  metadataOnly?: AttachmentInput[],
+): AttachmentInput[] {
+  const result: AttachmentInput[] = [...uploaded];
+  if (!metadataOnly || metadataOnly.length === 0) return result;
+  for (const entry of metadataOnly) {
+    if (!entry || !entry.fileName) continue;
+    // Drop unresolvable blob URLs — they cannot be served from the server.
+    if (entry.fileUrl && entry.fileUrl.startsWith('blob:')) continue;
+    result.push(entry);
+  }
+  return result;
+}
+
+/**
+ * Best-effort cleanup of files that multer wrote to disk when a downstream
+ * transaction failed. Failures are swallowed so a single unlinkable file
+ * doesn't mask the original error.
+ */
+function cleanupUploadedFiles(files: Express.Multer.File[]): void {
+  for (const f of files) {
+    if (!f || !f.filename) continue;
+    const filePath = path.join(config.uploadDir, f.filename);
+    if (fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // best-effort cleanup; ignore
+      }
+    }
   }
 }
 

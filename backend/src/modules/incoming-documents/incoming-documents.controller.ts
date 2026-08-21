@@ -109,17 +109,26 @@ export class IncomingDocumentsController {
    * Save an incoming document as a draft with a file attached.
    * The file is persisted to disk; if the database transaction fails, the
    * uploaded file is cleaned up to avoid orphaned files on disk.
+   *
+   * The multer route handler uploads both `file` (the main PDF, used for OCR)
+   * and `attachments` (additional "Tệp đính kèm" files).
    */
   async saveDraftWithFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const file = req.file;
+      const files = req.files as
+        | { [fieldname: string]: Express.Multer.File[] }
+        | undefined;
+      const file = files?.file?.[0];
       if (!file) {
         res.status(400).json({ success: false, message: 'No file uploaded' });
         return;
       }
 
+      const attachmentFiles = files?.attachments ?? [];
+
       const result = await incomingDocumentsService.saveDraftWithFile(
         file,
+        attachmentFiles,
         { ...req.body },
         req.user!.userId,
       );
@@ -149,19 +158,28 @@ export class IncomingDocumentsController {
   /**
    * PUT /incoming-documents/:id/draft/with-file
    * Update an existing draft document with a new file.
+   *
+   * The multer route handler uploads both `file` (the main PDF, used for OCR)
+   * and `attachments` (additional "Tệp đính kèm" files).
    */
   async updateDraftWithFile(req: Request, res: Response, next: NextFunction) {
     try {
       const idParam = parseInt(req.params.id as string, 10);
-      const file = req.file;
+      const files = req.files as
+        | { [fieldname: string]: Express.Multer.File[] }
+        | undefined;
+      const file = files?.file?.[0];
       if (!file) {
         res.status(400).json({ success: false, message: 'No file uploaded' });
         return;
       }
 
+      const attachmentFiles = files?.attachments ?? [];
+
       const result = await incomingDocumentsService.updateDraftWithFile(
         idParam,
         file,
+        attachmentFiles,
         { ...req.body },
         req.user!.userId,
       );
@@ -179,17 +197,27 @@ export class IncomingDocumentsController {
    *
    * JSON-stringified fields (processorIds, attachments) are parsed by the
    * parseJsonFields middleware before this method is called.
+   *
+   * The multer route handler uploads both `file` (the main PDF, used for OCR)
+   * and `attachments` (additional "Tệp đính kèm" files) — both end up on
+   * disk before this handler runs.
    */
   async createWithFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const file = req.file;
+      const files = req.files as
+        | { [fieldname: string]: Express.Multer.File[] }
+        | undefined;
+      const file = files?.file?.[0];
       if (!file) {
         res.status(400).json({ success: false, message: 'No file uploaded' });
         return;
       }
 
+      const attachmentFiles = files?.attachments ?? [];
+
       const result = await incomingDocumentsService.createWithFile(
         file,
+        attachmentFiles,
         { ...req.body },
         req.user!.userId,
       );

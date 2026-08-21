@@ -1955,6 +1955,82 @@ textarea:focus {
   flex-shrink: 0;
 }
 
+/* File selector strip — sits between the toolbar and the viewer so users
+   can switch between the main document and any "Tệp đính kèm" without
+   leaving the preview section. */
+.pdf-preview-files {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e8ecf0;
+  overflow-x: auto;
+}
+
+.pdf-preview-files-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #636e72;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.pdf-preview-files-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.pdf-preview-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 6px 12px;
+  border: 1px solid #dfe6e9;
+  border-radius: 999px;
+  background: #f8f9fa;
+  color: #2d3436;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+
+.pdf-preview-file-chip:hover {
+  background: #eef1f5;
+  border-color: #c8d0d6;
+}
+
+.pdf-preview-file-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.35);
+}
+
+.pdf-preview-file-chip.active {
+  background: #667eea;
+  border-color: #5568d3;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+.pdf-preview-file-chip-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pdf-preview-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .pdf-preview-viewer {
   position: relative;
   min-height: 400px;
