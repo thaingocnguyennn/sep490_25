@@ -289,10 +289,10 @@ export default function OutgoingDocumentsPage() {
                       </td>
                       <td style={{ maxWidth: 220 }}>
                         <span
-                          title={item.document.title}
+                          title={item.document.subject}
                           style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                         >
-                          {item.document.title}
+                          {item.document.subject}
                         </span>
                       </td>
                       <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

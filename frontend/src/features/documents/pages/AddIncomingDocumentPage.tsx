@@ -104,7 +104,6 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   const [dateReceived, setDateReceived] = useState(new Date().toISOString().split('T')[0]);
   const [urgency, setUrgency] = useState<Urgency>('THUONG');
   const [confidentiality, setConfidentiality] = useState<ConfidentialityCodeOrName>('THUONG');
-  const [notes, setNotes] = useState('');
   const [processingInstructions, setProcessingInstructions] = useState('');
 
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
@@ -179,9 +178,9 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         setForm({
           issuer: doc.document.issuer || '',
           documentNumber: doc.document.documentNumber || '',
-          dateLetter: doc.document.dateOnLetter || '',
+          dateLetter: doc.document.issuedDate || '',
           documentTypeId: doc.document.documentTypeId?.toString() || '',
-          summary: doc.document.description || '',
+          summary: doc.document.subject || '',
           pageCount: doc.pageCount?.toString() || '',
           signerName: doc.document.signerName || '',
           signerTitle: doc.document.signerTitle || '',
@@ -189,7 +188,6 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
 
         setArrivalNumber(doc.arrivalNumber?.toString() || '');
         setDateReceived(doc.dateReceived?.split('T')[0] || new Date().toISOString().split('T')[0]);
-        setNotes(doc.document.notes || '');
         setProcessingInstructions(doc.processingInstructions || '');
 
         // Set urgency and confidentiality if available
@@ -432,11 +430,10 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       signerTitle: form.signerTitle || undefined,
       dateLetter: normalizeDate(form.dateLetter),
       dateReceived,
-      summary: form.summary || undefined,
+      summary: form.summary,
       pageCount: form.pageCount ? Number(form.pageCount) : undefined,
       urgency,
       confidentialityLevel: confidentiality,
-      notes: notes || undefined,
       processingInstructions: processingInstructions || undefined,
       processorIds: processorsList,
       documentBookId: selectedBookId || undefined,
@@ -490,11 +487,10 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       signerTitle: form.signerTitle || undefined,
       dateLetter: normalizeDate(form.dateLetter),
       dateReceived,
-      summary: form.summary || undefined,
+      summary: form.summary,
       pageCount: form.pageCount ? Number(form.pageCount) : undefined,
       urgency,
       confidentialityLevel: confidentiality,
-      notes: notes || undefined,
       documentBookId: selectedBookId || undefined,
       attachments: attachments.map((a) => ({
         fileName: a.name,
@@ -851,17 +847,6 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="notes">Ghi chú</label>
-                    <textarea
-                      id="notes"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Ghi chú bổ sung..."
-                      rows={3}
-                    />
                   </div>
 
                   {/* Divider — phân tách nhẹ trước phần tệp đính kèm */}

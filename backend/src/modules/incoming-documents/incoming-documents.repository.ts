@@ -20,8 +20,7 @@ export interface IncomingDocumentWithRelations {
   document: {
     id: number;
     documentNumber: string;
-    title: string;
-    description: string | null;
+    subject: string;
     type: string;
     fileUrl: string | null;
     status: string;
@@ -38,15 +37,13 @@ export interface IncomingDocumentWithRelations {
       name: string;
       description: string | null;
     } | null;
-    deadline: Date | null;
     ocrText: string | null;
     documentTypeId: number | null;
     documentTypeRef: { id: number; name: string } | null;
     issuer: string | null;
     signerName: string | null;
     signerTitle: string | null;
-    notes: string | null;
-    dateOnLetter: Date | null;
+    issuedDate: Date | null;
     categoryId: number | null;
     category: { id: number; name: string } | null;
     createdAt: Date;
@@ -101,8 +98,7 @@ export class IncomingDocumentsRepository {
     if (search) {
       documentWhere.OR = [
         { documentNumber: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { title: { contains: search, mode: 'insensitive' } },
+        { subject: { contains: search, mode: 'insensitive' } },
         { issuer: { contains: search, mode: 'insensitive' } },
         { signerName: { contains: search, mode: 'insensitive' } },
       ];
@@ -216,9 +212,8 @@ export class IncomingDocumentsRepository {
 
     if (search) {
       documentWhere.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
+        { subject: { contains: search, mode: 'insensitive' } },
         { documentNumber: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
         { issuer: { contains: search, mode: 'insensitive' } },
         { signerName: { contains: search, mode: 'insensitive' } },
         { documentTypeRef: { is: { name: { contains: search, mode: 'insensitive' } } } },
@@ -277,9 +272,8 @@ export class IncomingDocumentsRepository {
 
     if (search) {
       documentWhere.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
+        { subject: { contains: search, mode: 'insensitive' } },
         { documentNumber: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
         { issuer: { contains: search, mode: 'insensitive' } },
         { signerName: { contains: search, mode: 'insensitive' } },
         { documentTypeRef: { is: { name: { contains: search, mode: 'insensitive' } } } },

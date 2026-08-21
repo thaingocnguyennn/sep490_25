@@ -163,7 +163,7 @@ export default function PendingIncomingDocumentsPage() {
                       </td>
                       <td style={{ maxWidth: 200 }}>
                         <span
-                          title={item.document.title}
+                          title={item.document.subject}
                           style={{
                             display: '-webkit-box',
                             WebkitLineClamp: 2,
@@ -171,7 +171,7 @@ export default function PendingIncomingDocumentsPage() {
                             overflow: 'hidden',
                           }}
                         >
-                          {item.document.title}
+                          {item.document.subject}
                         </span>
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>

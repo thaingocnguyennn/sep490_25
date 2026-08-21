@@ -248,21 +248,18 @@ model UserRole {
 model Document {
   id             Int               @id @default(autoincrement())
   documentNumber String            @unique
-  title          String
-  description    String?
+  subject        String // Trích yếu (nội dung tóm tắt văn bản)
   type           DocumentDirection
   fileUrl        String?
   ocrText        String?
   ocrStatus      OcrStatus         @default(PENDING)
   status         DocumentStatus    @default(DRAFT)
-  deadline       DateTime?
 
   // --- Level 2 fields: basic document management ---
   issuer            String? // Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency)
   signerName        String? // Họ tên người ký
   signerTitle       String? // Chức vụ người ký
-  notes             String? // Ghi chú chung
-  dateOnLetter      DateTime? // Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate)
+  issuedDate        DateTime? // Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate, dateOnLetter)
   urgencyId         Int? // FK -> Urgency (mức độ khẩn)
   confidentialityId Int? // FK -> Confidentiality (mức độ mật)
   documentStatus    DocumentLifecycleStatus @default(ACTIVE) // Trạng thái soft-delete
@@ -308,7 +305,6 @@ model Document {
   @@index([createdBy])
   @@index([updatedBy])
   @@index([ocrStatus])
-  @@index([deadline])
   @@index([isArchived])
 }
 

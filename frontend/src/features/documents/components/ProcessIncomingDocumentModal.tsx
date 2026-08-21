@@ -108,7 +108,6 @@ export default function ProcessIncomingDocumentModal({
   const [action, setAction] = useState<HeadAction | null>(null);
   const [processorIds, setProcessorIds] = useState<{ userId: number; processorType: ProcessorType }[]>([]);
   const [processingInstructions, setProcessingInstructions] = useState('');
-  const [deadline, setDeadline] = useState('');
   const [reason, setReason] = useState('');
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -122,7 +121,6 @@ export default function ProcessIncomingDocumentModal({
       setAction(null);
       setProcessorIds([]);
       setProcessingInstructions('');
-      setDeadline('');
       setReason('');
       setAttachments([]);
       setError('');
@@ -214,7 +212,6 @@ export default function ProcessIncomingDocumentModal({
         if (action === 'FORWARD') {
           payload.processorIds = processorIds;
           payload.processingInstructions = processingInstructions.trim() || undefined;
-          payload.deadline = deadline || undefined;
           if (attachments.length > 0) {
             payload.attachments = attachments;
           }
@@ -249,7 +246,7 @@ export default function ProcessIncomingDocumentModal({
         <div className="modal-body">
           <div style={{ marginBottom: 16, padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
             <div style={{ fontSize: 13, color: '#636e72', marginBottom: 4 }}>Văn bản đang xử lý</div>
-            <div style={{ fontWeight: 600 }}>{doc.document.title}</div>
+            <div style={{ fontWeight: 600 }}>{doc.document.subject}</div>
             <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>
               Số ký hiệu: <strong>{doc.document.documentNumber || '—'}</strong>
               {doc.document.issuer && <> &nbsp;•&nbsp; Cơ quan ban hành: <strong>{doc.document.issuer}</strong></>}
@@ -346,15 +343,6 @@ export default function ProcessIncomingDocumentModal({
                 </div>
                 {!isSpecialist && (
                   <>
-                    <div className="form-group">
-                      <label>Hạn xử lý</label>
-                      <input
-                        type="date"
-                        value={deadline}
-                        onChange={(e) => setDeadline(e.target.value)}
-                        disabled={submitting}
-                      />
-                    </div>
                     <div className="form-group">
                       <label>Tệp đính kèm bổ sung</label>
                       <input

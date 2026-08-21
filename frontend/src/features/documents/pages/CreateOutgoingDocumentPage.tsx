@@ -37,8 +37,7 @@ export default function CreateOutgoingDocumentPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<CreateOutgoingDocumentRequest>({
-    title: '',
-    description: '',
+    subject: '',
     urgency: 'THUONG',
     confidentialityLevel: 'THUONG',
     documentTypeId: undefined,
@@ -48,7 +47,6 @@ export default function CreateOutgoingDocumentPage() {
     recipientName: '',
     recipientAddress: '',
     recipientEmail: '',
-    notes: '',
     relatedIncomingDocumentId: fromIncomingId ? Number(fromIncomingId) : undefined,
   });
 
@@ -114,7 +112,7 @@ export default function CreateOutgoingDocumentPage() {
 
       setForm((prev) => ({
         ...prev,
-        title: fields.summary || prev.title,
+        subject: fields.summary || prev.subject,
         recipientName: fields.recipientName || prev.recipientName,
         // documentType string from OCR can optionally be matched against documentTypeOptions here if desired
       }));
@@ -135,7 +133,7 @@ export default function CreateOutgoingDocumentPage() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!form.title.trim()) errs.title = 'Tiêu đề văn bản không được để trống';
+    if (!form.subject.trim()) errs.subject = 'Trích yếu văn bản không được để trống';
     if (!selectedFile) errs.file = 'Vui lòng tải lên tệp dự thảo';
     setValidationErrors(errs);
     if (Object.keys(errs).length > 0) {
@@ -152,15 +150,13 @@ export default function CreateOutgoingDocumentPage() {
     try {
       const result = await create({
         ...form,
-        title: form.title.trim(),
-        description: form.description?.trim() || undefined,
+        subject: form.subject.trim(),
         documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
         departmentId: form.departmentId ? Number(form.departmentId) : undefined,
         documentCategoryId: form.documentCategoryId ? Number(form.documentCategoryId) : undefined,
         recipientName: form.recipientName?.trim() || undefined,
         recipientAddress: form.recipientAddress?.trim() || undefined,
         recipientEmail: form.recipientEmail?.trim() || undefined,
-        notes: form.notes?.trim() || undefined,
       });
 
       if (result) {
@@ -255,17 +251,17 @@ export default function CreateOutgoingDocumentPage() {
               )}
 
               <div className="form-group summary-field">
-                <label htmlFor="title">Tiêu đề (Trích yếu) <span className="required">*</span></label>
+                <label htmlFor="subject">Trích yếu <span className="required">*</span></label>
                 <textarea
-                  id="title"
-                  name="title"
-                  value={form.title}
+                  id="subject"
+                  name="subject"
+                  value={form.subject}
                   onChange={handleChange}
                   rows={3}
-                  className={validationErrors.title ? 'is-invalid' : ''}
-                  placeholder="Tiêu đề / Trích yếu nội dung..."
+                  className={validationErrors.subject ? 'is-invalid' : ''}
+                  placeholder="Trích yếu nội dung văn bản..."
                 />
-                {validationErrors.title && <span className="error-text">{validationErrors.title}</span>}
+                {validationErrors.subject && <span className="error-text">{validationErrors.subject}</span>}
               </div>
 
               <div className="form-group">
@@ -336,17 +332,7 @@ export default function CreateOutgoingDocumentPage() {
                 </div>
               </div>
 
-              <div className="form-group summary-field">
-                <label htmlFor="notes">Ghi chú</label>
-                <textarea
-                  id="notes"
-                  name="notes"
-                  value={form.notes}
-                  onChange={handleChange}
-                  rows={2}
-                  placeholder="Ghi chú thêm..."
-                />
-              </div>
+              {/* notes field removed — Document.notes no longer exists */}
             </div>
           </div>
         </div>

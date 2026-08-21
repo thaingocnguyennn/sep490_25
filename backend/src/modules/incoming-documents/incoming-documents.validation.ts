@@ -17,7 +17,7 @@ export const createIncomingDocumentValidation = [
     .isString()
     .withMessage('Ngày ban hành phải là chuỗi ngày hợp lệ'),
   body('dateReceived').notEmpty().withMessage('Ngày đến là bắt buộc'),
-  body('summary').optional().trim(),
+  body('summary').notEmpty().withMessage('Trích yếu là bắt buộc').trim(),
   body('pageCount').optional().isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
   body('urgency')
     .optional()
@@ -59,7 +59,6 @@ export const createIncomingDocumentValidation = [
       }
       return true;
     }),
-  body('notes').optional().trim(),
   body('processingInstructions').optional().trim(),
   body('processorIds').isArray({ min: 1 }).withMessage('Phải chọn ít nhất một người xử lý'),
   body('processorIds.*.userId').isInt({ min: 1 }).withMessage('ID người dùng không hợp lệ'),
@@ -88,7 +87,7 @@ export const createIncomingDocumentWithFileValidation = [
     .isString()
     .withMessage('Ngày ban hành phải là chuỗi ngày hợp lệ'),
   body('dateReceived').notEmpty().withMessage('Ngày đến là bắt buộc'),
-  body('summary').optional().trim(),
+  body('summary').notEmpty().withMessage('Trích yếu là bắt buộc').trim(),
   body('pageCount').optional().isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
   body('urgency')
     .optional()
@@ -130,7 +129,6 @@ export const createIncomingDocumentWithFileValidation = [
       }
       return true;
     }),
-  body('notes').optional().trim(),
   body('processingInstructions').optional().trim(),
   body('processorIds').isArray({ min: 1 }).withMessage('Phải chọn ít nhất một người xử lý'),
   body('processorIds.*.userId').isInt({ min: 1 }).withMessage('ID người dùng không hợp lệ'),
@@ -171,10 +169,6 @@ export const processIncomingDocumentValidation = [
     .isString()
     .isLength({ max: 2000 })
     .withMessage('Hướng dẫn xử lý tối đa 2000 ký tự'),
-  body('deadline')
-    .optional({ values: 'falsy' })
-    .isString()
-    .withMessage('Hạn xử lý phải là chuỗi ngày hợp lệ'),
   body('reason')
     .optional({ values: 'falsy' })
     .isString()

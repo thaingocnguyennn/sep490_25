@@ -435,15 +435,9 @@ export default function OutgoingDocumentDetailPage() {
                     </div>
                   )}
                   <div className="detail-item full-width">
-                    <label>Tiêu đề văn bản</label>
-                    <span style={{ fontSize: 16, fontWeight: 600 }}>{doc.document.title}</span>
+                    <label>Trích yếu văn bản</label>
+                    <span style={{ fontSize: 16, fontWeight: 600 }}>{doc.document.subject}</span>
                   </div>
-                  {doc.document.description && (
-                    <div className="detail-item full-width">
-                      <label>Mô tả</label>
-                      <span>{doc.document.description}</span>
-                    </div>
-                  )}
                   <div className="detail-item">
                     <label>Độ khẩn</label>
                     <span><UrgencyBadge urgency={doc.document.urgency} /></span>
@@ -502,12 +496,7 @@ export default function OutgoingDocumentDetailPage() {
                     <label>Ngày tạo</label>
                     <span>{formatDateTime(doc.createdAt)}</span>
                   </div>
-                  {doc.document.notes && (
-                    <div className="detail-item full-width">
-                      <label>Ghi chú</label>
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{doc.document.notes}</span>
-                    </div>
-                  )}
+                  {/* notes section removed — Document.notes field no longer exists */}
                 </div>
               </div>
             </div>

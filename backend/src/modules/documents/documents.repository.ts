@@ -51,7 +51,7 @@ export interface DocumentUrgency {
 export interface DocumentSummary {
   id: number;
   documentNumber: string;
-  title: string;
+  subject: string;
   type: DocumentDirection;
   status: string;               // Workflow status: DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
   documentStatus: DocumentLifecycleStatus;  // Lifecycle: ACTIVE or DELETED (soft-delete)
@@ -62,8 +62,7 @@ export interface DocumentSummary {
   issuer: string | null;
   signerName: string | null;
   signerTitle: string | null;
-  notes: string | null;
-  dateOnLetter: string | null;
+  issuedDate: string | null;
   originalFileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
@@ -74,9 +73,8 @@ export interface DocumentSummary {
   isArchived: boolean;
 }
 
-/** Full document details including description, file URL, etc. */
+/** Full document details including subject, file URL, etc. */
 export interface DocumentDetail extends DocumentSummary {
-  description: string | null;
   fileUrl: string | null;
   categoryId: number | null;
   category: { id: number; name: string; code: string } | null;
@@ -152,23 +150,22 @@ export class DocumentsRepository {
       where.processors = { some: { userId: params.processorId } };
     }
 
-    // Date range filter on dateOnLetter
+    // Date range filter on issuedDate
     if (params.dateFrom || params.dateTo) {
-      where.dateOnLetter = {};
+      where.issuedDate = {};
       if (params.dateFrom) {
-        where.dateOnLetter.gte = new Date(params.dateFrom);
+        where.issuedDate.gte = new Date(params.dateFrom);
       }
       if (params.dateTo) {
-        where.dateOnLetter.lte = new Date(params.dateTo);
+        where.issuedDate.lte = new Date(params.dateTo);
       }
     }
 
-    // Full-text search across documentNumber, title, description, issuer, signerName
+    // Full-text search across documentNumber, subject, issuer, signerName
     if (params.search) {
       where.OR = [
         { documentNumber: { contains: params.search, mode: 'insensitive' } },
-        { title: { contains: params.search, mode: 'insensitive' } },
-        { description: { contains: params.search, mode: 'insensitive' } },
+        { subject: { contains: params.search, mode: 'insensitive' } },
         { issuer: { contains: params.search, mode: 'insensitive' } },
         { signerName: { contains: params.search, mode: 'insensitive' } },
       ];
@@ -206,15 +203,13 @@ export class DocumentsRepository {
   /** Create a new document record */
   async create(data: {
     documentNumber: string;
-    title: string;
-    description?: string;
+    subject: string;
     type: DocumentDirection;
     fileUrl?: string;
-    dateOnLetter?: Date;
+    issuedDate?: Date;
     issuer?: string;
     signerName?: string;
     signerTitle?: string;
-    notes?: string;
     /** Accepts a seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgencyId?: number | string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, or numeric id */
@@ -236,15 +231,13 @@ export class DocumentsRepository {
     const doc = await prisma.document.create({
       data: {
         documentNumber: data.documentNumber,
-        title: data.title,
-        description: data.description,
+        subject: data.subject,
         type: data.type,
         fileUrl: data.fileUrl,
-        dateOnLetter: data.dateOnLetter,
+        issuedDate: data.issuedDate,
         issuer: data.issuer,
         signerName: data.signerName,
         signerTitle: data.signerTitle,
-        notes: data.notes,
         urgencyId,
         confidentialityId,
         categoryId: data.categoryId,
@@ -265,14 +258,12 @@ export class DocumentsRepository {
     id: number,
     data: {
       documentNumber?: string;
-      title?: string;
-      description?: string;
+      subject?: string;
       type?: DocumentDirection;
-      dateOnLetter?: Date | null;
+      issuedDate?: Date | null;
       issuer?: string | null;
       signerName?: string | null;
       signerTitle?: string | null;
-      notes?: string | null;
       /** Accepts a seeded name, legacy alias, numeric id, or null to clear */
       urgencyId?: number | string | null;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or null to clear */
@@ -378,16 +369,15 @@ export class DocumentsRepository {
     }
 
     if (params.dateFrom || params.dateTo) {
-      where.dateOnLetter = {};
-      if (params.dateFrom) where.dateOnLetter.gte = new Date(params.dateFrom);
-      if (params.dateTo) where.dateOnLetter.lte = new Date(params.dateTo);
+      where.issuedDate = {};
+      if (params.dateFrom) where.issuedDate.gte = new Date(params.dateFrom);
+      if (params.dateTo) where.issuedDate.lte = new Date(params.dateTo);
     }
 
     if (params.search) {
       where.OR = [
         { documentNumber: { contains: params.search, mode: 'insensitive' } },
-        { title: { contains: params.search, mode: 'insensitive' } },
-        { description: { contains: params.search, mode: 'insensitive' } },
+        { subject: { contains: params.search, mode: 'insensitive' } },
         { issuer: { contains: params.search, mode: 'insensitive' } },
         { signerName: { contains: params.search, mode: 'insensitive' } },
       ];
@@ -435,7 +425,7 @@ export class DocumentsRepository {
   private formatSummary(doc: {
     id: number;
     documentNumber: string;
-    title: string;
+    subject: string;
     type: DocumentDirection;
     documentStatus: DocumentLifecycleStatus;
     urgencyId: number | null;
@@ -445,8 +435,7 @@ export class DocumentsRepository {
     issuer: string | null;
     signerName: string | null;
     signerTitle: string | null;
-    notes: string | null;
-    dateOnLetter: Date | null;
+    issuedDate: Date | null;
     originalFileName: string | null;
     fileSize: number | null;
     mimeType: string | null;
@@ -459,7 +448,7 @@ export class DocumentsRepository {
     return {
       id: doc.id,
       documentNumber: doc.documentNumber,
-      title: doc.title,
+      subject: doc.subject,
       type: doc.type,
       status: (doc as any).status ?? 'DRAFT',  // Workflow status from Document model
       documentStatus: doc.documentStatus,
@@ -470,8 +459,7 @@ export class DocumentsRepository {
       issuer: doc.issuer,
       signerName: doc.signerName,
       signerTitle: doc.signerTitle,
-      notes: doc.notes,
-      dateOnLetter: doc.dateOnLetter?.toISOString() ?? null,
+      issuedDate: doc.issuedDate?.toISOString() ?? null,
       originalFileName: doc.originalFileName,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType,
@@ -486,8 +474,7 @@ export class DocumentsRepository {
   private formatDetail(doc: {
     id: number;
     documentNumber: string;
-    title: string;
-    description: string | null;
+    subject: string;
     type: DocumentDirection;
     fileUrl: string | null;
     documentStatus: DocumentLifecycleStatus;
@@ -498,8 +485,7 @@ export class DocumentsRepository {
     issuer: string | null;
     signerName: string | null;
     signerTitle: string | null;
-    notes: string | null;
-    dateOnLetter: Date | null;
+    issuedDate: Date | null;
     categoryId: number | null;
     category: { id: number; name: string; code: string } | null;
     documentTypeId: number | null;
@@ -516,7 +502,6 @@ export class DocumentsRepository {
   }): DocumentDetail {
     return {
       ...this.formatSummary(doc),
-      description: doc.description,
       fileUrl: doc.fileUrl,
       categoryId: doc.categoryId,
       category: doc.category,

@@ -72,7 +72,7 @@ export interface IncomingBookEntryItem {
     id: number;
     document: {
       id: number;
-      title: string;
+      subject: string;
       status: string;
       urgency?: { name: string } | null;
     };
@@ -97,7 +97,7 @@ export interface OutgoingBookEntryItem {
     recipientName?: string | null;
     document: {
       id: number;
-      title: string;
+      subject: string;
       status: string;
       urgency?: { name: string } | null;
     };

@@ -36,8 +36,7 @@ export default function OutgoingDocumentEditPage() {
   const ocrFields = (location.state as { ocrFields?: Record<string, string> })?.ocrFields;
 
   const [form, setForm] = useState<UpdateOutgoingMetadataRequest>({
-    title: '',
-    description: '',
+    subject: '',
     urgency: 'THUONG' as UrgencyName,
     confidentialityLevel: 'THUONG',
     documentTypeId: undefined,
@@ -48,7 +47,6 @@ export default function OutgoingDocumentEditPage() {
     recipientAddress: '',
     recipientEmail: '',
     pageCount: undefined,
-    notes: '',
     departmentId: undefined,
   });
 
@@ -60,14 +58,12 @@ export default function OutgoingDocumentEditPage() {
       .then((data) => {
         setDoc(data);
         setForm({
-          title: data.document.title,
-          description: data.document.description || '',
+          subject: data.document.subject,
           urgency: (normalizeUrgencyName(data.document.urgency?.name) || 'THUONG') as UrgencyName,
           confidentialityLevel:
             (data.document.confidentiality?.name as ConfidentialityName) ??
             (data.document.confidentiality?.code === 'A' ? 'TUYET_MAT'
               : data.document.confidentiality?.code === 'B' ? 'TOI_MAT'
-              : data.document.confidentiality?.code === 'C' ? 'MAT'
               : data.document.confidentiality?.code === 'C' ? 'MAT'
               : 'THUONG'),
           documentTypeId: data.documentTypeId || undefined,
@@ -78,13 +74,12 @@ export default function OutgoingDocumentEditPage() {
           recipientAddress: data.recipientAddress || '',
           recipientEmail: data.recipientEmail || '',
           pageCount: data.pageCount || undefined,
-          notes: data.document.notes || '',
           departmentId: data.document.department?.id || undefined,
           ...(ocrFields ? {
             documentNumber: ocrFields.documentNumber || data.documentNumber || '',
             signerName: ocrFields.signerName || data.document.signerName || '',
             signerTitle: ocrFields.signerTitle || data.document.signerTitle || '',
-            title: (ocrFields.summary ? ocrFields.summary : data.document.title),
+            subject: (ocrFields.summary ? ocrFields.summary : data.document.subject),
             pageCount: ocrFields.pageCount ? parseInt(ocrFields.pageCount) : (data.pageCount || undefined),
           } : {}),
         });
@@ -95,7 +90,7 @@ export default function OutgoingDocumentEditPage() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!form.title?.trim()) errs.title = 'Tiêu đề không được để trống';
+    if (!form.subject?.trim()) errs.subject = 'Trích yếu không được để trống';
     setValidationErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -120,8 +115,7 @@ export default function OutgoingDocumentEditPage() {
 
     const result = await updateMetadata(doc.id, {
       ...form,
-      title: form.title?.trim(),
-      description: form.description?.trim() || undefined,
+      subject: form.subject?.trim(),
       documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
       documentNumber: form.documentNumber?.trim() || undefined,
       signerName: form.signerName?.trim() || undefined,
@@ -131,7 +125,6 @@ export default function OutgoingDocumentEditPage() {
       recipientAddress: form.recipientAddress?.trim() || undefined,
       recipientEmail: form.recipientEmail?.trim() || undefined,
       pageCount: form.pageCount ? Number(form.pageCount) : undefined,
-      notes: form.notes?.trim() || undefined,
     });
 
     if (result) {
@@ -191,21 +184,21 @@ export default function OutgoingDocumentEditPage() {
             <form id="form-edit-outgoing" onSubmit={handleSubmit}>
               <div className="form-group" style={{ marginBottom: 20 }}>
                 <label htmlFor="title" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Tiêu đề văn bản <span style={{ color: '#e74c3c' }}>*</span>
+                  Trích yếu văn bản <span style={{ color: '#e74c3c' }}>*</span>
                 </label>
                 <input
-                  id="title"
-                  name="title"
+                  id="subject"
+                  name="subject"
                   type="text"
-                  value={form.title}
+                  value={form.subject}
                   onChange={handleChange}
                   style={{
                     width: '100%', padding: '10px 14px',
-                    border: `1px solid ${validationErrors.title ? '#e74c3c' : '#dfe6e9'}`,
+                    border: `1px solid ${validationErrors.subject ? '#e74c3c' : '#dfe6e9'}`,
                     borderRadius: 8, fontSize: 15, boxSizing: 'border-box',
                   }}
                 />
-                {validationErrors.title && <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.title}</p>}
+                {validationErrors.subject && <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.subject}</p>}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
@@ -362,29 +355,7 @@ export default function OutgoingDocumentEditPage() {
                 </div>
               </div>
 
-              {/* Mô tả + ghi chú */}
-              <div className="form-group" style={{ marginBottom: 16 }}>
-                <label htmlFor="description" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Mô tả thêm</label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={form.description}
-                  onChange={handleChange}
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 28 }}>
-                <label htmlFor="notes" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ghi chú nội bộ</label>
-                <textarea
-                  id="notes"
-                  name="notes"
-                  value={form.notes}
-                  onChange={handleChange}
-                  rows={2}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
+              {/* Mô tả + ghi chú đã được gộp vào Trích yếu — không còn trường riêng */}
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => navigate(`/outgoing-documents/${doc.id}`)} disabled={actionLoading}>
