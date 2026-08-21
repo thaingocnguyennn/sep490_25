@@ -3,7 +3,6 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
   documentsApi,
   incomingDocumentsApi,
-  type ProcessorType,
   type Urgency,
 } from '../../../api';
 import { documentBooksApi, type DocumentBook } from '../../../api/modules/document-books';
@@ -12,25 +11,14 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import DocumentViewer from '../components/DocumentViewer';
-import OrganizationAssignmentTree from '../components/OrganizationAssignmentTree';
+import ProcessorRoleSection from '../components/ProcessorRoleSection';
 import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
 import type { ConfidentialityCodeOrName, OcrResult } from '../../../types';
 
-interface ProcessorAssignment {
-  userId: number;
-  processorType: ProcessorType;
-}
-
 interface AddIncomingDocumentPageProps {
   editMode?: boolean;
 }
-
-const PROCESSOR_TYPE_LABELS: Record<ProcessorType, string> = {
-  XLC: 'XLC - Người xử lý chính',
-  PHXL: 'PHXL - Người phối hợp xử lý',
-  XDB: 'XDB - Để biết',
-};
 
 const URGENCY_LABELS: Record<Urgency, string> = {
   THUONG: 'Thường',
@@ -107,7 +95,12 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   const [processingInstructions, setProcessingInstructions] = useState('');
 
   const [attachments, setAttachments] = useState<{ file: File; name: string; url: string }[]>([]);
-  const [processorsList, setProcessorsList] = useState<ProcessorAssignment[]>([]);
+  // Three priority-aware sections: XLC > PHXL > XDB. A user can only sit in
+  // one section at a time; moving them to a higher-priority section removes
+  // them from the lower-priority sections automatically (see handlers below).
+  const [xlcUserId, setXlcUserId] = useState<number | null>(null);
+  const [phxlUserIds, setPhxlUserIds] = useState<number[]>([]);
+  const [xdbUserIds, setXdbUserIds] = useState<number[]>([]);
 
   // Document book state
   const [documentBooks, setDocumentBooks] = useState<DocumentBook[]>([]);
@@ -202,6 +195,26 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         if (doc.documentBookId) {
           setSelectedBookId(doc.documentBookId);
         }
+
+        // Hydrate the three priority-aware processor sections from the
+        // existing DocumentProcessor rows. Priority: XLC > PHXL > XDB, so a
+        // user can only land in one section.
+        const existingProcessors = doc.document.processors ?? [];
+        const xlc = existingProcessors.find((p) => p.processorType === 'XLC');
+        const phxl = existingProcessors
+          .filter((p) => p.processorType === 'PHXL' && (!xlc || p.user.id !== xlc.user.id))
+          .map((p) => p.user.id);
+        const xdb = existingProcessors
+          .filter(
+            (p) =>
+              p.processorType === 'XDB' &&
+              (!xlc || p.user.id !== xlc.user.id) &&
+              !phxl.includes(p.user.id)
+          )
+          .map((p) => p.user.id);
+        setXlcUserId(xlc?.user.id ?? null);
+        setPhxlUserIds(phxl);
+        setXdbUserIds(xdb);
 
         // Set preview URL if there's a file
         if (doc.document.fileUrl) {
@@ -391,17 +404,41 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     });
   };
 
-  const handleProcessorToggle = (userId: number, type: ProcessorType) => {
-    setProcessorsList((prev) => {
-      const existing = prev.find((p) => p.userId === userId);
-      if (existing) {
-        if (existing.processorType === type) {
-          return prev.filter((p) => p.userId !== userId);
-        }
-        return prev.map((p) => p.userId === userId ? { ...p, processorType: type } : p);
-      }
-      return [...prev, { userId, processorType: type }];
-    });
+  // XLC: replace any existing XLC. Always wins over PHXL/XDB — if the user
+  // was previously selected in either, drop them from those lists.
+  const handleXlcChange = (next: number[]) => {
+    const nextXlc = next[0] ?? null;
+    setXlcUserId(nextXlc);
+    if (nextXlc !== null) {
+      setPhxlUserIds((prev) => prev.filter((id) => id !== nextXlc));
+      setXdbUserIds((prev) => prev.filter((id) => id !== nextXlc));
+    }
+  };
+
+  // PHXL: add/remove from PHXL. If the user is currently XLC, ignore the
+  // toggle (XLC wins by priority).
+  const handlePhxlChange = (next: number[]) => {
+    if (xlcUserId !== null && next.includes(xlcUserId)) return;
+    setPhxlUserIds(next);
+  };
+
+  // XDB: add/remove from XDB. If the user is XLC or PHXL, ignore the toggle
+  // (higher priority wins).
+  const handleXdbChange = (next: number[]) => {
+    if (xlcUserId !== null && next.includes(xlcUserId)) return;
+    const filtered = next.filter((id) => !phxlUserIds.includes(id));
+    setXdbUserIds(filtered);
+  };
+
+  // Build the derived [{userId, processorType}] array on demand (validate +
+  // submit). We always derive from the three separate section states so the
+  // payload cannot include duplicate userIds.
+  const buildProcessorIds = (): { userId: number; processorType: 'XLC' | 'PHXL' | 'XDB' }[] => {
+    const list: { userId: number; processorType: 'XLC' | 'PHXL' | 'XDB' }[] = [];
+    if (xlcUserId !== null) list.push({ userId: xlcUserId, processorType: 'XLC' });
+    for (const id of phxlUserIds) list.push({ userId: id, processorType: 'PHXL' });
+    for (const id of xdbUserIds) list.push({ userId: id, processorType: 'XDB' });
+    return list;
   };
 
   const validateStep1 = (): string | null => {
@@ -419,9 +456,25 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   };
 
   const validateStep2 = (): string | null => {
-    if (processorsList.length === 0) return 'Phải chọn ít nhất một người xử lý';
-    const hasXLC = processorsList.some((p) => p.processorType === 'XLC');
-    if (!hasXLC) return 'Phải chọn ít nhất một Người xử lý chính (XLC)';
+    if (xlcUserId === null) return 'Phải chọn đúng 1 Người xử lý chính (XLC) là Trưởng phòng';
+    const xlcUser = processors.find((u) => u.id === xlcUserId);
+    if (!xlcUser?.roles.includes('DEPARTMENT_HEAD')) {
+      return 'Người xử lý chính (XLC) phải có vai trò Trưởng phòng';
+    }
+    // Priority invariants: a user should never appear in more than one section.
+    if (phxlUserIds.includes(xlcUserId) || xdbUserIds.includes(xlcUserId)) {
+      return 'Một người không thể nằm ở nhiều vai trò xử lý';
+    }
+    const overlap = phxlUserIds.filter((id) => xdbUserIds.includes(id));
+    if (overlap.length > 0) {
+      return 'Một người không thể nằm ở nhiều vai trò xử lý';
+    }
+    for (const id of [...phxlUserIds, ...xdbUserIds]) {
+      const u = processors.find((p) => p.id === id);
+      if (!u?.roles.some((r) => r === 'DEPARTMENT_HEAD' || r === 'SPECIALIST')) {
+        return `Người dùng đã chọn không thuộc Trưởng phòng hoặc Chuyên viên`;
+      }
+    }
     return null;
   };
 
@@ -449,7 +502,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       urgency,
       confidentialityLevel: confidentiality,
       processingInstructions: processingInstructions || undefined,
-      processorIds: processorsList,
+      processorIds: buildProcessorIds(),
       documentBookId: selectedBookId || undefined,
       attachments: attachments.map((a) => ({
         fileName: a.name,
@@ -965,21 +1018,24 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             {error && <div className="alert alert-error">{error}</div>}
 
             <div className="processor-instructions">
-              <p>Phân công nhân viên xử lý văn bản này. Phải chọn ít nhất một <strong>XLC (Người xử lý chính)</strong>.</p>
+              <p>
+                Phân công nhân viên xử lý văn bản này. Phải chọn đúng <strong>1 XLC (Trưởng phòng)</strong>.
+                Thứ tự ưu tiên: <strong>XLC &gt; PHXL &gt; XDB</strong> — một người chỉ có thể nằm ở một vai trò.
+              </p>
             </div>
 
             <div className="processor-legend">
               <div className="legend-item">
                 <span className="legend-badge xl">XLC</span>
-                <span>Người xử lý chính — Người chịu trách nhiệm chính</span>
+                <span>Người xử lý chính — chỉ chọn 1 Trưởng phòng</span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge ph">PHXL</span>
-                <span>Người phối hợp xử lý — Hỗ trợ người xử lý chính</span>
+                <span>Người phối hợp xử lý — Trưởng phòng hoặc Chuyên viên</span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge xd">XDB</span>
-                <span>Để biết</span>
+                <span>Để biết — Trưởng phòng hoặc Chuyên viên</span>
               </div>
             </div>
 
@@ -988,12 +1044,45 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
               {loadingProcessors ? (
                 <div className="loading-spinner"><div className="spinner" /></div>
               ) : (
-                <OrganizationAssignmentTree
-                  users={processors}
-                  assignments={processorsList}
-                  roleLabels={PROCESSOR_TYPE_LABELS}
-                  onAssignmentChange={handleProcessorToggle}
-                />
+                <div className="processor-role-sections">
+                  <ProcessorRoleSection
+                    title="Người xử lý chính (XLC)"
+                    description="Chỉ chọn 1 Trưởng phòng chịu trách nhiệm chính."
+                    variant="xlc"
+                    users={processors}
+                    blockedUserIds={[]}
+                    allowedRoles={['DEPARTMENT_HEAD']}
+                    selectedIds={xlcUserId === null ? [] : [xlcUserId]}
+                    mode="single"
+                    onChange={handleXlcChange}
+                  />
+                  <ProcessorRoleSection
+                    title="Người phối hợp xử lý (PHXL)"
+                    description="Chọn nhiều Trưởng phòng hoặc Chuyên viên hỗ trợ xử lý."
+                    variant="phxl"
+                    users={processors}
+                    blockedUserIds={xlcUserId !== null ? [xlcUserId] : []}
+                    allowedRoles={['DEPARTMENT_HEAD', 'SPECIALIST']}
+                    selectedIds={phxlUserIds}
+                    mode="multi"
+                    onChange={handlePhxlChange}
+                  />
+                  <ProcessorRoleSection
+                    title="Để biết (XDB)"
+                    description="Chọn nhiều Trưởng phòng hoặc Chuyên viên chỉ để biết."
+                    variant="xdb"
+                    users={processors}
+                    blockedUserIds={
+                      xlcUserId !== null
+                        ? [xlcUserId, ...phxlUserIds]
+                        : phxlUserIds
+                    }
+                    allowedRoles={['DEPARTMENT_HEAD', 'SPECIALIST']}
+                    selectedIds={xdbUserIds}
+                    mode="multi"
+                    onChange={handleXdbChange}
+                  />
+                </div>
               )}
             </div>
 
@@ -1068,7 +1157,9 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Người xử lý</span>
-                  <span className="summary-value">{processorsList.length}</span>
+                  <span className="summary-value">
+                    {(xlcUserId !== null ? 1 : 0) + phxlUserIds.length + xdbUserIds.length}
+                  </span>
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Tệp đính kèm chính</span>

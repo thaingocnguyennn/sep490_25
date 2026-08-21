@@ -1218,6 +1218,163 @@ textarea:focus {
   background: #f8f9fa;
 }
 
+/* Three priority-aware processor sections (XLC > PHXL > XDB) */
+.processor-role-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.processor-role-section {
+  border: 1px solid #dfe6e9;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(45, 52, 54, 0.04);
+  overflow: hidden;
+  border-top-width: 3px;
+}
+
+.processor-role-section.variant-xlc { border-top-color: #667eea; }
+.processor-role-section.variant-phxl { border-top-color: #3498db; }
+.processor-role-section.variant-xdb { border-top-color: #95a5a6; }
+
+.processor-role-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.processor-role-section-header > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.processor-role-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.processor-role-badge.badge-xlc { background: #667eea; }
+.processor-role-badge.badge-phxl { background: #3498db; }
+.processor-role-badge.badge-xdb { background: #95a5a6; }
+
+.processor-role-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3436;
+}
+
+.processor-role-count {
+  font-size: 12px;
+  color: #636e72;
+}
+
+.processor-role-count strong {
+  color: #2d3436;
+}
+
+.processor-role-description {
+  padding: 10px 16px 0;
+  font-size: 12px;
+  color: #636e72;
+  line-height: 1.5;
+}
+
+.processor-role-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px 0;
+  min-height: 38px;
+}
+
+.processor-role-empty-hint {
+  font-size: 12px;
+  color: #95a5a6;
+  font-style: italic;
+}
+
+.processor-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.processor-role-chip.chip-xlc {
+  background: #eef0ff;
+  color: #4c51bf;
+  border-color: #c9d0fb;
+}
+.processor-role-chip.chip-phxl {
+  background: #e8f4fb;
+  color: #2471a3;
+  border-color: #bbdefb;
+}
+.processor-role-chip.chip-xdb {
+  background: #ecf0f1;
+  color: #5d6d7e;
+  border-color: #cfd8dc;
+}
+
+.processor-role-chip button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  color: inherit;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+
+.processor-role-chip button:hover {
+  opacity: 1;
+}
+
+.processor-role-tree {
+  margin-top: 12px;
+  border: 1px solid #e9ecef;
+}
+
+/* Selected highlight per variant (uses the existing inset accent bar pattern). */
+.organization-user-row.variant-xlc.selected {
+  border-color: #c9d0fb;
+  background: #f8f9ff;
+  box-shadow: inset 3px 0 0 #667eea;
+}
+.organization-user-row.variant-phxl.selected {
+  border-color: #bbdefb;
+  background: #f4f9fd;
+  box-shadow: inset 3px 0 0 #3498db;
+}
+.organization-user-row.variant-xdb.selected {
+  border-color: #cfd8dc;
+  background: #f4f6f7;
+  box-shadow: inset 3px 0 0 #95a5a6;
+}
+
+.organization-user-row.blocked {
+  opacity: 0.55;
+}
+
+.organization-user-row.blocked .organization-user-checkbox {
+  cursor: not-allowed;
+}
+
 /* Organization assignment tree */
 .organization-assignment-tree {
   overflow: hidden;
@@ -1393,6 +1550,20 @@ textarea:focus {
 
 .organization-department-row.unassigned {
   color: #636e72;
+}
+
+.organization-department-checkbox {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0 6px 0 2px;
+  accent-color: #667eea;
+  cursor: pointer;
+}
+
+.organization-department-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .organization-tree-toggle {
