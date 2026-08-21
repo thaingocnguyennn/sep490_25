@@ -8,23 +8,18 @@ const isValidUrgency = (v: string) => URGENCY_ALLOWED.includes(v) || /^\d+$/.tes
 // ─── Validation for uploading a new document ─────────────────────────────────
 
 export const uploadDocumentValidation = [
-  body('title')
+  body('subject')
     .trim()
     .notEmpty()
-    .withMessage('Title is required')
-    .isLength({ max: 500 })
-    .withMessage('Title must be at most 500 characters'),
-  body('description')
-    .optional()
-    .trim()
+    .withMessage('Subject is required')
     .isLength({ max: 2000 })
-    .withMessage('Description must be at most 2000 characters'),
+    .withMessage('Subject must be at most 2000 characters'),
   body('type')
     .notEmpty()
     .withMessage('Document type is required')
     .isIn(['INCOMING', 'OUTGOING', 'INTERNAL', 'ARCHIVAL'])
     .withMessage('Type must be INCOMING, OUTGOING, INTERNAL, or ARCHIVAL'),
-  body('dateOnLetter')
+  body('issuedDate')
     .optional()
     .isISO8601()
     .withMessage('Date on letter must be a valid ISO 8601 date'),
@@ -127,11 +122,6 @@ export const uploadDocumentValidation = [
     .trim()
     .isLength({ max: 200 })
     .withMessage('Signer title must be at most 200 characters'),
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 2000 })
-    .withMessage('Notes must be at most 2000 characters'),
 ];
 
 // ─── Validation for updating document metadata ──────────────────────────────
@@ -143,16 +133,11 @@ export const updateDocumentValidation = [
     .trim()
     .isLength({ min: 1, max: 100 })
     .withMessage('Document number must be 1-100 characters'),
-  body('title')
+  body('subject')
     .optional()
     .trim()
-    .isLength({ min: 1, max: 500 })
-    .withMessage('Title must be 1-500 characters'),
-  body('description')
-    .optional()
-    .trim()
-    .isLength({ max: 2000 })
-    .withMessage('Description must be at most 2000 characters'),
+    .isLength({ min: 1, max: 2000 })
+    .withMessage('Subject must be 1-2000 characters'),
   body('type')
     .optional()
     .isIn(['INCOMING', 'OUTGOING', 'INTERNAL', 'ARCHIVAL'])
@@ -161,7 +146,7 @@ export const updateDocumentValidation = [
     .optional({ nullable: true })
     .isISO8601()
     .withMessage('Issuance date must be a valid ISO 8601 date'),
-  body('dateOnLetter')
+  body('issuedDate')
     .optional({ nullable: true })
     .isISO8601()
     .withMessage('Date on letter must be a valid ISO 8601 date'),
@@ -185,11 +170,6 @@ export const updateDocumentValidation = [
     .trim()
     .isLength({ max: 200 })
     .withMessage('Signer title must be at most 200 characters'),
-  body('notes')
-    .optional({ nullable: true })
-    .trim()
-    .isLength({ max: 2000 })
-    .withMessage('Notes must be at most 2000 characters'),
   body('urgency')
     .optional({ nullable: true })
     .custom((value) => {

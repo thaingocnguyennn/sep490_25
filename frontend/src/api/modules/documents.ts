@@ -85,10 +85,9 @@ export interface CreateIncomingDocumentRequest {
   signerTitle?: string;
   dateLetter?: string;
   dateReceived: string;
-  summary?: string;
+  summary: string;
   pageCount?: number;
   urgency?: Urgency;
-  notes?: string;
   processingInstructions?: string;
   processorIds: { userId: number; processorType: ProcessorType }[];
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
@@ -106,7 +105,6 @@ export interface ProcessIncomingDocumentRequest {
   action: HeadAction;
   processorIds?: { userId: number; processorType: ProcessorType }[];
   processingInstructions?: string;
-  deadline?: string;
   reason?: string;
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
 }
@@ -306,7 +304,6 @@ export const incomingDocumentsApi = {
       ['urgency', data.urgency],
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
-      ['notes', data.notes],
       ['documentBookId', data.documentBookId],
     ];
     for (const [key, value] of entries) {
@@ -350,7 +347,6 @@ export const incomingDocumentsApi = {
       ['urgency', data.urgency],
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
-      ['notes', data.notes],
       ['documentBookId', data.documentBookId],
     ];
     for (const [key, value] of entries) {
@@ -390,7 +386,6 @@ export const incomingDocumentsApi = {
       ['urgency', data.urgency],
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
-      ['notes', data.notes],
       ['processingInstructions', data.processingInstructions],
       ['documentBookId', data.documentBookId],
     ];

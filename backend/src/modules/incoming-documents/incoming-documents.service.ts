@@ -113,7 +113,6 @@ export class IncomingDocumentsService {
     payload: {
       processorIds?: ProcessorInput[];
       processingInstructions?: string;
-      deadline?: string;
       reason?: string;
       attachments?: AttachmentInput[];
     },
@@ -167,8 +166,6 @@ export class IncomingDocumentsService {
         throw new BadRequestError('Phải chọn ít nhất một Người xử lý chính (XLC)');
       }
 
-      const deadlineDate = payload.deadline ? parseDateOrNull(payload.deadline) : null;
-
       const forwardedUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
         await tx.documentProcessor.deleteMany({ where: { documentId } });
@@ -204,7 +201,6 @@ export class IncomingDocumentsService {
           where: { id: documentId },
           data: {
             status: DocumentStatus.IN_PROGRESS,
-            ...(deadlineDate ? { deadline: deadlineDate } : {}),
           },
         });
 
@@ -325,11 +321,10 @@ export class IncomingDocumentsService {
     signerTitle?: string;
     dateLetter?: string;
     dateReceived: string;
-    summary?: string;
+    summary: string;
     pageCount?: number;
     /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
-    notes?: string;
     processingInstructions?: string;
     processorIds: ProcessorInput[];
     attachments?: AttachmentInput[];
@@ -353,7 +348,11 @@ export class IncomingDocumentsService {
       throw new BadRequestError('Phải chọn ít nhất một Người xử lý chính (XLC)');
     }
 
-    const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
+    // Prefer the user-entered external symbol number (e.g. "14/2026/NQ-HĐND");
+    // only fall back to the auto-generated archive number when the user did
+    // not provide one. See frontend/src/features/documents/pages/AddIncomingDocumentPage.tsx
+    // where "Số ký hiệu" maps to data.documentNumber.
+    const documentNumber = data.documentNumber?.trim() || await documentsRepository.generateDocumentNumber('INCOMING');
     const workflowSteps = await prisma.workflowStep.findMany({
       orderBy: { stepOrder: 'asc' },
     });
@@ -374,20 +373,11 @@ export class IncomingDocumentsService {
         : data.documentBookId
       : undefined;
 
-    // Fetch document type name for title if documentTypeId is provided
-    let documentTypeName = '';
-    if (data.documentTypeId) {
-      const typeDoc = await prisma.documentType.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
-      if (typeDoc) documentTypeName = typeDoc.name;
-    }
-
     const result = await prisma.$transaction(async (tx) => {
       const document = await tx.document.create({
         data: {
           documentNumber,
-          title: data.summary
-            ? `${documentTypeName} ${data.summary}`.trim()
-            : data.issuer || `Văn bản đến số ${documentNumber}`,
+          subject: data.summary,
           type: 'INCOMING',
           status: DocumentStatus.PENDING,
           urgencyId,
@@ -396,9 +386,7 @@ export class IncomingDocumentsService {
           issuer: data.issuer,
           signerName: data.signerName,
           signerTitle: data.signerTitle,
-          notes: data.notes,
-          description: data.summary,
-          dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          issuedDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
           createdBy: data.createdBy,
         },
       });
@@ -487,7 +475,6 @@ export class IncomingDocumentsService {
     summary?: string;
     pageCount?: number;
     urgency?: string;
-    notes?: string;
     processingInstructions?: string;
     attachments?: AttachmentInput[];
     createdBy: number;
@@ -495,7 +482,10 @@ export class IncomingDocumentsService {
     confidentialityId?: string;
     documentBookId?: number;
   }) {
-    const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
+    // Use user-entered external symbol number when provided, otherwise
+    // fall back to the auto-generated archive number. Keeps "Số ký hiệu"
+    // (form field) consistent with what is stored on Document.documentNumber.
+    const documentNumber = data.documentNumber?.trim() || await documentsRepository.generateDocumentNumber('INCOMING');
 
     // Resolve urgencyId and confidentialityId (use defaults if not provided)
     const urgencyId = data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
@@ -512,20 +502,11 @@ export class IncomingDocumentsService {
         : data.documentBookId
       : undefined;
 
-    // Fetch document type name for title if documentTypeId is provided
-    let documentTypeName = '';
-    if (data.documentTypeId) {
-      const typeDoc = await prisma.documentType.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
-      if (typeDoc) documentTypeName = typeDoc.name;
-    }
-
     const result = await prisma.$transaction(async (tx) => {
       const document = await tx.document.create({
         data: {
           documentNumber,
-          title: data.summary
-            ? `${documentTypeName} ${data.summary}`.trim()
-            : data.issuer || `Văn bản đến số ${documentNumber}`,
+          subject: data.summary ?? '',
           type: 'INCOMING',
           status: DocumentStatus.DRAFT, // Draft status - not processed yet
           urgencyId,
@@ -534,9 +515,7 @@ export class IncomingDocumentsService {
           issuer: data.issuer,
           signerName: data.signerName,
           signerTitle: data.signerTitle,
-          notes: data.notes,
-          description: data.summary,
-          dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          issuedDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
           createdBy: data.createdBy,
         },
       });
@@ -597,7 +576,6 @@ export class IncomingDocumentsService {
       summary?: string;
       pageCount?: number;
       urgency?: string;
-      notes?: string;
       processingInstructions?: string;
       attachments?: AttachmentInput[];
       confidentialityLevel?: string;
@@ -622,22 +600,15 @@ export class IncomingDocumentsService {
       : undefined;
 
     try {
-      // Fetch document type name for title if documentTypeId is provided
-      let documentTypeName = '';
-      if (documentTypeId) {
-        const typeDoc = await prisma.documentType.findUnique({ where: { id: documentTypeId }, select: { name: true } });
-        if (typeDoc) documentTypeName = typeDoc.name;
-      }
-
       const result = await prisma.$transaction(async (tx) => {
-        const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
+        // Prefer the user-entered external symbol number so "Số ký hiệu"
+        // shown in the form matches what is stored in the database.
+        const documentNumber = data.documentNumber?.trim() || await documentsRepository.generateDocumentNumber('INCOMING');
 
         const document = await tx.document.create({
           data: {
             documentNumber,
-            title: data.summary
-              ? `${documentTypeName} ${data.summary}`.trim()
-              : data.issuer || `Văn bản đến số ${documentNumber}`,
+            subject: data.summary ?? '',
             type: 'INCOMING',
             status: DocumentStatus.DRAFT, // Draft status
             fileUrl,
@@ -648,9 +619,7 @@ export class IncomingDocumentsService {
             issuer: data.issuer,
             signerName: data.signerName,
             signerTitle: data.signerTitle,
-            notes: data.notes,
-            description: data.summary,
-            dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            issuedDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
             urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
               ? await resolveUrgencyIdWithDefault(data.urgency)
               : await resolveUrgencyIdWithDefault(null),
@@ -727,7 +696,6 @@ export class IncomingDocumentsService {
       summary?: string;
       pageCount?: number;
       urgency?: string;
-      notes?: string;
       processingInstructions?: string;
       attachments?: AttachmentInput[];
       confidentialityLevel?: string;
@@ -750,32 +718,24 @@ export class IncomingDocumentsService {
     const confidentialityInput = data.confidentialityId ?? data.confidentialityLevel ?? null;
     const confidentialityId = await resolveConfidentialityIdWithDefault(confidentialityInput);
 
-    // Fetch document type name for title if documentTypeId is provided
-    let documentTypeName = '';
-    if (data.documentTypeId) {
-      const typeDoc = await prisma.documentType.findUnique({ where: { id: data.documentTypeId }, select: { name: true } });
-      if (typeDoc) documentTypeName = typeDoc.name;
-    }
-
-    const title = data.summary
-      ? `${documentTypeName} ${data.summary}`.trim()
-      : data.issuer || incoming.document.title;
+    // Subject = trích yếu (data.summary). Fall back to existing subject when summary is not provided.
+    const subject = data.summary ?? incoming.document.subject ?? '';
 
     await prisma.$transaction(async (tx) => {
-      // Update the document
+      // Update the document. Only overwrite documentNumber when one is provided
+      // so existing draft rows keep their stored value when the field is blank.
       await tx.document.update({
         where: { id: incoming.documentId },
         data: {
-          title,
+          ...(data.documentNumber?.trim() ? { documentNumber: data.documentNumber.trim() } : {}),
+          subject,
           urgencyId,
           confidentialityId,
           documentTypeId: data.documentTypeId,
           issuer: data.issuer,
           signerName: data.signerName,
           signerTitle: data.signerTitle,
-          notes: data.notes,
-          description: data.summary,
-          dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+          issuedDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
           updatedBy: data.updatedBy,
         },
       });
@@ -814,7 +774,6 @@ export class IncomingDocumentsService {
       summary?: string;
       pageCount?: number;
       urgency?: string;
-      notes?: string;
       processingInstructions?: string;
       attachments?: AttachmentInput[];
       confidentialityLevel?: string;
@@ -852,24 +811,18 @@ export class IncomingDocumentsService {
         : data.documentBookId
       : undefined;
 
-    // Fetch document type name for title if documentTypeId is provided
-    let documentTypeName = '';
-    if (documentTypeId) {
-      const typeDoc = await prisma.documentType.findUnique({ where: { id: documentTypeId }, select: { name: true } });
-      if (typeDoc) documentTypeName = typeDoc.name;
-    }
-
-    const title = data.summary
-      ? `${documentTypeName} ${data.summary}`.trim()
-      : data.issuer || incoming.document.title;
+    const subject = data.summary ?? incoming.document.subject ?? '';
 
     try {
       await prisma.$transaction(async (tx) => {
-        // Update the document with new file
+        // Update the document with new file. Only overwrite documentNumber
+        // when the caller actually provided one — leaving the field undefined
+        // preserves the existing value (Prisma skips the column in that case).
         await tx.document.update({
           where: { id: incoming.documentId },
           data: {
-            title,
+            ...(data.documentNumber?.trim() ? { documentNumber: data.documentNumber.trim() } : {}),
+            subject,
             fileUrl,
             originalFileName: file.originalname,
             fileSize: file.size,
@@ -880,9 +833,7 @@ export class IncomingDocumentsService {
             issuer: data.issuer,
             signerName: data.signerName,
             signerTitle: data.signerTitle,
-            notes: data.notes,
-            description: data.summary,
-            dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            issuedDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
             updatedBy: userId,
           },
         });
@@ -947,22 +898,15 @@ export class IncomingDocumentsService {
       : undefined;
 
     try {
-      // Fetch document type name for title if documentTypeId is provided
-      let documentTypeName = '';
-      if (documentTypeId) {
-        const typeDoc = await prisma.documentType.findUnique({ where: { id: documentTypeId }, select: { name: true } });
-        if (typeDoc) documentTypeName = typeDoc.name;
-      }
-
       const result = await prisma.$transaction(async (tx) => {
-        const documentNumber = await documentsRepository.generateDocumentNumber('INCOMING');
+        // Prefer the user-entered external symbol number ("Số ký hiệu") so
+        // the value shown in the form is what gets stored in the database.
+        const documentNumber = data.documentNumber?.trim() || await documentsRepository.generateDocumentNumber('INCOMING');
 
         const document = await tx.document.create({
           data: {
             documentNumber,
-            title: data.summary
-              ? `${documentTypeName} ${data.summary}`.trim()
-              : data.issuer || `Văn bản đến số ${documentNumber}`,
+            subject: data.summary,
             type: 'INCOMING',
             status: DocumentStatus.PENDING,
             fileUrl,
@@ -973,9 +917,7 @@ export class IncomingDocumentsService {
             issuer: data.issuer,
             signerName: data.signerName,
             signerTitle: data.signerTitle,
-            notes: data.notes,
-            description: data.summary,
-            dateOnLetter: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
+            issuedDate: data.dateLetter ? parseDateOrNull(data.dateLetter) : undefined,
             urgencyId: data.urgency !== undefined && data.urgency !== null && data.urgency !== ''
               ? await resolveUrgencyIdWithDefault(data.urgency)
               : await resolveUrgencyIdWithDefault(null),

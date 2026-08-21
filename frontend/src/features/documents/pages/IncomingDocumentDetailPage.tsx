@@ -337,10 +337,10 @@ export default function IncomingDocumentDetailPage() {
                     <span style={{ fontWeight: 600 }}>{doc.document.issuer}</span>
                   </div>
                 )}
-                {doc.document.description && (
+                {doc.document.subject && (
                   <div className="detail-item full-width">
                     <label>Trích yếu nội dung</label>
-                    <span>{doc.document.description}</span>
+                    <span>{doc.document.subject}</span>
                   </div>
                 )}
                 <div className="detail-item">
@@ -348,8 +348,8 @@ export default function IncomingDocumentDetailPage() {
                   <span>{new Date(doc.dateReceived).toLocaleDateString('vi-VN')}</span>
                 </div>
                 <div className="detail-item">
-                  <label>Ngày văn bản</label>
-                  <span>{doc.document.dateOnLetter ? new Date(doc.document.dateOnLetter).toLocaleDateString('vi-VN') : '—'}</span>
+                  <label>Ngày ban hành</label>
+                  <span>{doc.document.issuedDate ? new Date(doc.document.issuedDate).toLocaleDateString('vi-VN') : '—'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Độ khẩn</label>
@@ -632,13 +632,13 @@ export default function IncomingDocumentDetailPage() {
             </div>
           </div>
 
-          {doc.document.notes && (
+          {doc.processingInstructions && (
             <div className="card">
               <div className="card-header">
-                <h2>Ghi chú</h2>
+                <h2>Hướng dẫn xử lý</h2>
               </div>
               <div className="card-body">
-                <p style={{ whiteSpace: 'pre-wrap' }}>{doc.document.notes}</p>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{doc.processingInstructions}</p>
               </div>
             </div>
           )}

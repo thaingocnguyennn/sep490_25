@@ -40,8 +40,7 @@ export interface OutgoingDocumentWithRelations {
   document: {
     id: number;
     documentNumber: string;
-    title: string;
-    description: string | null;
+    subject: string;
     type: string;
     fileUrl: string | null;
     ocrText: string | null;
@@ -64,9 +63,8 @@ export interface OutgoingDocumentWithRelations {
     documentTypeRef: { id: number; name: string } | null;
     signerName: string | null;
     signerTitle: string | null;
-    notes: string | null;
     issuer: string | null;
-    dateOnLetter: Date | null;
+    issuedDate: Date | null;
     categoryId: number | null;
     category: { id: number; name: string; code: string } | null;
     documentStatus: string;
@@ -235,7 +233,7 @@ export class OutgoingDocumentsRepository {
     if (search) {
       (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({
         OR: [
-          { document: { title: { contains: search, mode: 'insensitive' } } },
+          { document: { subject: { contains: search, mode: 'insensitive' } } },
           { document: { documentNumber: { contains: search, mode: 'insensitive' } } },
           { document: { ocrText: { contains: search, mode: 'insensitive' } } },
           { document: { signerName: { contains: search, mode: 'insensitive' } } },
@@ -378,7 +376,7 @@ export class OutgoingDocumentsRepository {
       (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({
         document: {
           OR: [
-            { title: { contains: search, mode: 'insensitive' } },
+            { subject: { contains: search, mode: 'insensitive' } },
             { documentNumber: { contains: search, mode: 'insensitive' } },
           ],
         },

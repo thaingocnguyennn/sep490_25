@@ -163,8 +163,7 @@ export type UrgencyCodeOrName = UrgencyName | UrgencyAlias | number;
 export interface Document {
   id: number;
   documentNumber: string;
-  title: string;
-  description: string | null;
+  subject: string;
   type: DocumentDirection;
   fileUrl: string | null;
   documentStatus: DocumentStatus;
@@ -179,9 +178,8 @@ export interface Document {
   issuer: string | null;
   signerName: string | null;
   signerTitle: string | null;
-  notes: string | null;
-  /** Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate) */
-  dateOnLetter: string | null;
+  /** Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate, dateOnLetter) */
+  issuedDate: string | null;
   categoryId: number | null;
   category: { id: number; name: string; code: string } | null;
   originalFileName: string | null;
@@ -239,17 +237,15 @@ export interface DocumentFilterParams {
 
 export interface UpdateDocumentRequest {
   documentNumber?: string;
-  title?: string;
-  description?: string;
+  subject?: string;
   type?: DocumentDirection;
   /** Ngày ghi trên văn bản */
-  dateOnLetter?: string | null;
-  /** @deprecated Use dateOnLetter — kept for legacy client compatibility. */
+  issuedDate?: string | null;
+  /** @deprecated Use issuedDate — kept for legacy client compatibility. */
   issuanceDate?: string | null;
   issuer?: string | null;
   signerName?: string | null;
   signerTitle?: string | null;
-  notes?: string | null;
   /** Seeded urgency name, legacy alias, or numeric id; null to clear */
   urgency?: UrgencyCodeOrName | null;
   urgencyId?: UrgencyCodeOrName | null;
@@ -314,8 +310,7 @@ export interface OutgoingDocument {
   document: {
     id: number;
     documentNumber: string;
-    title: string;
-    description: string | null;
+    subject: string;
     type: string;
     fileUrl: string | null;
     ocrText: string | null;
@@ -330,7 +325,6 @@ export interface OutgoingDocument {
     issuer: string | null;
     signerName: string | null;
     signerTitle: string | null;
-    notes: string | null;
     issuanceDate: string | null;
     categoryId: number | null;
     category: { id: number; name: string; code: string } | null;
@@ -362,8 +356,7 @@ export interface OutgoingDocument {
 }
 
 export interface CreateOutgoingDocumentRequest {
-  title: string;
-  description?: string;
+  subject: string;
   urgency?: UrgencyCodeOrName;
   confidentialityLevel?: ConfidentialityCodeOrName;
   confidentialityId?: ConfidentialityCodeOrName;
@@ -375,13 +368,11 @@ export interface CreateOutgoingDocumentRequest {
   recipientName?: string;
   recipientAddress?: string;
   recipientEmail?: string;
-  notes?: string;
   relatedIncomingDocumentId?: number;
 }
 
 export interface UpdateOutgoingMetadataRequest {
-  title?: string;
-  description?: string;
+  subject?: string;
   urgency?: UrgencyCodeOrName | null;
   confidentialityLevel?: ConfidentialityCodeOrName | null;
   confidentialityId?: ConfidentialityCodeOrName | null;
@@ -397,7 +388,6 @@ export interface UpdateOutgoingMetadataRequest {
   recipientAddress?: string;
   recipientEmail?: string;
   pageCount?: number;
-  notes?: string;
 }
 
 export interface UpdateOutgoingStatusRequest {

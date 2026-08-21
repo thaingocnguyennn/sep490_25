@@ -9,15 +9,10 @@ export const registerOutgoingDocumentValidation = [
 // ─── Validation tạo văn bản đi ────────────────────────────────────────────────
 
 export const createOutgoingDocumentValidation = [
-  body('title')
+  body('subject')
     .trim()
-    .notEmpty().withMessage('Tiêu đề văn bản không được để trống')
-    .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
-
-  body('description')
-    .optional()
-    .trim()
-    .isString().withMessage('Mô tả phải là chuỗi ký tự'),
+    .notEmpty().withMessage('Trích yếu văn bản không được để trống')
+    .isLength({ max: 2000 }).withMessage('Trích yếu tối đa 2000 ký tự'),
 
   body('urgency')
     .optional()
@@ -83,11 +78,6 @@ export const createOutgoingDocumentValidation = [
     .trim()
     .isEmail().withMessage('Email người nhận không hợp lệ'),
 
-  body('notes')
-    .optional()
-    .trim()
-    .isString().withMessage('Ghi chú phải là chuỗi ký tự'),
-
   body('relatedIncomingDocumentId')
     .optional()
     .isInt({ min: 1 }).withMessage('ID văn bản liên quan phải là số nguyên dương'),
@@ -99,16 +89,11 @@ export const updateOutgoingMetadataValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('ID văn bản phải là số nguyên dương'),
 
-  body('title')
+  body('subject')
     .optional()
     .trim()
-    .notEmpty().withMessage('Tiêu đề không được rỗng nếu được cung cấp')
-    .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
-
-  body('description')
-    .optional()
-    .trim()
-    .isString(),
+    .notEmpty().withMessage('Trích yếu không được rỗng nếu được cung cấp')
+    .isLength({ max: 2000 }).withMessage('Trích yếu tối đa 2000 ký tự'),
 
   body('urgency')
     .optional({ nullable: true })
@@ -194,10 +179,6 @@ export const updateOutgoingMetadataValidation = [
   body('pageCount')
     .optional()
     .isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
-
-  body('notes')
-    .optional()
-    .isString(),
 ];
 
 // ─── Validation cập nhật trạng thái ─────────────────────────────────────────

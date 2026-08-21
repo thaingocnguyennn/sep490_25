@@ -114,8 +114,7 @@ export class OutgoingDocumentsService {
    * Tạo bản ghi Document + OutgoingDocument với trạng thái DRAFT.
    */
   async create(data: {
-    title: string;
-    description?: string;
+    subject: string;
     /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
@@ -127,7 +126,6 @@ export class OutgoingDocumentsService {
     recipientName?: string;
     recipientAddress?: string;
     recipientEmail?: string;
-    notes?: string;
     createdBy: number;
     relatedIncomingDocumentId?: number;
   }) {
@@ -144,8 +142,7 @@ export class OutgoingDocumentsService {
       const document = await tx.document.create({
         data: {
           documentNumber,
-          title: data.title,
-          description: data.description,
+          subject: data.subject,
           type: 'OUTGOING',
           status: DocumentStatus.DRAFT,
           urgencyId,
@@ -154,7 +151,6 @@ export class OutgoingDocumentsService {
           documentTypeId: data.documentTypeId,
           // Lĩnh vực văn bản (chỉ nhận ID hợp lệ, validation đã kiểm tra ACTIVE ở controller)
           categoryId: data.documentCategoryId,
-          notes: data.notes,
           createdBy: data.createdBy,
         },
       });
@@ -463,8 +459,7 @@ export class OutgoingDocumentsService {
   async updateMetadata(
     id: number,
     data: {
-      title?: string;
-      description?: string;
+      subject?: string;
       urgency?: string;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, legacy ConfidentialityLevel, or null to clear */
       confidentialityLevel?: string | number | null;
@@ -477,7 +472,6 @@ export class OutgoingDocumentsService {
       recipientAddress?: string;
       recipientEmail?: string;
       pageCount?: number;
-      notes?: string;
     },
     updatedBy: number,
   ) {
@@ -491,8 +485,7 @@ export class OutgoingDocumentsService {
     }
 
     const documentUpdate: Record<string, unknown> = {
-      title: data.title,
-      description: data.description,
+      subject: data.subject,
       departmentId: data.departmentId,
       updatedBy,
     };
@@ -519,9 +512,6 @@ export class OutgoingDocumentsService {
     }
     if (data.signerTitle !== undefined) {
       documentUpdate.signerTitle = data.signerTitle;
-    }
-    if (data.notes !== undefined) {
-      documentUpdate.notes = data.notes;
     }
 
     await prisma.$transaction(async (tx) => {
@@ -773,7 +763,7 @@ export class OutgoingDocumentsService {
       throw new BadRequestError('Danh sách email người nhận không được để trống');
     }
 
-    const title = outgoing.document.title;
+    const title = outgoing.document.subject;
     const docNumber = outgoing.dispatchNumber || outgoing.documentNumber || 'KHÔNG CÓ SỐ';
     const issuanceDate = outgoing.issuanceDate
       ? new Date(outgoing.issuanceDate).toLocaleDateString('vi-VN')
@@ -1089,7 +1079,7 @@ export class OutgoingDocumentsService {
       { header: 'Số đi', key: 'dispatchNumber', width: 15 },
       { header: 'Số/Ký hiệu', key: 'documentNumber', width: 20 },
       { header: 'Nơi nhận', key: 'recipientName', width: 25 },
-      { header: 'Trích yếu', key: 'title', width: 40 },
+      { header: 'Trích yếu', key: 'subject', width: 40 },
       { header: 'Người ký', key: 'signerName', width: 20 },
       { header: 'Loại VB', key: 'documentType', width: 15 },
       { header: 'Độ khẩn', key: 'urgencyName', width: 15 },
@@ -1107,7 +1097,7 @@ export class OutgoingDocumentsService {
         dispatchNumber: item.dispatchNumber || '—',
         documentNumber: item.document.documentNumber || '—',
         recipientName: item.recipientName || '—',
-        title: item.document.title || '—',
+        subject: item.document.subject || '—',
         signerName: item.document.signerName || '—',
         documentType: item.document.documentTypeRef?.name || '—',
         urgencyName: item.document.urgency?.name || '—',
@@ -1181,7 +1171,7 @@ export class OutgoingDocumentsService {
           y = 40;
         }
 
-        const title = item.document.title.length > 50 ? item.document.title.substring(0, 50) + '...' : item.document.title;
+        const title = item.document.subject.length > 50 ? item.document.subject.substring(0, 50) + '...' : item.document.subject;
         const recipient = (item.recipientName || '').length > 20 ? (item.recipientName || '').substring(0, 20) + '...' : (item.recipientName || '—');
 
         const row = [

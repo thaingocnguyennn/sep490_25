@@ -189,13 +189,13 @@ export default function IncomingDocumentsPage() {
                         ) : '—'}
                       </td>
                       <td style={{ maxWidth: 200 }}>
-                        <span title={item.document.description || ''} style={{
+                        <span title={item.document.subject || ''} style={{
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                         }}>
-                          {item.document.description || '—'}
+                          {item.document.subject || '—'}
                         </span>
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>
