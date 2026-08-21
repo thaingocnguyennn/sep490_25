@@ -59,6 +59,74 @@ interface AttachmentInput {
   mimeType?: string;
 }
 
+/**
+ * Enforce role-per-type and priority invariants on a processorIds payload:
+ *   - Exactly one user has type XLC.
+ *   - No userId appears in more than one section (XLC > PHXL > XDB).
+ *   - The XLC user must hold the DEPARTMENT_HEAD role.
+ *   - Every PHXL/XDB user must hold DEPARTMENT_HEAD or SPECIALIST.
+ *
+ * Throws BadRequestError with a Vietnamese message on any violation. Used by
+ * both the create and the with-file paths, plus the FORWARD branches of
+ * `processByHead` and `processBySpecialist`.
+ */
+async function validateProcessorRoles(processorIds: ProcessorInput[]): Promise<void> {
+  if (!Array.isArray(processorIds) || processorIds.length === 0) {
+    throw new BadRequestError('Phải chọn ít nhất một người xử lý');
+  }
+
+  const xlcEntries = processorIds.filter((p) => p.processorType === 'XLC');
+  if (xlcEntries.length !== 1) {
+    throw new BadRequestError('Phải chọn đúng 1 Người xử lý chính (XLC)');
+  }
+
+  const ids = processorIds.map((p) => p.userId);
+  if (new Set(ids).size !== ids.length) {
+    throw new BadRequestError(
+      'Một người không thể nằm ở nhiều vai trò xử lý (XLC > PHXL > XDB)'
+    );
+  }
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      userRoles: { select: { role: { select: { name: true } } } },
+    },
+  });
+
+  if (users.length !== ids.length) {
+    throw new BadRequestError('Một hoặc nhiều người dùng được chỉ định không tồn tại');
+  }
+
+  const rolesByUserId = new Map<number, Set<string>>();
+  for (const u of users) {
+    rolesByUserId.set(
+      u.id,
+      new Set(u.userRoles.map((ur) => ur.role.name))
+    );
+  }
+
+  for (const entry of processorIds) {
+    const userRoles = rolesByUserId.get(entry.userId);
+    if (!userRoles) continue;
+    if (entry.processorType === 'XLC') {
+      if (!userRoles.has('DEPARTMENT_HEAD')) {
+        throw new BadRequestError('Người xử lý chính (XLC) phải có vai trò Trưởng phòng');
+      }
+    } else {
+      if (
+        !userRoles.has('DEPARTMENT_HEAD') &&
+        !userRoles.has('SPECIALIST')
+      ) {
+        throw new BadRequestError(
+          'Người phối hợp (PHXL) và người để biết (XDB) chỉ được chọn Trưởng phòng hoặc Chuyên viên'
+        );
+      }
+    }
+  }
+}
+
 export class IncomingDocumentsService {
   async list(params: {
     page: number;
@@ -161,6 +229,7 @@ export class IncomingDocumentsService {
       if (users.length !== userIds.length) {
         throw new BadRequestError('Một hoặc nhiều người dùng được chỉ định không tồn tại');
       }
+      await validateProcessorRoles(processorIds);
       const hasPrimary = processorIds.some((p) => p.processorType === 'XLC');
       if (!hasPrimary) {
         throw new BadRequestError('Phải chọn ít nhất một Người xử lý chính (XLC)');
@@ -342,6 +411,8 @@ export class IncomingDocumentsService {
     if (users.length !== userIds.length) {
       throw new BadRequestError('Một hoặc nhiều người dùng được chỉ định không tồn tại');
     }
+
+    await validateProcessorRoles(data.processorIds);
 
     const hasPrimary = data.processorIds.some((p) => p.processorType === 'XLC');
     if (!hasPrimary) {
@@ -1367,6 +1438,7 @@ export class IncomingDocumentsService {
       if (users.length !== userIds.length) {
         throw new BadRequestError('Một hoặc nhiều người dùng được chỉ định không tồn tại');
       }
+      await validateProcessorRoles(processorIds);
       const hasPrimary = processorIds.some((p) => p.processorType === 'XLC');
       if (!hasPrimary) {
         throw new BadRequestError('Phải chọn ít nhất một Người xử lý chính (XLC)');

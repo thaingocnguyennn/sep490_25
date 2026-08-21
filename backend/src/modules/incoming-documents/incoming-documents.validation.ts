@@ -65,6 +65,25 @@ export const createIncomingDocumentValidation = [
   body('processorIds.*.processorType')
     .isIn(['XLC', 'PHXL', 'XDB'])
     .withMessage('Loại xử lý không hợp lệ'),
+  body('processorIds')
+    .custom((value) => {
+      // Exactly one XLC. PHXL and XDB can be empty, but XLC must be present
+      // exactly once (defense in depth — the service also enforces this).
+      if (!Array.isArray(value)) return true;
+      const xlcCount = value.filter((p) => p && p.processorType === 'XLC').length;
+      return xlcCount === 1;
+    })
+    .withMessage('Phải chọn đúng 1 Người xử lý chính (XLC)'),
+  body('processorIds')
+    .custom((value) => {
+      // No user can appear in more than one section (priority invariant).
+      if (!Array.isArray(value)) return true;
+      const ids = value
+        .map((p) => (p ? p.userId : null))
+        .filter((id) => id !== null && id !== undefined);
+      return new Set(ids).size === ids.length;
+    })
+    .withMessage('Một người không thể nằm ở nhiều vai trò xử lý'),
   body('attachments').optional().isArray().withMessage('Tệp đính kèm phải là một mảng'),
   body('documentBookId').optional().isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
 ];
@@ -135,6 +154,22 @@ export const createIncomingDocumentWithFileValidation = [
   body('processorIds.*.processorType')
     .isIn(['XLC', 'PHXL', 'XDB'])
     .withMessage('Loại xử lý không hợp lệ'),
+  body('processorIds')
+    .custom((value) => {
+      if (!Array.isArray(value)) return true;
+      const xlcCount = value.filter((p) => p && p.processorType === 'XLC').length;
+      return xlcCount === 1;
+    })
+    .withMessage('Phải chọn đúng 1 Người xử lý chính (XLC)'),
+  body('processorIds')
+    .custom((value) => {
+      if (!Array.isArray(value)) return true;
+      const ids = value
+        .map((p) => (p ? p.userId : null))
+        .filter((id) => id !== null && id !== undefined);
+      return new Set(ids).size === ids.length;
+    })
+    .withMessage('Một người không thể nằm ở nhiều vai trò xử lý'),
   body('attachments').optional().isArray().withMessage('Tệp đính kèm phải là một mảng'),
   body('documentBookId').optional().isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
 ];
