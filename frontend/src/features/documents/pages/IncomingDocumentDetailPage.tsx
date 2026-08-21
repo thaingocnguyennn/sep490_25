@@ -337,6 +337,18 @@ export default function IncomingDocumentDetailPage() {
                     <span style={{ fontWeight: 600 }}>{doc.document.issuer}</span>
                   </div>
                 )}
+                {(doc.document.signerName || doc.document.signerTitle) && (
+                  <>
+                    <div className="detail-item">
+                      <label>Họ tên người ký</label>
+                      <span>{doc.document.signerName || '—'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Chức vụ</label>
+                      <span>{doc.document.signerTitle || '—'}</span>
+                    </div>
+                  </>
+                )}
                 {doc.document.subject && (
                   <div className="detail-item full-width">
                     <label>Trích yếu nội dung</label>
@@ -370,26 +382,6 @@ export default function IncomingDocumentDetailPage() {
               </div>
             </div>
           </div>
-
-          {(doc.document.signerName || doc.document.signerTitle) && (
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div className="card-header">
-                <h2>Thông tin ký</h2>
-              </div>
-              <div className="card-body">
-                <div className="detail-grid">
-                  <div className="detail-item">
-                    <label>Họ tên người ký</label>
-                    <span>{doc.document.signerName || '—'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Chức vụ</label>
-                    <span>{doc.document.signerTitle || '—'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {d.id && (
             <div className="card" style={{ marginBottom: 24 }}>
