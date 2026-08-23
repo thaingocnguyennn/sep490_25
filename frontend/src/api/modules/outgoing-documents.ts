@@ -206,6 +206,25 @@ export const getOutgoingSignatureDetail = async (
   return res.data.data!;
 };
 
+/**
+ * Kiểm tra chữ ký số và tính toàn vẹn trực tiếp từ tệp File (chưa cần lưu DB).
+ */
+export const verifyFileSignatures = async (
+  file: File,
+): Promise<DocumentSignatureResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('mimeType', file.type);
+  const res = await api.post<ApiResponse<DocumentSignatureResponse>>(
+    '/documents/verify-signatures',
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    },
+  );
+  return res.data.data!;
+};
+
 // ─── Thống kê ─────────────────────────────────────────────────────────────────
 
 export interface OutgoingStatisticsData {

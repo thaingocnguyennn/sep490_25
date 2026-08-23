@@ -189,7 +189,7 @@ function MonthlyTrendChart({ data }: { data: { month: string; count: number }[] 
 
   return (
     <div style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-      <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#2d3436' }}>📈 Xu hướng theo tháng (12 tháng gần nhất)</h3>
+      <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#2d3436' }}>Xu hướng theo tháng (12 tháng gần nhất)</h3>
       <div style={{ overflowX: 'auto' }}>
         <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 320 }}>
           {/* Area gradient */}
@@ -312,7 +312,7 @@ export default function OutgoingStatisticsPage() {
       {/* ── Tiêu đề trang ──────────────────────────────────────────────── */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: '#2d3436' }}>
-          📊 Thống kê Văn bản đi
+          Thống kê Văn bản đi
         </h1>
         <p style={{ margin: '4px 0 0', color: '#636e72', fontSize: 14 }}>
           Tổng hợp số liệu và xu hướng văn bản đi trong hệ thống
@@ -325,7 +325,7 @@ export default function OutgoingStatisticsPage() {
           padding: '12px 16px', marginBottom: 24, color: '#1e40af', fontSize: 14,
           display: 'flex', alignItems: 'center', gap: 8
         }}>
-          ℹ️ Đang xem dữ liệu nội bộ phòng ban.
+          Đang xem dữ liệu nội bộ phòng ban.
         </div>
       )}
 
@@ -373,7 +373,7 @@ export default function OutgoingStatisticsPage() {
           onClick={fetchStats}
           disabled={loading}
         >
-          {loading ? '⏳ Đang tải...' : '🔍 Xem thống kê'}
+          {loading ? 'Đang tải...' : 'Xem thống kê'}
         </button>
         {(dateFrom || dateTo) && (
           <button
@@ -382,7 +382,7 @@ export default function OutgoingStatisticsPage() {
             onClick={() => { setDateFrom(''); setDateTo(''); }}
             disabled={loading}
           >
-            ✕ Xóa lọc
+            Xóa lọc
           </button>
         )}
       </div>
@@ -390,14 +390,13 @@ export default function OutgoingStatisticsPage() {
       {/* ── Trạng thái: Loading / Error ────────────────────────────────── */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#636e72' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
           <p>Đang tải dữ liệu thống kê...</p>
         </div>
       )}
 
       {!loading && error && (
         <div style={{ background: '#fdf0f0', border: '1px solid #fcc', borderRadius: 10, padding: 20, color: '#e74c3c' }}>
-          ⚠️ {error}
+          {error}
           <button
             className="btn btn-secondary"
             onClick={fetchStats}
@@ -419,19 +418,19 @@ export default function OutgoingStatisticsPage() {
               marginBottom: 24,
             }}
           >
-            <KpiCard label="Tổng văn bản đi"       value={data.totalCount}  color="#6c5ce7" icon="📄" />
-            <KpiCard label="Đã phát hành"           value={data.issuedCount} color="#00b894" icon="✅" />
+            <KpiCard label="Tổng văn bản đi"       value={data.totalCount}  color="#6c5ce7" icon="" />
+            <KpiCard label="Đã phát hành"           value={data.issuedCount} color="#00b894" icon="" />
             <KpiCard
               label="Tỷ lệ phát hành"
               value={issuanceRate}
               color="#0984e3"
-              icon="📈"
+              icon=""
             />
             <KpiCard
               label="Loại văn bản khác nhau"
               value={data.byDocumentType.length}
               color="#fdcb6e"
-              icon="🗂️"
+              icon=""
             />
           </div>
 
@@ -450,20 +449,20 @@ export default function OutgoingStatisticsPage() {
             }}
           >
             <HorizontalBarChart
-              title="📋 Theo trạng thái"
+              title="Theo trạng thái"
               data={statusData as any}
               labelKey="label"
               countKey="count"
               colors={statusColors}
             />
             <HorizontalBarChart
-              title="📁 Theo loại văn bản"
+              title="Theo loại văn bản"
               data={docTypeData as any}
               labelKey="label"
               countKey="count"
             />
             <HorizontalBarChart
-              title="🏢 Theo phòng ban (Top 10)"
+              title="Theo phòng ban (Top 10)"
               data={departmentData as any}
               labelKey="label"
               countKey="count"

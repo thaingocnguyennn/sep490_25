@@ -325,6 +325,7 @@ export interface OutgoingDocument {
     issuer: string | null;
     signerName: string | null;
     signerTitle: string | null;
+    issuedDate?: string | null;
     issuanceDate: string | null;
     categoryId: number | null;
     category: { id: number; name: string; code: string } | null;
@@ -357,6 +358,9 @@ export interface OutgoingDocument {
 
 export interface CreateOutgoingDocumentRequest {
   subject: string;
+  issuer?: string;
+  documentNumber?: string;
+  issuedDate?: string;
   urgency?: UrgencyCodeOrName;
   confidentialityLevel?: ConfidentialityCodeOrName;
   confidentialityId?: ConfidentialityCodeOrName;
@@ -365,10 +369,18 @@ export interface CreateOutgoingDocumentRequest {
   documentTypeId?: number;
   /** ID lĩnh vực văn bản (DocumentCategory) */
   documentCategoryId?: number;
+  signerName?: string;
+  signerTitle?: string;
   recipientName?: string;
   recipientAddress?: string;
   recipientEmail?: string;
+  pageCount?: number;
   relatedIncomingDocumentId?: number;
+  // ─── Kết quả OCR (truyền từ màn hình tạo để lưu DB trong 1 lần duy nhất) ───
+  /** Toàn văn text OCR — lưu thẳng vào DB */
+  ocrText?: string;
+  /** COMPLETED nếu OCR đã chạy thành công ở màn hình tạo */
+  ocrStatus?: 'COMPLETED' | 'FAILED' | 'PENDING';
 }
 
 export interface UpdateOutgoingMetadataRequest {
@@ -426,6 +438,8 @@ export interface OutgoingDocumentFilterParams {
 
 export interface OcrResult {
   confidence: number;
+  text?: string;
+  totalPages?: number;
   extractedFields: {
     issuer?: string;
     documentNumber?: string;
@@ -460,6 +474,7 @@ export type SignatureEvidenceType =
   | "UNKNOWN";
 
 export type SignatureVerificationLevel =
+  | "FULL_PYHANKO_STANDARDS_VERIFIED"
   | "BASIC_STRUCTURE_ONLY"
   | "BASIC_STRUCTURE_AND_CERTIFICATE_EXTRACTION"
   | "SIGNED_RANGE_CHECK"
@@ -489,6 +504,23 @@ export interface DocumentSignatureItem {
   issuer?: string;
   serialNumber?: string;
   signingTime?: string;
+
+  // Các trường kiểm tra mật mã chuyên sâu pyHanko
+  hashIntact?: boolean | null;
+  signatureValid?: boolean | null;
+  certificateTrusted?: boolean | null;
+  certificateRevoked?: boolean | null;
+  modifiedAfterSigning?: boolean | null;
+  modificationLevel?: string | null;
+  modificationAllowed?: boolean | null;
+  coverage?: string | null;
+  overallValid?: boolean | null;
+
+  // Thời gian
+  trustedTimestamp?: string | null;
+  timestampValid?: boolean | null;
+  signerReportedTime?: string | null;
+
   subFilter?: string;
   byteRange?: [number, number, number, number];
   signedRevisionEnd?: number;
@@ -504,6 +536,7 @@ export interface DocumentSignatureItem {
 export interface DocumentSignatureSummary {
   hasCryptographicSignature: boolean;
   cryptographicSignatureCount: number;
+  allSignaturesValid?: boolean;
   hasVisualSignatureAppearance: null;
   conclusion:
     | "CRYPTOGRAPHIC_SIGNATURE_FOUND"
@@ -521,6 +554,7 @@ export interface DocumentSignatureResponse {
   documentId: number;
   fileName: string;
   fileType: SignatureFileType;
+  fileHash?: string;
   signatureCount: number;
   summary: DocumentSignatureSummary;
   signatures: DocumentSignatureItem[];

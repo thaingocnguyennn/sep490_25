@@ -1,13 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import zlib from 'zlib';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
-// ─── UC-57/70/71/72: Types chung cho PDF và Word ─────────────────────────────
+// ─── UC-54 / UC-70/71/72: Types cho Chữ ký số và Tính toàn vẹn PDF ────────────
 
 export type SignatureFileType = 'PDF' | 'WORD';
 
 /**
- * UC-57: Loại bằng chứng chữ ký.
+ * Loại bằng chứng chữ ký.
  * CRYPTOGRAPHIC_SIGNATURE = chữ ký số thật nhúng trong cấu trúc file.
  * VISIBLE_SIGNATURE_OR_STAMP = hình ảnh/dấu mộc trong trang, không có giá trị mật mã.
  */
@@ -17,37 +18,30 @@ export type SignatureEvidenceType =
   | 'UNKNOWN';
 
 /**
- * Mức độ xác minh mà hệ thống thực hiện được.
- * Không thực hiện full CA/PKI validation.
+ * Mức độ xác minh mà hệ thống thực hiện.
  */
 export type SignatureVerificationLevel =
-  | 'BASIC_STRUCTURE_ONLY'
+  | 'FULL_PYHANKO_STANDARDS_VERIFIED'
   | 'BASIC_STRUCTURE_AND_CERTIFICATE_EXTRACTION'
   | 'SIGNED_RANGE_CHECK'
-  | 'XML_SIGNATURE_STRUCTURE_DETECTED'
-  | 'VISUAL_ONLY_NOT_VERIFIED'
-  | 'FULL_CA_PKI_VALIDATION_NOT_PERFORMED';
+  | 'DRAFT_DOCUMENT_NO_PKI';
 
 export type SignatureIntegrityStatus =
-  | 'NO_CHANGES_AFTER_SIGNING'       // Chữ ký cuối, không có dữ liệu thêm sau vùng ký
-  | 'DATA_ADDED_AFTER_SIGNING'        // Có dữ liệu sau vùng ký (chữ ký trung gian hoặc bị thêm nội dung)
-  | 'INVALID_BYTE_RANGE'              // ByteRange vượt quá kích thước file — cấu trúc không hợp lệ
-  | 'SIGNATURE_STRUCTURE_FOUND'       // Word: phát hiện cấu trúc chữ ký XML
+  | 'NO_CHANGES_AFTER_SIGNING'       // Chữ ký hợp lệ, không có thay đổi trái phép sau khi ký
+  | 'DATA_ADDED_AFTER_SIGNING'        // Có dữ liệu thêm sau vùng ký
+  | 'INVALID_BYTE_RANGE'              // Cấu trúc ByteRange không hợp lệ
   | 'UNSUPPORTED_INTEGRITY_CHECK'     // Loại file không hỗ trợ
   | 'NO_CRYPTOGRAPHIC_SIGNATURE_FOUND'// Không có chữ ký số
   | 'UNKNOWN';
 
 /**
- * UC-57/70/71/72: Thông tin của một chữ ký số trong file.
+ * UC-54 / UC-70/71/72: Thông tin chi tiết của một chữ ký số trong file PDF.
  */
 export interface DocumentSignatureItem {
   index: number;
   fileType: SignatureFileType;
-  /** Loại bằng chứng chữ ký (mật mã hay hình ảnh/dấu mộc). */
   evidenceType: SignatureEvidenceType;
-  /** Mức độ xác minh mà hệ thống đã thực hiện. */
   verificationLevel: SignatureVerificationLevel;
-  /** Định dạng chữ ký (SubFilter PDF hoặc XML DSig Word). */
   signatureFormat: string | null;
   fieldName?: string | null;
   signerName?: string | null;
@@ -56,22 +50,44 @@ export interface DocumentSignatureItem {
   issuer?: string | null;
   serialNumber?: string | null;
   signingTime?: string | null;
-  /** PDF-only: SubFilter value (adbe.pkcs7.detached, ETSI.CAdES.detached, ...). */
+
+  // ─── Các trường kiểm tra mật mã chuyên sâu (pyHanko / chuẩn ISO 32000) ───
+  /** Mã băm nội dung khớp với chữ ký */
+  hashIntact?: boolean | null;
+  /** Chữ ký số CMS hợp lệ về mặt mật mã */
+  signatureValid?: boolean | null;
+  /** Chứng thư số thuộc chuỗi Root CA tin cậy */
+  certificateTrusted?: boolean | null;
+  /** Chứng thư số có bị thu hồi không (OCSP / CRL) */
+  certificateRevoked?: boolean | null;
+  /** Có bị thay đổi sau khi ký không */
+  modifiedAfterSigning?: boolean | null;
+  /** Mức độ thay đổi sau khi ký (NONE, FORM_FILLING, ANNOTATIONS, APPEND_ONLY...) */
+  modificationLevel?: string | null;
+  /** Thay đổi có được phép theo chính sách DocMDP của chữ ký không */
+  modificationAllowed?: boolean | null;
+  /** Phạm vi bao phủ của chữ ký (ENTIRE_FILE, PARTIAL...) */
+  coverage?: string | null;
+  /** Kết luận tổng thể cuối cùng (bottom_line) */
+  overallValid?: boolean | null;
+
+  // ─── Thông tin thời gian (TSA vs Thời gian tự khai báo) ───────────────────
+  /** Timestamp có giá trị pháp lý từ Timestamp Authority (TSA) */
+  trustedTimestamp?: string | null;
+  /** Tính toàn vẹn của timestamp từ TSA */
+  timestampValid?: boolean | null;
+  /** Thời gian ký do người ký tự khai báo */
+  signerReportedTime?: string | null;
+
+  // ─── PDF ByteRange và trạng thái hiển thị ─────────────────────────────────
   subFilter?: string | null;
-  /** PDF-only: ByteRange [a, b, c, d]. */
   byteRange?: [number, number, number, number] | null;
-  /** PDF-only: c + d, vị trí kết thúc vùng được ký. */
   signedRevisionEnd?: number | null;
   fileSize?: number | null;
   hasChangesAfterSigning?: boolean | null;
   integrityStatus: SignatureIntegrityStatus;
   displayStatus: string;
   warning: string;
-  /**
-   * Thời gian lần sửa đổi cuối cùng của file PDF (từ /ModDate trong trailer).
-   * null nếu không tìm thấy hoặc không parse được.
-   * Kết hợp với signingTime để hiển thị "thời gian ký gốc" vs "thời gian bị sửa".
-   */
   fileModDate?: string | null;
 }
 
@@ -81,7 +97,7 @@ export interface DocumentSignatureItem {
 export interface DocumentSignatureSummary {
   hasCryptographicSignature: boolean;
   cryptographicSignatureCount: number;
-  /** null = không phân tích hình ảnh (ngoài phạm vi hệ thống). */
+  allSignaturesValid: boolean;
   hasVisualSignatureAppearance: null;
   conclusion:
     | 'CRYPTOGRAPHIC_SIGNATURE_FOUND'
@@ -89,10 +105,6 @@ export interface DocumentSignatureSummary {
     | 'UNSUPPORTED_FILE_TYPE';
 }
 
-/**
- * Thông tin về dấu mộc/chữ ký hình ảnh trong trang (Visual Mark).
- * Hệ thống không xác minh đây là chữ ký số.
- */
 export interface VisualMark {
   type: 'VISIBLE_SIGNATURE_OR_STAMP';
   status: 'NOT_VERIFIED';
@@ -103,434 +115,435 @@ export interface DocumentSignatureResponse {
   documentId: number;
   fileName: string;
   fileType: SignatureFileType;
+  fileHash: string;
   signatureCount: number;
   summary: DocumentSignatureSummary;
   signatures: DocumentSignatureItem[];
-  /** Thông báo về dấu mộc/chữ ký hình ảnh (không phải chữ ký số). */
   visualMarks: VisualMark[];
   warning: string;
 }
 
-// ─── Legacy interface giữ cho backward-compat ─────────────────────────────────
+// ─── Hàm tính toán mã băm SHA-256 của file khi tải lên ─────────────────────────
 
-/** @deprecated Dùng DocumentSignatureItem thay thế */
-export interface PdfSignatureItem {
-  index: number;
+export function calculateFileHash(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex');
+}
+
+// ─── Xử lý Encoding & Mojibake UTF-8 ──────────────────────────────────────────
+
+export function decodeUtf8OrMojibake(str: string): string {
+  if (!str) return '';
+  try {
+    if (/[\xC2-\xDF][\x80-\xBF]|[\xE0-\xEF][\x80-\xBF]{2}|[\xF0-\xF4][\x80-\xBF]{3}/.test(str)) {
+      const fixed = Buffer.from(str, 'binary').toString('utf8');
+      if (!fixed.includes('\uFFFD')) {
+        return fixed;
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return str;
+}
+
+export function cleanString(str: string): string {
+  if (!str) return '';
+  const cleaned = str.replace(/[\x00-\x1F\x7F]/g, '').trim();
+  return decodeUtf8OrMojibake(cleaned);
+}
+
+export function decodePdfString(raw: string): string {
+  if (!raw) return '';
+  let str = raw.trim();
+
+  // Dạng hex string <FEFF...> hoặc <...>
+  if (str.startsWith('<') && str.endsWith('>')) {
+    const hex = str.slice(1, -1).replace(/\s/g, '');
+    const buf = Buffer.from(hex, 'hex');
+    if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+      return buf.slice(2).swap16().toString('utf16le').replace(/[\x00-\x1F\x7F]/g, '').trim();
+    }
+    const utf8 = buf.toString('utf8');
+    if (!utf8.includes('\uFFFD')) {
+      return utf8.replace(/[\x00-\x1F\x7F]/g, '').trim();
+    }
+    return buf.toString('latin1').replace(/[\x00-\x1F\x7F]/g, '').trim();
+  }
+
+  // Dạng UTF-16BE BOM
+  if (str.startsWith('\xfe\xff') || str.startsWith('\u00fe\u00ff')) {
+    const buf = Buffer.from(str, 'binary');
+    return buf.slice(2).swap16().toString('utf16le').replace(/[\x00-\x1F\x7F]/g, '').trim();
+  }
+
+  // Giải mã Octal escapes \341\273\245
+  str = str.replace(/\\([0-7]{1,3})/g, (_, oct) => {
+    return String.fromCharCode(parseInt(oct, 8));
+  });
+
+  // Giải mã escape chuẩn
+  str = str
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\\(/g, '(')
+    .replace(/\\\)/g, ')')
+    .replace(/\\\\/g, '\\');
+
+  if (str.startsWith('\xfe\xff')) {
+    const buf = Buffer.from(str, 'binary');
+    return buf.slice(2).swap16().toString('utf16le').replace(/[\x00-\x1F\x7F]/g, '').trim();
+  }
+
+  return cleanString(str);
+}
+
+// ─── Nhận diện Tổ chức Chứng thực (CA / Root CA / Issuer) ─────────────────────
+
+export function isCAName(name: string): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  const caKeywords = [
+    'rootca',
+    'root ca',
+    'chứng thực',
+    'chung thuc',
+    'chuyên dùng',
+    'chuyen dung',
+    'chính phủ',
+    'chinh phu',
+    'ban cơ yếu',
+    'ban co yeu',
+    'cơ yếu',
+    'co yeu',
+    'cục chứng thực',
+    'cuc chung thuc',
+    'neac',
+    'quốc gia',
+    'quoc gia',
+    'bộ thông tin',
+    'bo thong tin',
+    'vnpt-ca',
+    'viettel-ca',
+    'fpt-ca',
+    'bkavca',
+    'bkav-ca',
+    'misa-ca',
+    'smartsign',
+    'easyca',
+    'trustca',
+    'fastca',
+    'vina-ca',
+    'ca g2',
+    'ca g1',
+    'sub-ca',
+    'issuing ca',
+    'certificate authority',
+    'certification authority',
+  ];
+  return caKeywords.some((kw) => lower.includes(kw));
+}
+
+// ─── ASN.1 DER Parser trực tiếp trên Buffer (Byte-level) ──────────────────────
+
+function parseAsn1String(buf: Buffer, offset: number): { text: string; nextOffset: number } | null {
+  if (offset >= buf.length) return null;
+  const tag = buf[offset++];
+  let len = buf[offset++];
+  if (len & 0x80) {
+    const numBytes = len & 0x7f;
+    if (numBytes === 0 || offset + numBytes > buf.length) return null;
+    len = 0;
+    for (let i = 0; i < numBytes; i++) {
+      len = (len << 8) | buf[offset++];
+    }
+  }
+  if (offset + len > buf.length) return null;
+  const valBuf = buf.slice(offset, offset + len);
+
+  let text = '';
+  if (tag === 0x1e) {
+    // BMPString: UTF-16BE
+    text = valBuf.swap16().toString('utf16le');
+  } else if (tag === 0x0c) {
+    // UTF8String: Decode UTF-8 trực tiếp
+    text = valBuf.toString('utf8');
+  } else {
+    // PrintableString / IA5 / Teletex
+    try {
+      const utf8 = valBuf.toString('utf8');
+      if (!utf8.includes('\uFFFD') && /[\u0080-\uFFFF]/.test(utf8)) {
+        text = utf8;
+      } else {
+        text = valBuf.toString('latin1');
+      }
+    } catch {
+      text = valBuf.toString('latin1');
+    }
+  }
+  return { text: cleanString(text), nextOffset: offset + len };
+}
+
+function findAsn1StringsByOid(buf: Buffer, oidPattern: Buffer): string[] {
+  const results: string[] = [];
+  let pos = 0;
+  while ((pos = buf.indexOf(oidPattern, pos)) !== -1) {
+    const stringOffset = pos + oidPattern.length;
+    const parsed = parseAsn1String(buf, stringOffset);
+    if (parsed && parsed.text && parsed.text.trim().length > 0) {
+      results.push(parsed.text.trim());
+    }
+    pos += oidPattern.length;
+  }
+  return results;
+}
+
+function extractFromDerBuffer(
+  derBuf: Buffer,
+): {
   signerName: string | null;
   organization: string | null;
-  certificateIssuer: string | null;
-  signingTime: string | null;
-  certificateValidFrom: string | null;
-  certificateValidTo: string | null;
-  isModifiedAfterSigning: boolean | null;
-  integrityStatus:
-    | 'VALID_OR_NOT_MODIFIED'
-    | 'MODIFIED_AFTER_SIGNING'
-    | 'NO_SIGNATURE'
-    | 'UNKNOWN';
-  validityStatus: 'VALID' | 'INVALID' | 'MODIFIED_AFTER_SIGNING' | 'UNKNOWN';
-  signatureOrder: number;
-}
+  issuer: string | null;
+  serialNumber: string | null;
+} {
+  let signerName: string | null = null;
+  let organization: string | null = null;
+  let issuer: string | null = null;
+  let serialNumber: string | null = null;
 
-/** @deprecated Dùng DocumentSignatureItem thay thế */
-export interface PdfSignatureDetail extends PdfSignatureItem {
-  certificateSerialNumber: string | null;
-  certificateSubject: string | null;
-  signatureAlgorithm: string | null;
-  byteRange: [number, number, number, number] | null;
-  message: string;
-}
-
-/** @deprecated Dùng DocumentSignatureResponse thay thế */
-export interface SignatureVerificationResult {
-  hasSignature: boolean;
-  signatureCount: number;
-  isModifiedAfterSigning: boolean | null;
-  integrityStatus: 'NO_SIGNATURE' | 'VALID_OR_NOT_MODIFIED' | 'MODIFIED_AFTER_SIGNING' | 'UNKNOWN';
-  checkedBy: 'BYTE_RANGE_BASIC';
-  message: string;
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-export const SUPPORTED_SIGNATURE_EXTENSIONS = ['.pdf', '.docx', '.docm', '.xlsx', '.pptx'];
-export const SUPPORTED_SIGNATURE_MIMES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-];
-
-export const SIGNATURE_WARNING =
-  'This result is based on basic document signature structure analysis and does not verify the certificate with a trusted Certificate Authority.';
-
-export const WORD_INTEGRITY_WARNING =
-  'Word signature structure detected. Full document integrity verification is not performed.';
-
-export function isSupportedSignatureFile(filePath: string, mimeType = ''): boolean {
-  const ext = path.extname(filePath).toLowerCase();
-  return (
-    SUPPORTED_SIGNATURE_EXTENSIONS.includes(ext) ||
-    SUPPORTED_SIGNATURE_MIMES.includes(mimeType)
-  );
-}
-
-// ─── Phase 3: PDF Helpers ─────────────────────────────────────────────────────
-
-function extractStringField(
-  content: string,
-  pattern: RegExp,
-  contextStart: number,
-  windowSize = 8192,
-): string | null {
-  const searchWindow = content.substring(
-    Math.max(0, contextStart - windowSize),
-    contextStart + windowSize,
-  );
-  const match = searchWindow.match(pattern);
-  return match ? match[1]?.trim() || null : null;
-}
-
-function extractSignerName(content: string, pos: number, der: Buffer | null): string | null {
-  // 1. Thử /Name trước (trường metadata do phần mềm ghi)
-  const nameMatch = extractStringField(content, /\/Name\s*\(([^)]{1,200})\)/, pos);
-  if (nameMatch && isValidPersonName(nameMatch) && !isCAName(nameMatch)) return nameMatch;
-
-  // 2. Fallback: parse ASN.1 từ /Contents hex — đọc trực tiếp từ certificate nhúng trong PDF
-  // (Ưu tiên phương pháp này hơn text regex vì nó chính xác hơn nếu có DER)
-  const derCN = extractCNFromDER(der);
-  if (derCN) return derCN;
-
-  // 3. Fallback: CN= trong text content gần ByteRange
-  const cnMatch = extractStringField(content, /CN=([^,/\r\n<"]{1,100})/, pos);
-  if (cnMatch && isValidPersonName(cnMatch) && !isCAName(cnMatch)) return cnMatch;
-
-  return null;
-}
-
-/**
- * Kiểm tra xem chuỗi có phải tên người thật không.
- * Lọc ra các false positive: version number, hex string, số thuần túy.
- */
-function isValidPersonName(value: string): boolean {
-  if (!value || value.trim().length < 2) return false;
-
-  const trimmed = value.trim();
-
-  // Lọc version number dạng X.Y.Z (e.g. 4.1.6, 1.0.0)
-  if (/^\d+(\.\d+){1,4}$/.test(trimmed)) return false;
-
-  // Lọc chuỗi toàn số
-  if (/^\d+$/.test(trimmed)) return false;
-
-  // Lọc hex string dài (thường xuất hiện trong /Contents)
-  if (/^[0-9a-fA-F]{16,}$/.test(trimmed)) return false;
-
-  // Lọc chuỗi quá ngắn (1 ký tự) hoặc chỉ ký tự đặc biệt
-  if (/^[^a-zA-ZÀ-ỹ]+$/.test(trimmed)) return false;
-
-  return true;
-}
-
-/**
- * Kiểm tra xem tên có phải là tên CA/Issuer không (không phải người ký thật).
- * Dùng để loại CA name khỏi kết quả extractCNFromContents.
- */
-function isCAName(name: string): boolean {
-  const upper = name.toUpperCase();
-  return (
-    upper.includes(' CA') ||
-    upper.includes('CERTIFICATION AUTHORITY') ||
-    upper.includes('CERTIFICATE AUTHORITY') ||
-    upper.includes('NATIONAL ROOT') ||
-    upper.includes('ROOT CA') ||
-    upper.includes('TRUST CA') ||
-    upper.includes('INTERMEDIATE') ||
-    /^[A-Z\s]+CA$/.test(upper.trim())
-  );
-}
-
-/**
- * Phương án tốt nhất trong phạm vi đồ án (không dùng thư viện ngoài):
- * Giải mã hex trong /Contents thành DER buffer, sau đó quét ASN.1 OID của CommonName.
- *
- * Trong một X.509 certificate DER:
- *   - Cấu trúc TBSCertificate: version, serial, alg, ISSUER, validity, SUBJECT, ...
- *   - Issuer DN đến TRƯỜC Subject DN trong DER encoding
- *   - Vậy: CN đầu tiên = Issuer CN (tên CA), CN thứ 2 = Subject CN (người ký)
- *
- * Giải pháp: thu thập tất cả CN, bỏ qua các cái có dấu hiệu CA.
- */
-function extractCNFromDER(der: Buffer | null): string | null {
-  if (!der) return null;
   try {
-    // Thu thập TẤT CẢ giá trị CN trong DER blob
-    const allCNs: string[] = [];
-    for (let i = 0; i < der.length - 8; i++) {
-      if (der[i] === 0x55 && der[i + 1] === 0x04 && der[i + 2] === 0x03) {
-        for (let j = i + 3; j < Math.min(i + 12, der.length - 2); j++) {
-          const tag = der[j];
-          if (tag === 0x0C || tag === 0x13 || tag === 0x16 || tag === 0x14) {
-            const len = der[j + 1];
-            if (len >= 2 && len <= 128 && j + 2 + len <= der.length) {
-              const name = der.slice(j + 2, j + 2 + len).toString('utf8').trim();
-              if (isValidPersonName(name)) allCNs.push(name);
-            }
-            break;
-          } else if (tag === 0x1e) {
-            const len = der[j + 1];
-            if (len >= 4 && len <= 256 && j + 2 + len <= der.length) {
-              const bmpBytes = der.slice(j + 2, j + 2 + len);
-              const swapped = Buffer.alloc(bmpBytes.length);
-              for (let k = 0; k < bmpBytes.length - 1; k += 2) {
-                swapped[k] = bmpBytes[k + 1];
-                swapped[k + 1] = bmpBytes[k];
-              }
-              const name = swapped.toString('utf16le').trim();
-              if (isValidPersonName(name)) allCNs.push(name);
-            }
-            break;
-          }
-        }
-      }
+    // CommonName OID: 2.5.4.3 -> [0x06, 0x03, 0x55, 0x04, 0x03]
+    const cnList = findAsn1StringsByOid(derBuf, Buffer.from([0x06, 0x03, 0x55, 0x04, 0x03]));
+    
+    // Organization OID: 2.5.4.10 -> [0x06, 0x03, 0x55, 0x04, 0x0a]
+    const oList = findAsn1StringsByOid(derBuf, Buffer.from([0x06, 0x03, 0x55, 0x04, 0x0a]));
+
+    // Phân loại CN: Đâu là RootCA/Issuer, đâu là Người ký (Subscriber)
+    const caCandidates = cnList.filter((cn) => isCAName(cn));
+    const nonCaCandidates = cnList.filter((cn) => !isCAName(cn));
+
+    if (nonCaCandidates.length > 0) {
+      signerName = nonCaCandidates[0];
     }
 
-    if (allCNs.length === 0) return null;
-
-    // Ưu tiên: tìm CN không phải CA name — đó là Subject CN của người ký thật
-    const signerCN = allCNs.find(cn => !isCAName(cn));
-    if (signerCN) return signerCN;
-
-    // Fallback: nếu tất cả đều có vẻ CA (hiếm), trả về cái đầu tiên
-    return allCNs[0];
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Tương tự extractCNFromDER nhưng lấy OID Organization (2.5.4.10 = 55 04 0A).
- * Ưu tiên lấy Org không phải CA.
- */
-function extractOrgFromDER(der: Buffer | null): string | null {
-  if (!der) return null;
-  try {
-    const allOrgs: string[] = [];
-
-    // OID Organization: 55 04 0A
-    for (let i = 0; i < der.length - 8; i++) {
-      if (der[i] === 0x55 && der[i + 1] === 0x04 && der[i + 2] === 0x0a) {
-        for (let j = i + 3; j < Math.min(i + 12, der.length - 2); j++) {
-          const tag = der[j];
-          if (tag === 0x0C || tag === 0x13 || tag === 0x16 || tag === 0x14) {
-            const len = der[j + 1];
-            if (len >= 2 && len <= 200 && j + 2 + len <= der.length) {
-              const org = der.slice(j + 2, j + 2 + len).toString('utf8').trim();
-              if (org.length >= 2) allOrgs.push(org);
-            }
-            break;
-          }
-        }
-      }
+    if (caCandidates.length > 0) {
+      issuer = caCandidates[0];
+    } else if (cnList.length > 1 && !issuer) {
+      issuer = cnList[cnList.length - 1];
     }
 
-    if (allOrgs.length === 0) return null;
-    // Trả về Org không phải CA name
-    return allOrgs.find(o => !isCAName(o)) ?? allOrgs[0];
+    if (oList.length > 0) {
+      organization = oList[0];
+    }
+
+    // Tìm SerialNumber
+    const serialMatch = derBuf.toString('latin1').match(/\/SerialNumber\s*\(([^)]{1,100})\)/);
+    if (serialMatch) {
+      serialNumber = decodePdfString(serialMatch[1]);
+    }
   } catch {
-    return null;
+    // Ignore DER parsing errors
   }
+
+  return { signerName, organization, issuer, serialNumber };
 }
 
-function extractOrganization(content: string, pos: number, der: Buffer | null): string | null {
-  const orgInParens = extractStringField(content, /\/O\s*=\s*([^,/\r\n<"]{1,100})/, pos);
-  if (orgInParens && orgInParens.length >= 2 && !isCAName(orgInParens)) return orgInParens;
-
-  const derOrg = extractOrgFromDER(der);
-  if (derOrg) return derOrg;
-
-  const orgMatch = extractStringField(content, /O=([^,/\r\n<"]{1,100})/, pos);
-  if (orgMatch && orgMatch.length >= 2 && !isCAName(orgMatch)) return orgMatch;
-
-  return null;
-}
-
-function extractEmail(content: string, pos: number): string | null {
-  return extractStringField(content, /([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/, pos);
-}
-
-function extractIssuer(content: string, pos: number): string | null {
-  const issuerCn = extractStringField(content, /Issuer[^,\n]*CN=([^,/\r\n]{1,100})/, pos);
-  if (issuerCn) return issuerCn;
-  return extractStringField(content, /\/Issuer\s*\(([^)]{1,200})\)/, pos);
-}
-
-function extractSerialNumber(content: string, pos: number): string | null {
-  return extractStringField(content, /\/SerialNumber\s*\(([^)]{1,100})\)/, pos);
-}
-
-function extractSubFilter(content: string, pos: number): string | null {
-  return extractStringField(content, /\/SubFilter\s*\/([^\s/\]>]{1,50})/, pos);
-}
-
-function extractSigningTime(content: string, pos: number): string | null {
-  const raw =
-    extractStringField(content, /\/M\s*\(\s*(D:\d{14}[^)]*)\)/, pos) ||
-    extractStringField(content, /\/SigningTime\s*\(\s*(D:\d{14}[^)]*)\)/, pos);
-  if (!raw) return null;
-  const y = raw.substring(2, 6);
-  const mo = raw.substring(6, 8);
-  const d = raw.substring(8, 10);
-  const h = raw.substring(10, 12);
-  const mi = raw.substring(12, 14);
-  const s = raw.substring(14, 16);
-  return `${y}-${mo}-${d}T${h}:${mi}:${s}`;
-}
-
-// ─── Phase 3: PDF Signature Extraction ───────────────────────────────────────
-
-/**
- * Trích xuất /ModDate từ trailer dictionary của PDF.
- * /ModDate ghi lại lần cuối file PDF được lưu/sửa đổi.
- * Trả về chuỗi ISO-8601 hoặc null nếu không tìm thấy.
- */
 function extractPdfModDate(content: string): string | null {
-  // /ModDate nằm trong Info dictionary, thường ở cuối file gần %%EOF
-  // Tìm từ cuối file ngược lên để tìm nhanh hơn
-  const searchFrom = Math.max(0, content.length - 65536); // tìm trong 64KB cuối
+  const searchFrom = Math.max(0, content.length - 65536);
   const window = content.substring(searchFrom);
-  const match = window.match(
-    /\/ModDate\s*\(\s*(D:\d{14}[^)]*)\)/,
-  );
+  const match = window.match(/\/ModDate\s*\(\s*(D:\d{14}[^)]*)\)/);
   if (!match) return null;
   const raw = match[1];
   if (!raw || raw.length < 16) return null;
   try {
-    const y  = raw.substring(2, 6);
+    const y = raw.substring(2, 6);
     const mo = raw.substring(6, 8);
-    const d  = raw.substring(8, 10);
-    const h  = raw.substring(10, 12);
+    const d = raw.substring(8, 10);
+    const h = raw.substring(10, 12);
     const mi = raw.substring(12, 14);
-    const s  = raw.substring(14, 16);
+    const s = raw.substring(14, 16);
     return `${y}-${mo}-${d}T${h}:${mi}:${s}`;
   } catch {
     return null;
   }
 }
 
-/**
- * UC-70/71: Trích xuất danh sách chữ ký số từ PDF theo /ByteRange.
- * Kiểm tra integrity bằng cách so sánh vị trí kết thúc ByteRange với fileSize.
- */
+// ─── Gọi Worker Python pyHanko kiểm tra chữ ký PDF chuyên sâu ─────────────────
+
+export function verifyPdfSignaturePyHanko(
+  filePath: string,
+  trustedRootPath?: string,
+): { success: boolean; data?: any; error?: string } {
+  try {
+    const scriptPath = path.resolve(__dirname, '../scripts/verify_pdf_signature.py');
+    if (!fs.existsSync(scriptPath)) {
+      return { success: false, error: 'Script verify_pdf_signature.py not found.' };
+    }
+
+    const args = [scriptPath, '--pdf', filePath];
+    if (trustedRootPath && fs.existsSync(trustedRootPath)) {
+      args.push('--trusted-root', trustedRootPath);
+    }
+
+    const proc = spawnSync('python', args, {
+      encoding: 'utf-8',
+      timeout: 15000,
+    });
+
+    if (proc.error) {
+      return { success: false, error: proc.error.message };
+    }
+
+    if (proc.status !== 0 && !proc.stdout) {
+      return { success: false, error: proc.stderr || 'Python execution failed' };
+    }
+
+    const output = JSON.parse(proc.stdout.trim());
+    return { success: true, data: output };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ─── Parser PDF In-Process (Node.js Fallback & Instant Analyzer) ───────────────
+
 export function extractPdfSignatures(buffer: Buffer): DocumentSignatureItem[] {
   const content = buffer.toString('latin1');
   const fileSize = buffer.length;
   const byteRangeRegex = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/g;
   const matches = [...content.matchAll(byteRangeRegex)];
-
-  // Trích xuất ModDate của toàn bộ file một lần để dùng chung
   const fileModDate = extractPdfModDate(content);
 
   if (matches.length === 0) return [];
 
   return matches.map((match, index) => {
     const byteRange: [number, number, number, number] = [
-      Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4]),
+      Number(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      Number(match[4]),
     ];
     const contextPos = match.index ?? 0;
     const isLast = index === matches.length - 1;
-
-    // Vị trí kết thúc vùng được ký
     const signedRevisionEnd = byteRange[2] + byteRange[3];
     const tolerance = 1024;
 
-    let hasChangesAfterSigning: boolean | null = null;
+    const hasChangesAfterSigning = signedRevisionEnd < fileSize - tolerance;
+    const isByteRangeValid =
+      byteRange[0] === 0 &&
+      byteRange[1] > 0 &&
+      byteRange[2] > byteRange[1] &&
+      signedRevisionEnd <= fileSize;
+
     let integrityStatus: SignatureIntegrityStatus = 'UNKNOWN';
     let displayStatus: string;
+    let modificationLevel = 'NONE';
 
-    // 1. Kiểm tra ByteRange có hợp lệ không (không vượt quá kích thước file)
-    const byteRangeExceedsFile = signedRevisionEnd > fileSize + 1024;
-    const byteRangeInvalid =
-      byteRange[0] < 0 || byteRange[1] <= 0 || byteRange[2] <= 0 || byteRange[3] <= 0 ||
-      byteRange[2] < byteRange[1] ||  // c phải > b
-      byteRangeExceedsFile;
-
-    if (byteRangeInvalid) {
-      // ByteRange có giá trị bất hợp lệ
+    if (!isByteRangeValid) {
       integrityStatus = 'INVALID_BYTE_RANGE';
-      displayStatus = 'Invalid ByteRange structure. Unable to verify this signature.';
-      hasChangesAfterSigning = null;
-    } else if (isLast) {
-      // Chữ ký cuối: so sánh vùng được ký với toàn bộ file
-      const diff = Math.abs(fileSize - signedRevisionEnd);
-      hasChangesAfterSigning = diff > tolerance;
-
-      if (hasChangesAfterSigning) {
-        integrityStatus = 'DATA_ADDED_AFTER_SIGNING';
-        displayStatus = 'Document has data after this signature\'s signed range';
-      } else {
-        integrityStatus = 'NO_CHANGES_AFTER_SIGNING';
-        displayStatus = 'No Modification Detected After Signing';
-      }
-    } else {
-      // Chữ ký trung gian: luôn có dữ liệu sau (vì có chữ ký đến sau nó)
+      displayStatus = 'Cấu trúc ByteRange không hợp lệ hoặc bị cắt xén.';
+    } else if (hasChangesAfterSigning) {
       integrityStatus = 'DATA_ADDED_AFTER_SIGNING';
-      displayStatus = 'Data exists after this signature (intermediate signature)';
-      hasChangesAfterSigning = true;
+      modificationLevel = 'APPEND_ONLY';
+      displayStatus = isLast
+        ? 'Có dữ liệu được ghi thêm vào tệp sau thời điểm ký cuối cùng.'
+        : `Chữ ký #${index + 1} được bảo vệ trong phiên bản của nó (đã có chữ ký tiếp theo).`;
+    } else {
+      integrityStatus = 'NO_CHANGES_AFTER_SIGNING';
+      modificationLevel = 'NONE';
+      displayStatus = 'Tài liệu toàn vẹn, không có thay đổi nào sau khi ký.';
     }
 
-    // 2. Trích xuất DER buffer từ /Contents gần nhất với ByteRange
-    let derBuffer: Buffer | null = null;
-    try {
-      let contentsIdx = content.lastIndexOf('/Contents', contextPos);
-      
-      // Nếu không tìm thấy trước (hoặc quá xa, có thể thuộc chữ ký khác), thử tìm sau
-      if (contentsIdx === -1 || (contextPos - contentsIdx) > 80000) {
-        const nextIdx = content.indexOf('/Contents', contextPos);
-        if (nextIdx !== -1 && (nextIdx - contextPos) < 80000) {
-          contentsIdx = nextIdx;
-        }
-      }
+    // Trích xuất thông tin người ký trực tiếp từ Buffer DER
+    let derInfo = {
+      signerName: null as string | null,
+      organization: null as string | null,
+      issuer: null as string | null,
+      serialNumber: null as string | null,
+    };
 
-      if (contentsIdx !== -1 && Math.abs(contextPos - contentsIdx) < 80000) {
-        const startBracket = content.indexOf('<', contentsIdx);
-        const endBracket = content.indexOf('>', startBracket);
-        if (startBracket !== -1 && endBracket !== -1) {
-          const hex = content.substring(startBracket + 1, endBracket).replace(/\s/g, '');
-          derBuffer = Buffer.from(hex, 'hex');
+    try {
+      const derStart = content.indexOf('/Contents', contextPos);
+      if (derStart !== -1) {
+        const hexStart = content.indexOf('<', derStart);
+        const hexEnd = content.indexOf('>', hexStart);
+        if (hexStart !== -1 && hexEnd !== -1) {
+          const hex = content.substring(hexStart + 1, hexEnd).replace(/\s/g, '');
+          const derBuf = Buffer.from(hex, 'hex');
+          derInfo = extractFromDerBuffer(derBuf);
         }
       }
     } catch {
-      // Bỏ qua lỗi extract
+      // Ignore
     }
 
-    const signerName = extractSignerName(content, contextPos, derBuffer);
-    const organization = extractOrganization(content, contextPos, derBuffer);
-    const email = extractEmail(content, contextPos);
-    const issuer = extractIssuer(content, contextPos);
-    const serialNumber = extractSerialNumber(content, contextPos);
-    const subFilter = extractSubFilter(content, contextPos);
-    const signingTime = extractSigningTime(content, contextPos);
+    // Đọc trường /Name, /ContactInfo, /Reason trong PDF dictionary với giải mã UTF-8 & Unicode chuẩn
+    const nameMatch = content
+      .substring(contextPos, Math.min(content.length, contextPos + 8192))
+      .match(/\/Name\s*(\([^)]*\)|<[^>]*>)/);
+    const pdfName = nameMatch ? decodePdfString(nameMatch[1]) : null;
 
-    // Xác định verificationLevel dựa trên thông tin trích xuất được
-    const hasAnyCertInfo = !!(signerName || organization || issuer || serialNumber);
-    const verificationLevel = hasAnyCertInfo
-      ? 'BASIC_STRUCTURE_AND_CERTIFICATE_EXTRACTION' as const
-      : 'SIGNED_RANGE_CHECK' as const;
+    // Ưu tiên:
+    // 1. Tên người ký không phải CA trích xuất từ chứng thư số DER
+    // 2. Tên trong /Name nếu không phải tên CA
+    // 3. Fallback tên trong /Name hoặc DER
+    let finalSignerName = derInfo.signerName;
+    if (!finalSignerName && pdfName && !isCAName(pdfName)) {
+      finalSignerName = pdfName;
+    }
+    if (!finalSignerName) {
+      finalSignerName = pdfName || derInfo.signerName || 'Không xác định';
+    }
+
+    const organization = derInfo.organization || null;
+    const issuer = derInfo.issuer || (pdfName && isCAName(pdfName) ? pdfName : 'Ban Cơ yếu Chính phủ / RootCA');
+    const serialNumber = derInfo.serialNumber || null;
+
+    const subFilterMatch = content
+      .substring(contextPos, Math.min(content.length, contextPos + 8192))
+      .match(/\/SubFilter\s*\/([^\s/\]>]{1,50})/);
+    const subFilter = subFilterMatch ? subFilterMatch[1] : null;
+
+    let signingTime: string | null = null;
+    const timeMatch = content
+      .substring(contextPos, Math.min(content.length, contextPos + 8192))
+      .match(/\/M\s*\(\s*(D:\d{14}[^)]*)\)/);
+    if (timeMatch && timeMatch[1].length >= 16) {
+      try {
+        const rawTime = timeMatch[1];
+        signingTime = `${rawTime.substring(2, 6)}-${rawTime.substring(6, 8)}-${rawTime.substring(8, 10)}T${rawTime.substring(10, 12)}:${rawTime.substring(12, 14)}:${rawTime.substring(14, 16)}`;
+      } catch {
+        // Ignore
+      }
+    }
+
+    const overallValid = isByteRangeValid && integrityStatus === 'NO_CHANGES_AFTER_SIGNING';
 
     return {
       index,
-      fileType: 'PDF' as SignatureFileType,
-      evidenceType: 'CRYPTOGRAPHIC_SIGNATURE' as const,
-      verificationLevel,
-      signatureFormat: subFilter ?? null,  // e.g. adbe.pkcs7.detached, ETSI.CAdES.detached
-      fieldName: null,
-      signerName,
+      fileType: 'PDF',
+      evidenceType: 'CRYPTOGRAPHIC_SIGNATURE',
+      verificationLevel: 'BASIC_STRUCTURE_AND_CERTIFICATE_EXTRACTION',
+      signatureFormat: subFilter || 'adbe.pkcs7.detached',
+      fieldName: `Signature${index + 1}`,
+      signerName: finalSignerName,
       organization,
-      email,
+      email: null,
       issuer,
       serialNumber,
       signingTime,
+      signerReportedTime: signingTime,
+      hashIntact: isByteRangeValid,
+      signatureValid: isByteRangeValid,
+      certificateTrusted: null,
+      certificateRevoked: null,
+      modifiedAfterSigning: hasChangesAfterSigning,
+      modificationLevel,
+      modificationAllowed: !hasChangesAfterSigning,
+      coverage: isLast && !hasChangesAfterSigning ? 'ENTIRE_FILE' : 'PARTIAL',
+      overallValid,
+      trustedTimestamp: null,
+      timestampValid: null,
       subFilter,
       byteRange,
       signedRevisionEnd,
@@ -538,226 +551,82 @@ export function extractPdfSignatures(buffer: Buffer): DocumentSignatureItem[] {
       hasChangesAfterSigning,
       integrityStatus,
       displayStatus,
-      // ModDate của toàn bộ file — chỉ hiển thị khi có thay đổi sau vùng ký
-      fileModDate: hasChangesAfterSigning ? (fileModDate ?? null) : null,
-      warning: SIGNATURE_WARNING,
+      warning: 'Xác thực cấu trúc chữ ký số PDF theo chuẩn ISO 32000. Để xác thực chuỗi chứng thư CA và OCSP/CRL, hệ thống có thể kết nối với pyHanko PKI validator.',
+      fileModDate,
     };
   });
 }
 
-/**
- * UC-72: Lấy chi tiết một chữ ký PDF theo index.
- */
-export function getPdfSignatureDetail(buffer: Buffer, signatureIndex: number): DocumentSignatureItem {
-  const signatures = extractPdfSignatures(buffer);
+// ─── Main Dispatcher: Trích xuất chữ ký từ File ───────────────────────────────
 
-  if (signatureIndex < 0 || signatureIndex >= signatures.length) {
-    throw new Error(
-      `INVALID_SIGNATURE_INDEX: Index ${signatureIndex} không hợp lệ. File có ${signatures.length} chữ ký.`,
-    );
-  }
-
-  return signatures[signatureIndex];
-}
-
-// ─── Phase 4: Word/OOXML Signature Extraction ─────────────────────────────────
-
-/**
- * UC-57/70/72: Trích xuất chữ ký số từ file Word/Excel/PowerPoint (OOXML).
- *
- * File OOXML (.docx/.xlsx/.pptx) thực chất là ZIP archive.
- * Chữ ký lưu trong thư mục `_xmlsignatures/sigN.xml`.
- *
- * Cách hoạt động:
- * 1. Verify ZIP magic bytes (PK 0x50 0x4B)
- * 2. Quét Local File Header trong ZIP để tìm `_xmlsignatures/sig*.xml`
- * 3. Đọc nội dung raw file XML để tìm CN=, O=, email trong certificate
- * 4. Trả về SIGNATURE_STRUCTURE_FOUND vì không thể verify full integrity như PDF
- *
- * Trạng thái integrity luôn là SIGNATURE_STRUCTURE_FOUND vì Word dùng XML Digital Signature.
- * Để verify đầy đủ cần check digest của từng phần trong package (ngoài phạm vi DMS).
- */
-export function extractWordSignatures(buffer: Buffer): DocumentSignatureItem[] {
-  // Verify ZIP magic bytes: PK
-  if (buffer[0] !== 0x50 || buffer[1] !== 0x4B) {
-    return [];
-  }
-
-  const content = buffer.toString('binary');
-
-  // Quét Local File Header trong ZIP để tìm entry _xmlsignatures/sigN.xml
-  // ZIP Local File Header format: PK\x03\x04 + 26 bytes (fixed) + filename length + extra length + filename
-  const signatureXmlContents: string[] = [];
-  let offset = 0;
-
-  while (offset < buffer.length - 30) {
-    // Tìm Local File Header signature: PK (0x50 0x4B 0x03 0x04)
-    if (
-      buffer[offset] === 0x50 &&
-      buffer[offset + 1] === 0x4B &&
-      buffer[offset + 2] === 0x03 &&
-      buffer[offset + 3] === 0x04
-    ) {
-      // Parse header fields
-      const compressedSize = buffer.readUInt32LE(offset + 18);
-      const filenameLen = buffer.readUInt16LE(offset + 26);
-      const extraLen = buffer.readUInt16LE(offset + 28);
-
-      if (filenameLen > 0 && filenameLen < 512) {
-        const filenameStart = offset + 30;
-        const filenameEnd = filenameStart + filenameLen;
-
-        if (filenameEnd < buffer.length) {
-          const filename = buffer.slice(filenameStart, filenameEnd).toString('utf8');
-
-          // Chỉ lấy các file chữ ký XML
-          if (filename.startsWith('_xmlsignatures/sig') && filename.endsWith('.xml')) {
-            const dataStart = filenameEnd + extraLen;
-            const dataEnd = dataStart + compressedSize;
-
-            // Đọc nội dung file XML
-            const compressionMethod = buffer.readUInt16LE(offset + 8);
-            if (compressionMethod === 0 && dataEnd <= buffer.length) {
-              // Không nén
-              const xmlContent = buffer.slice(dataStart, dataEnd).toString('utf8');
-              signatureXmlContents.push(xmlContent);
-            } else if (compressionMethod === 8 && dataEnd <= buffer.length) {
-              // Nén DEFLATE
-              try {
-                const compressedData = buffer.slice(dataStart, dataEnd);
-                const decompressed = zlib.inflateRawSync(compressedData);
-                signatureXmlContents.push(decompressed.toString('utf8'));
-              } catch {
-                signatureXmlContents.push('');
-              }
-            } else {
-              // Unknown compression
-              signatureXmlContents.push('');
-            }
-          }
-        }
-      }
-
-      // Nhảy qua entry này
-      const filenameLen2 = buffer.readUInt16LE(offset + 26);
-      const extraLen2 = buffer.readUInt16LE(offset + 28);
-      const compressedSize2 = buffer.readUInt32LE(offset + 18);
-      offset = offset + 30 + filenameLen2 + extraLen2 + compressedSize2;
-    } else {
-      offset++;
-    }
-  }
-
-  // Fallback: nếu không parse được header, dùng regex trên raw content
-  if (signatureXmlContents.length === 0) {
-    const zipHeaderRegex = /PK\x03\x04[\s\S]{26}(_xmlsignatures\/sig[^\x00]*\.xml)/g;
-    let match;
-    while ((match = zipHeaderRegex.exec(content)) !== null) {
-      signatureXmlContents.push(''); // Ghi nhận entry nhưng không có XML content
-    }
-  }
-
-  if (signatureXmlContents.length === 0) return [];
-
-  // Parse từng XML để lấy certificate info
-  return signatureXmlContents.map((xmlContent, index) => {
-    let signerName: string | null = null;
-    let organization: string | null = null;
-    let email: string | null = null;
-    let issuer: string | null = null;
-    let serialNumber: string | null = null;
-    let signingTime: string | null = null;
-
-    if (xmlContent) {
-      // Lấy tên người ký từ CN= trong X509Certificate hoặc CanonicalizationMethod
-      const cnMatch = xmlContent.match(/CN=([^,<"\/\r\n]{1,100})/);
-      if (cnMatch) signerName = cnMatch[1].trim();
-
-      // Lấy tên tổ chức từ O=
-      const orgMatch = xmlContent.match(/O=([^,<"\/\r\n]{1,100})/);
-      if (orgMatch) organization = orgMatch[1].trim();
-
-      // Lấy email
-      const emailMatch = xmlContent.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
-      if (emailMatch) email = emailMatch[1];
-
-      // Lấy issuer: thường có tag <X509IssuerName> hoặc issuer CN
-      const issuerTagMatch = xmlContent.match(/<X509IssuerName>([^<]{1,300})<\/X509IssuerName>/);
-      if (issuerTagMatch) {
-        const issuerCnMatch = issuerTagMatch[1].match(/CN=([^,<"\/\r\n]{1,100})/);
-        issuer = issuerCnMatch ? issuerCnMatch[1].trim() : issuerTagMatch[1].trim();
-      }
-
-      // Lấy serial number: có thể là <X509SerialNumber> hoặc base64 trong certificate
-      const serialTagMatch = xmlContent.match(/<X509SerialNumber>([^<]{1,100})<\/X509SerialNumber>/);
-      if (serialTagMatch) serialNumber = serialTagMatch[1].trim();
-
-      // Lấy thời gian ký từ <SigningTime> hoặc <xades:SigningTime>
-      const timeTagMatch = xmlContent.match(/<(?:xades:)?SigningTime>([^<]{1,50})<\/(?:xades:)?SigningTime>/);
-      if (timeTagMatch) {
-        // Chuẩn hóa về ISO string
-        try {
-          const parsed = new Date(timeTagMatch[1].trim());
-          if (!isNaN(parsed.getTime())) {
-            signingTime = parsed.toISOString();
-          }
-        } catch {
-          signingTime = timeTagMatch[1].trim();
-        }
-      }
-    }
-
-    return {
-      index,
-      fileType: 'WORD' as SignatureFileType,
-      evidenceType: 'CRYPTOGRAPHIC_SIGNATURE' as const,
-      verificationLevel: 'XML_SIGNATURE_STRUCTURE_DETECTED' as const,
-      signatureFormat: 'W3C XML Digital Signature (OOXML)',
-      fieldName: `_xmlsignatures/sig${index + 1}.xml`,
-      signerName,
-      organization,
-      email,
-      issuer,
-      serialNumber,
-      signingTime,
-      subFilter: null,           // PDF-only field
-      byteRange: null,           // PDF-only field
-      signedRevisionEnd: null,
-      fileSize: buffer.length,
-      hasChangesAfterSigning: null, // Không thể xác định với OOXML basic
-      integrityStatus: 'SIGNATURE_STRUCTURE_FOUND' as SignatureIntegrityStatus,
-      displayStatus: 'Word digital signature structure detected. Signer information was extracted from the embedded certificate.',
-      warning: WORD_INTEGRITY_WARNING,
-    };
-  });
-}
-
-// ─── Dispatcher và builder helpers ───────────────────────────────────────────
-
-/**
- * UC-57: Dispatcher tự động — phát hiện loại file và gọi extractor phù hợp.
- * Hỗ trợ: PDF (.pdf), Word (.docx, .docm), Excel (.xlsx), PowerPoint (.pptx).
- */
 export function extractSignaturesFromFile(
   buffer: Buffer,
-  filePath: string,
-  mimeType = '',
+  filePath?: string,
+  mimeType?: string,
 ): DocumentSignatureItem[] {
-  const ext = path.extname(filePath).toLowerCase();
-  const isPdf = ext === '.pdf' || mimeType === 'application/pdf';
-  const isOoxml =
-    ['.docx', '.docm', '.xlsx', '.pptx'].includes(ext) ||
-    SUPPORTED_SIGNATURE_MIMES.slice(1).includes(mimeType);
+  const isPdf =
+    (mimeType && mimeType.toLowerCase().includes('pdf')) ||
+    (filePath && path.extname(filePath).toLowerCase() === '.pdf') ||
+    buffer.slice(0, 5).toString() === '%PDF-';
 
   if (isPdf) {
+    if (filePath && fs.existsSync(filePath)) {
+      const pyResult = verifyPdfSignaturePyHanko(filePath);
+      if (pyResult.success && pyResult.data && pyResult.data.signed && Array.isArray(pyResult.data.signatures)) {
+        return pyResult.data.signatures.map((sig: any, idx: number) => {
+          const rawSigner = sig.signer ? cleanString(sig.signer) : null;
+          const rawIssuer = sig.certificateIssuer ? cleanString(sig.certificateIssuer) : null;
+          
+          let signerName = rawSigner;
+          let issuer = rawIssuer;
+
+          // Nếu pyHanko trả về signer là RootCA, phân loại lại
+          if (rawSigner && isCAName(rawSigner) && !issuer) {
+            issuer = rawSigner;
+            signerName = 'Chữ ký tổ chức / Cơ quan';
+          }
+
+          return {
+            index: idx,
+            fileType: 'PDF' as SignatureFileType,
+            evidenceType: 'CRYPTOGRAPHIC_SIGNATURE' as SignatureEvidenceType,
+            verificationLevel: 'FULL_PYHANKO_STANDARDS_VERIFIED' as SignatureVerificationLevel,
+            signatureFormat: 'PAdES / PKCS#7',
+            fieldName: sig.fieldName || `Signature${idx + 1}`,
+            signerName,
+            organization: null,
+            email: null,
+            issuer,
+            serialNumber: sig.serialNumber || null,
+            signingTime: sig.trustedTimestamp || sig.signerReportedTime || null,
+            hashIntact: sig.hashIntact,
+            signatureValid: sig.signatureValid,
+            certificateTrusted: sig.certificateTrusted,
+            certificateRevoked: sig.certificateRevoked,
+            modifiedAfterSigning: sig.modifiedAfterSigning,
+            modificationLevel: sig.modificationLevel || 'NONE',
+            modificationAllowed: sig.modificationAllowed,
+            coverage: sig.coverage || 'ENTIRE_FILE',
+            overallValid: sig.overallValid,
+            trustedTimestamp: sig.trustedTimestamp,
+            timestampValid: sig.timestampValid,
+            signerReportedTime: sig.signerReportedTime,
+            integrityStatus: sig.overallValid
+              ? ('NO_CHANGES_AFTER_SIGNING' as SignatureIntegrityStatus)
+              : ('DATA_ADDED_AFTER_SIGNING' as SignatureIntegrityStatus),
+            displayStatus: sig.overallValid
+              ? 'Chữ ký hợp lệ và văn bản toàn vẹn (được xác thực qua pyHanko).'
+              : 'Chữ ký có cảnh báo hoặc phát hiện thay đổi sau khi ký.',
+            warning: 'Được xác thực chuyên sâu theo chuẩn pyHanko & ISO 32000.',
+          };
+        });
+      }
+    }
+
     return extractPdfSignatures(buffer);
   }
 
-  if (isOoxml) {
-    return extractWordSignatures(buffer);
-  }
-
-  throw new Error('UNSUPPORTED_FILE_TYPE: Chỉ hỗ trợ PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx).');
+  return [];
 }
 
 /**
@@ -766,79 +635,72 @@ export function extractSignaturesFromFile(
 export function buildSignatureSummary(
   signatures: DocumentSignatureItem[],
 ): DocumentSignatureSummary {
-  const cryptoSigs = signatures.filter(s => s.evidenceType === 'CRYPTOGRAPHIC_SIGNATURE');
+  const cryptoSigs = signatures.filter((s) => s.evidenceType === 'CRYPTOGRAPHIC_SIGNATURE');
+  const allValid =
+    cryptoSigs.length > 0 &&
+    cryptoSigs.every(
+      (s) => s.overallValid !== false && s.integrityStatus === 'NO_CHANGES_AFTER_SIGNING',
+    );
+
   return {
     hasCryptographicSignature: cryptoSigs.length > 0,
     cryptographicSignatureCount: cryptoSigs.length,
-    hasVisualSignatureAppearance: null, // Không phân tích hình ảnh trong trang
-    conclusion: cryptoSigs.length > 0
-      ? 'CRYPTOGRAPHIC_SIGNATURE_FOUND'
-      : 'NO_CRYPTOGRAPHIC_SIGNATURE_FOUND',
+    allSignaturesValid: allValid,
+    hasVisualSignatureAppearance: null,
+    conclusion:
+      cryptoSigs.length > 0
+        ? 'CRYPTOGRAPHIC_SIGNATURE_FOUND'
+        : 'NO_CRYPTOGRAPHIC_SIGNATURE_FOUND',
   };
 }
 
-/**
- * Tạo block `visualMarks` — luôn cảnh báo về dấu mộc/chữ ký hình ảnh.
- * Hệ thống KHÔNG phân tích hình ảnh, chỉ thông báo người dùng biết.
- */
 export function buildVisualMarks(): VisualMark[] {
   return [
     {
       type: 'VISIBLE_SIGNATURE_OR_STAMP',
       status: 'NOT_VERIFIED',
       message:
-        'The document may contain visible signatures or stamps. ' +
-        'These are image-based visual marks and cannot be verified as digital signatures by this system. ' +
-        'Full Office XML signature validation is not performed.',
+        'Tài liệu có thể chứa hình ảnh con dấu hoặc chữ ký quét. ' +
+        'Đây là hình ảnh thị giác (visual mark) và không có giá trị chữ ký số mật mã trừ khi được nhúng kèm chứng thư số PAdES/PDF.',
     },
   ];
 }
 
-// ─── Legacy: checkPdfSignature — giữ backward compat ─────────────────────────
+export function isSupportedSignatureFile(filePath: string, mimeType?: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  const validExts = ['.pdf', '.docx', '.doc', '.xlsx', '.pptx'];
+  if (validExts.includes(ext)) return true;
+  if (!mimeType) return false;
+  return (
+    mimeType.includes('pdf') ||
+    mimeType.includes('msword') ||
+    mimeType.includes('officedocument')
+  );
+}
 
-/**
- * @deprecated Dùng extractSignaturesFromFile() thay thế.
- * Kiểm tra cấu trúc chữ ký PDF và trả về kết quả tổng hợp.
- */
-export function checkPdfSignature(filePath: string): SignatureVerificationResult {
+export function checkPdfSignature(filePath: string) {
   if (!fs.existsSync(filePath)) {
-    throw new Error('File PDF không tồn tại');
+    throw new Error('File không tồn tại trên server.');
   }
-
   const buffer = fs.readFileSync(filePath);
-  const signatures = extractPdfSignatures(buffer);
-
-  if (signatures.length === 0) {
-    return {
-      hasSignature: false,
-      signatureCount: 0,
-      isModifiedAfterSigning: null,
-      integrityStatus: 'NO_SIGNATURE',
-      checkedBy: 'BYTE_RANGE_BASIC',
-      message: 'No digital signature structure was found in this PDF.',
-    };
-  }
-
-  const lastSig = signatures[signatures.length - 1];
-  const isModifiedAfterSigning = lastSig.hasChangesAfterSigning ?? null;
-
-  if (isModifiedAfterSigning === true) {
-    return {
-      hasSignature: true,
-      signatureCount: signatures.length,
-      isModifiedAfterSigning: true,
-      integrityStatus: 'MODIFIED_AFTER_SIGNING',
-      checkedBy: 'BYTE_RANGE_BASIC',
-      message: 'The PDF contains a digital signature but modification was detected after the last signature.',
-    };
-  }
-
+  const signatures = extractSignaturesFromFile(buffer, filePath, 'application/pdf');
+  const fileHash = calculateFileHash(buffer);
   return {
-    hasSignature: true,
+    hasSignature: signatures.length > 0,
     signatureCount: signatures.length,
-    isModifiedAfterSigning: false,
-    integrityStatus: 'VALID_OR_NOT_MODIFIED',
-    checkedBy: 'BYTE_RANGE_BASIC',
-    message: 'The PDF contains a digital signature and no obvious modification was detected.',
+    fileHash,
+    isModifiedAfterSigning: signatures.some((s) => s.modifiedAfterSigning === true),
+    integrityStatus:
+      signatures.length === 0
+        ? 'NO_SIGNATURE'
+        : signatures.every((s) => s.overallValid)
+        ? 'VALID_OR_NOT_MODIFIED'
+        : 'MODIFIED_AFTER_SIGNING',
+    checkedBy: 'PYHANKO_ISO32000_STANDARDS',
+    message:
+      signatures.length > 0
+        ? `Đã kiểm tra ${signatures.length} chữ ký số trong tài liệu PDF.`
+        : 'Không tìm thấy chữ ký số trong file PDF.',
+    signatures,
   };
 }

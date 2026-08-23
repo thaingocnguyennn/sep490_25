@@ -44,27 +44,27 @@ import { preprocessCanvas } from './preprocessing';
 
 const C = {
   // Tesseract layers (drawn first, below field regions)
-  WORD_BOX:      '#22c55e', // green   — individual word bboxes
-  LINE_BOX:      '#06b6d4', // cyan    — full line bboxes
-  BLOCK_BOX:     '#d946ef', // magenta — block-level bboxes
+  WORD_BOX: '#22c55e', // green   — individual word bboxes
+  LINE_BOX: '#06b6d4', // cyan    — full line bboxes
+  BLOCK_BOX: '#d946ef', // magenta — block-level bboxes
 
   // Field regions ( Decree-30 boxes )
-  BOX_2:         '#f59e0b', // amber   — issuer (cơ quan ban hành)
-  BOX_3:         '#3b82f6', // blue    — document number (số ký hiệu)
-  BOX_4:         '#ef4444', // red     — date (ngày tháng năm)
-  BOX_5A:        '#8b5cf6', // violet  — doc type + summary (loại văn bản / trích yếu)
-  BOX_7A:        '#14b8a6', // teal    — signer title (chức vụ)
-  BOX_7B:        '#f97316', // orange  — signer name (họ tên người ký)
-  BOX_10A:       '#84cc16', // lime    — confidentiality (độ mật)
-  BOX_10B:       '#a3e635', // yellow  — urgency (độ khẩn)
+  BOX_2: '#f59e0b', // amber   — issuer (cơ quan ban hành)
+  BOX_3: '#3b82f6', // blue    — document number (số ký hiệu)
+  BOX_4: '#ef4444', // red     — date (ngày tháng năm)
+  BOX_5A: '#8b5cf6', // violet  — doc type + summary (loại văn bản / trích yếu)
+  BOX_7A: '#14b8a6', // teal    — signer title (chức vụ)
+  BOX_7B: '#f97316', // orange  — signer name (họ tên người ký)
+  BOX_10A: '#84cc16', // lime    — confidentiality (độ mật)
+  BOX_10B: '#a3e635', // yellow  — urgency (độ khẩn)
 
   // Vertical band hint lines
-  BAND_LINE:     '#64748b', // slate   — dashed vertical band markers
-  BAND_CENTER:   '#94a3b8', // lighter slate — center line of each band
+  BAND_LINE: '#64748b', // slate   — dashed vertical band markers
+  BAND_CENTER: '#94a3b8', // lighter slate — center line of each band
 
   // Matched region highlight (filled, semi-transparent)
-  MATCHED_FILL:  'rgba(34,197,94,0.12)',
-  MATCHED_STROKE:'#22c55e',
+  MATCHED_FILL: 'rgba(34,197,94,0.12)',
+  MATCHED_STROKE: '#22c55e',
 } as const;
 
 // ─── Canvas drawing helpers ───────────────────────────────────────────────────
@@ -93,12 +93,12 @@ function drawBBox(
 ): void {
   const x0 = bbox.x0 * canvasWidth;
   const y0 = bbox.y0 * canvasHeight;
-  const w  = (bbox.x1 - bbox.x0) * canvasWidth;
-  const h  = (bbox.y1 - bbox.y0) * canvasHeight;
+  const w = (bbox.x1 - bbox.x0) * canvasWidth;
+  const h = (bbox.y1 - bbox.y0) * canvasHeight;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = color;
-  ctx.lineWidth   = lineWidth;
+  ctx.lineWidth = lineWidth;
   ctx.strokeRect(x0, y0, w, h);
   ctx.restore();
 }
@@ -113,8 +113,8 @@ function fillBBox(
 ): void {
   const x0 = bbox.x0 * canvasWidth;
   const y0 = bbox.y0 * canvasHeight;
-  const w  = (bbox.x1 - bbox.x0) * canvasWidth;
-  const h  = (bbox.y1 - bbox.y0) * canvasHeight;
+  const w = (bbox.x1 - bbox.x0) * canvasWidth;
+  const h = (bbox.y1 - bbox.y0) * canvasHeight;
   ctx.save();
   ctx.fillStyle = color;
   ctx.fillRect(x0, y0, w, h);
@@ -502,16 +502,16 @@ async function visualizerForImage(preprocessedPath: string, pageNumber: number):
   // ── Step 6: Draw legend. ──────────────────────────────────────────────────
   const legendCtx = regionCtx;
   const legendItems = [
-    [C.BLOCK_BOX,   'block bbox'],
-    [C.LINE_BOX,    'line bbox'],
-    [C.WORD_BOX,    'word bbox'],
-    [C.BOX_2,       'Box 2: issuer'],
-    [C.BOX_3,       'Box 3: doc number'],
-    [C.BOX_4,       'Box 4: date'],
-    [C.BOX_5A,      'Box 5a: type/summary'],
-    [C.BOX_7A,      'Box 7a: signer title'],
-    [C.BOX_7B,      'Box 7b: signer name'],
-    [C.BAND_LINE,    'vertical band center'],
+    [C.BLOCK_BOX, 'block bbox'],
+    [C.LINE_BOX, 'line bbox'],
+    [C.WORD_BOX, 'word bbox'],
+    [C.BOX_2, 'Box 2: issuer'],
+    [C.BOX_3, 'Box 3: doc number'],
+    [C.BOX_4, 'Box 4: date'],
+    [C.BOX_5A, 'Box 5a: type/summary'],
+    [C.BOX_7A, 'Box 7a: signer title'],
+    [C.BOX_7B, 'Box 7b: signer name'],
+    [C.BAND_LINE, 'vertical band center'],
   ];
 
   legendCtx.save();
@@ -540,7 +540,7 @@ async function visualizerForImage(preprocessedPath: string, pageNumber: number):
   reportLines.push('─'.repeat(70));
 
   for (const info of regionInfos) {
-    const status = info.matchedLines.length > 0 ? '✓ MATCHED' : '✗ NO MATCH';
+    const status = info.matchedLines.length > 0 ? ' MATCHED' : ' NO MATCH';
     reportLines.push(`  Box ${info.code} (${info.label})`);
     reportLines.push(`    Status   : ${status}`);
     reportLines.push(`    Band     : y-center=${info.verticalBand.center.toFixed(3)} ±${info.verticalBand.tolerance.toFixed(3)}`);

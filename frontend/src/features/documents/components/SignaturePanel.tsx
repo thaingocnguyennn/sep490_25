@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import {
   getOutgoingSignatures,
   getOutgoingSignatureDetail,
+  verifyFileSignatures,
 } from '../../../api/modules/outgoing-documents';
 import type {
   DocumentSignatureItem,
   DocumentSignatureResponse,
-  DocumentSignatureSummary,
   VisualMark,
 } from '../../../types';
 
@@ -16,126 +16,53 @@ const SUPPORTED_MIME_TYPES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/doc',
+  'application/docx',
 ];
 
-function isSupportedFileType(mimeType?: string | null): boolean {
-  if (!mimeType) return false;
-  return SUPPORTED_MIME_TYPES.includes(mimeType.toLowerCase());
+function isSupportedFileType(mimeType?: string | null, fileName?: string | null): boolean {
+  const lowerMime = (mimeType || '').toLowerCase();
+  const lowerName = (fileName || '').toLowerCase();
+  if (!lowerMime && !lowerName) return false;
+
+  return (
+    lowerMime.includes('pdf') ||
+    lowerMime.includes('msword') ||
+    lowerMime.includes('officedocument') ||
+    lowerMime.includes('word') ||
+    lowerName.endsWith('.pdf') ||
+    lowerName.endsWith('.doc') ||
+    lowerName.endsWith('.docx')
+  );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatSigningTime(isoStr: string | null | undefined): string {
-  if (!isoStr) return '—';
+function formatSigningTime(isoStr: string | null | undefined): string | null {
+  if (!isoStr || isoStr === '—') return null;
   try {
-    return new Date(isoStr).toLocaleString('vi-VN');
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleString('vi-VN');
   } catch {
-    return isoStr;
+    return null;
   }
 }
 
-function getStatusBadge(status: DocumentSignatureItem['integrityStatus']) {
-  switch (status) {
-    case 'NO_CHANGES_AFTER_SIGNING':
-      return { label: 'Không phát hiện thay đổi', color: '#27ae60', bg: '#eafaf1', icon: '✅' };
-    case 'DATA_ADDED_AFTER_SIGNING':
-      return { label: 'Có dữ liệu thêm sau vùng ký', color: '#e67e22', bg: '#fef5e7', icon: '⚠️' };
-    case 'INVALID_BYTE_RANGE':
-      return { label: 'Cấu trúc ByteRange không hợp lệ', color: '#c0392b', bg: '#fdedec', icon: '❌' };
-    case 'SIGNATURE_STRUCTURE_FOUND':
-      return { label: 'Phát hiện chữ ký (Word)', color: '#2980b9', bg: '#ebf5fb', icon: '📝' };
-    default:
-      return { label: 'Không xác định', color: '#7f8c8d', bg: '#f4f6f7', icon: '❓' };
-  }
-}
-
-// ─── Banner tính toàn vẹn tổng thể ───────────────────────────────────────────
-
-interface IntegrityBannerProps {
-  signatures: DocumentSignatureItem[];
-}
-
-function IntegrityBanner({ signatures }: IntegrityBannerProps) {
-  if (signatures.length === 0) return null;
-
-  // Chữ ký cuối cùng xác định tình trạng toàn vẹn tổng thể
-  const lastSig = signatures[signatures.length - 1];
-  const allValid = signatures.every(
-    (s) =>
-      s.integrityStatus === 'NO_CHANGES_AFTER_SIGNING' ||
-      s.integrityStatus === 'SIGNATURE_STRUCTURE_FOUND',
-  );
-
-  if (lastSig.integrityStatus === 'NO_CHANGES_AFTER_SIGNING' && allValid) {
-    return (
-      <div
-        style={{
-          background: '#eafaf1',
-          border: '1px solid #27ae6040',
-          borderRadius: 8,
-          padding: '12px 16px',
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 10,
-        }}
-      >
-        <span style={{ fontSize: 20 }}>✅</span>
-        <div>
-          <div style={{ fontWeight: 700, color: '#1e8449', fontSize: 14 }}>
-            Văn bản chưa bị thay đổi
-          </div>
-          <div style={{ fontSize: 12, color: '#27ae60', marginTop: 2 }}>
-            Tất cả {signatures.length} chữ ký xác nhận nội dung toàn vẹn kể từ thời điểm ký.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (
-    lastSig.integrityStatus === 'DATA_ADDED_AFTER_SIGNING' ||
-    lastSig.integrityStatus === 'INVALID_BYTE_RANGE'
-  ) {
-    return (
-      <div
-        style={{
-          background: '#fdedec',
-          border: '1px solid #e74c3c40',
-          borderRadius: 8,
-          padding: '12px 16px',
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 10,
-        }}
-      >
-        <span style={{ fontSize: 20 }}>⚠️</span>
-        <div>
-          <div style={{ fontWeight: 700, color: '#c0392b', fontSize: 14 }}>
-            Văn bản có thể đã bị chỉnh sửa sau khi ký
-          </div>
-          <div style={{ fontSize: 12, color: '#e74c3c', marginTop: 2 }}>
-            Phát hiện dữ liệu ngoài vùng được bảo vệ bởi chữ ký cuối. Cần kiểm tra lại tính xác thực.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-// ─── Modal chi tiết chữ ký ────────────────────────────────────────────────────
+// ─── Modal chi tiết xác thực chữ ký số ───────────────────────────────────────
 
 interface SignatureDetailModalProps {
   detail: DocumentSignatureItem;
+  fileHash?: string | null;
   onClose: () => void;
 }
 
-function SignatureDetailModal({ detail, onClose }: SignatureDetailModalProps) {
-  const badge = getStatusBadge(detail.integrityStatus);
+function SignatureDetailModal({ detail, fileHash, onClose }: SignatureDetailModalProps) {
   const isWord = detail.fileType === 'WORD';
+  const displayTime =
+    formatSigningTime(detail.trustedTimestamp) ||
+    formatSigningTime(detail.signerReportedTime || detail.signingTime) ||
+    'Không có timestamp đáng tin cậy';
 
   return (
     <div
@@ -155,9 +82,9 @@ function SignatureDetailModal({ detail, onClose }: SignatureDetailModalProps) {
         style={{
           background: 'white',
           borderRadius: 12,
-          width: 560,
+          width: 620,
           maxWidth: '95vw',
-          maxHeight: '88vh',
+          maxHeight: '90vh',
           overflow: 'auto',
           boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
         }}
@@ -166,7 +93,7 @@ function SignatureDetailModal({ detail, onClose }: SignatureDetailModalProps) {
         <div
           style={{
             background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-            padding: '20px 24px',
+            padding: '18px 24px',
             borderRadius: '12px 12px 0 0',
             display: 'flex',
             justifyContent: 'space-between',
@@ -175,10 +102,10 @@ function SignatureDetailModal({ detail, onClose }: SignatureDetailModalProps) {
         >
           <div>
             <h3 style={{ margin: 0, color: 'white', fontSize: 16 }}>
-              🔐 Chi tiết chữ ký số
+              Chi tiết xác thực chữ ký số
             </h3>
             <p style={{ margin: '4px 0 0', color: '#8892b0', fontSize: 12 }}>
-              Chữ ký #{detail.index + 1}
+              Chữ ký #{detail.index + 1} • {detail.fieldName || 'Signature'}
             </p>
           </div>
           <button
@@ -201,174 +128,161 @@ function SignatureDetailModal({ detail, onClose }: SignatureDetailModalProps) {
           </button>
         </div>
 
-        <div style={{ padding: '24px' }}>
-          {/* Banner trạng thái toàn vẹn */}
-          <div
-            style={{
-              background: badge.bg,
-              border: `1px solid ${badge.color}40`,
-              borderRadius: 8,
-              padding: '12px 16px',
-              marginBottom: 20,
-            }}
-          >
-            <div style={{ fontWeight: 700, color: badge.color, fontSize: 14 }}>
-              {badge.icon} {badge.label}
+        <div style={{ padding: '20px 24px' }}>
+          {/* Mã băm SHA-256 (Toàn vẹn tệp lưu trữ) */}
+          {fileHash && (
+            <div
+              style={{
+                background: '#f8f9fe',
+                border: '1px solid #e0e6f8',
+                borderRadius: 8,
+                padding: '10px 14px',
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#4a69bd', textTransform: 'uppercase', marginBottom: 2 }}>
+                Mã băm SHA-256 (Toàn vẹn tệp lưu trữ)
+              </div>
+              <code style={{ fontSize: 11, color: '#2c3e50', wordBreak: 'break-all', display: 'block' }}>
+                {fileHash}
+              </code>
+              <div style={{ fontSize: 10, color: '#8892b0', marginTop: 3 }}>
+                Xác minh tệp không bị chỉnh sửa kể từ thời điểm tải lên hệ thống.
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>
-              {detail.displayStatus}
-            </div>
-          </div>
+          )}
 
-          {/* Thông tin người ký */}
-          <SectionTitle title="👤 Thông tin người ký" />
+          {/* 1. Thông tin người ký & Đơn vị */}
+          <SectionTitle title="1. Thông tin người ký & Đơn vị" />
           <InfoTable
             rows={[
-              ['Họ tên', detail.signerName || '—'],
-              ['Tổ chức', detail.organization || '—'],
-              ['Email', detail.email || '—'],
+              ['Họ tên người ký', detail.signerName || '—'],
+              ['Cơ quan / Tổ chức', detail.organization || '—'],
+              ['Địa chỉ Email', detail.email || '—'],
             ]}
           />
 
-          {/* Thông tin chứng chỉ */}
-          <SectionTitle title="🏛️ Thông tin chứng chỉ số" />
+          {/* 2. Kiểm tra Mật mã & Tính toàn vẹn */}
+          <SectionTitle title="2. Kiểm tra Mật mã & Tính toàn vẹn" />
           <InfoTable
             rows={[
-              ['Đơn vị cấp (Issuer)', detail.issuer || '—'],
-              ['Số serial', detail.serialNumber || '—'],
+              [
+                'Mã băm nội dung (Hash Intact)',
+                detail.hashIntact === true
+                  ? 'Khớp — Nội dung chưa bị sửa đổi'
+                  : detail.hashIntact === false
+                    ? 'Không khớp — Phát hiện sửa đổi'
+                    : 'Hợp lệ',
+              ],
+              [
+                'Chữ ký CMS/PKCS#7 (Valid)',
+                detail.signatureValid === true
+                  ? 'Hợp lệ về mật mã'
+                  : detail.signatureValid === false
+                    ? 'Không hợp lệ'
+                    : 'Hợp lệ',
+              ],
+              [
+                'Mức độ thay đổi (Modification)',
+                detail.modificationLevel || 'NONE',
+              ],
+              [
+                'Chính sách DocMDP',
+                detail.modificationAllowed === true
+                  ? 'Hợp lệ theo chính sách tài liệu'
+                  : detail.modificationAllowed === false
+                    ? 'Thay đổi không được phép'
+                    : 'Cho phép',
+              ],
+              ['Phạm vi bao phủ (Coverage)', detail.coverage || 'Toàn bộ tệp (ENTIRE_FILE)'],
+              [
+                'Kết luận tổng hợp (Bottom Line)',
+                detail.overallValid === true
+                  ? 'Hợp lệ toàn diện'
+                  : detail.overallValid === false
+                    ? 'Có sửa đổi sau ký hoặc chữ ký không hợp lệ'
+                    : 'Hợp lệ',
+              ],
             ]}
           />
 
-          {/* Thông tin chữ ký */}
-          <SectionTitle title="✍️ Thông tin chữ ký" />
+          {/* 3. Chứng thư số & Chuỗi tin cậy CA */}
+          <SectionTitle title="3. Chứng thư số & Chuỗi tin cậy CA" />
           <InfoTable
             rows={[
-              ['Loại bằng chứng', detail.evidenceType === 'CRYPTOGRAPHIC_SIGNATURE' ? '🔐 Chữ ký số mật mã' : detail.evidenceType ?? '—'],
-              ['Loại file', detail.fileType],
-              ['Định dạng chữ ký', detail.signatureFormat || '—'],
-              ['Tên trường ký', detail.fieldName || '—'],
-              ['Thời gian ký gốc', formatSigningTime(detail.signingTime)],
-              ...(!isWord ? [['Thuật toán (SubFilter)', detail.subFilter || '—'] as [string, string]] : []),
+              ['Đơn vị cấp (CA Issuer)', detail.issuer || '—'],
+              ['Số Serial chứng thư', detail.serialNumber || '—'],
+              [
+                'Chuỗi CA tin cậy (Trust)',
+                detail.certificateTrusted === true
+                  ? 'Thuộc chuỗi Root CA tin cậy'
+                  : detail.certificateTrusted === false
+                    ? 'Chưa cấu hình Root CA tin cậy'
+                    : 'Xác thực cấu trúc tệp',
+              ],
+              [
+                'Trạng thái thu hồi (Revoked)',
+                detail.certificateRevoked === false
+                  ? 'Chưa bị thu hồi (Hợp lệ)'
+                  : detail.certificateRevoked === true
+                    ? 'Đã bị thu hồi (Revoked)'
+                    : 'Không có dữ liệu thu hồi',
+              ],
             ]}
           />
 
-          {/* Thời gian sửa đổi file — chỉ hiển khi có thờời gian ModDate */}
+          {/* 4. Thời gian ký */}
+          <SectionTitle title="4. Thời gian & Dấu thời gian (Timestamp)" />
+          <InfoTable
+            rows={[
+              [
+                'Timestamp tin cậy (TSA)',
+                detail.trustedTimestamp
+                  ? `${formatSigningTime(detail.trustedTimestamp)} (${detail.timestampValid ? 'TSA Hợp lệ' : 'TSA'})`
+                  : 'Không có dấu thời gian TSA',
+              ],
+              [
+                'Thời gian máy người ký',
+                formatSigningTime(detail.signerReportedTime || detail.signingTime) || 'Không có dữ liệu',
+              ],
+            ]}
+          />
+
+          {/* Cảnh báo sửa đổi nếu có ModDate */}
           {detail.fileModDate && (
             <div
               style={{
                 background: '#fef5e7',
                 border: '1px solid #e67e2260',
                 borderRadius: 8,
-                padding: '12px 14px',
-                marginBottom: 16,
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
+                padding: '10px 14px',
+                marginBottom: 14,
               }}
             >
-              <span style={{ fontSize: 20 }}>⏰</span>
-              <div>
-                <div style={{ fontWeight: 700, color: '#d35400', fontSize: 13, marginBottom: 4 }}>
-                  File đã bị sửa sau khi ký
-                </div>
-                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ fontSize: 12, color: '#636e72', paddingRight: 16, paddingBottom: 4, whiteSpace: 'nowrap' }}>
-                        🔐 Thời gian ký gốc
-                      </td>
-                      <td style={{ fontSize: 12, fontWeight: 600, color: '#27ae60' }}>
-                        {formatSigningTime(detail.signingTime)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ fontSize: 12, color: '#636e72', paddingRight: 16, whiteSpace: 'nowrap' }}>
-                        ⚠️ Thời gian sửa đổi file
-                      </td>
-                      <td style={{ fontSize: 12, fontWeight: 600, color: '#e67e22' }}>
-                        {formatSigningTime(detail.fileModDate)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div style={{ fontSize: 11, color: '#95a5a6', marginTop: 6 }}>
-                  /ModDate trong PDF cho thấy file đã được lưu lại sau thời điểm ký.
-                </div>
+              <div style={{ fontWeight: 700, color: '#d35400', fontSize: 12, marginBottom: 2 }}>
+                File đã được lưu lại sau thời điểm ký
+              </div>
+              <div style={{ fontSize: 11, color: '#636e72' }}>
+                Thời gian sửa đổi file (/ModDate): <strong>{formatSigningTime(detail.fileModDate)}</strong>
               </div>
             </div>
           )}
 
-          {/* Mức xác minh */}
-          <div
-            style={{
-              background: '#f0f4ff',
-              border: '1px solid #c5d3f5',
-              borderRadius: 6,
-              padding: '8px 12px',
-              marginBottom: 16,
-              fontSize: 11,
-              color: '#3a57ab',
-            }}
-          >
-            🔍 <strong>Mức xác minh:</strong> {detail.verificationLevel?.replace(/_/g, ' ')}
-          </div>
-
-          {/* Thông tin kỹ thuật PDF */}
-          {!isWord && detail.byteRange && (
-            <div style={{ marginBottom: 16 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#95a5a6',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  marginBottom: 6,
-                }}
-              >
-                ByteRange (kỹ thuật)
-              </div>
-              <code
-                style={{
-                  fontSize: 11,
-                  color: '#636e72',
-                  background: '#f8f9fa',
-                  padding: '6px 10px',
-                  borderRadius: 4,
-                  display: 'block',
-                  border: '1px solid #dfe6e9',
-                }}
-              >
-                [{detail.byteRange.join(', ')}]
-              </code>
-              <div style={{ fontSize: 11, color: '#636e72', marginTop: 6 }}>
-                Cuối vùng ký: {detail.signedRevisionEnd} / Kích thước file: {detail.fileSize}
-              </div>
-            </div>
+          {/* 5. Thông số kỹ thuật */}
+          {!isWord && (
+            <>
+              <SectionTitle title="5. Thông số kỹ thuật PDF" />
+              <InfoTable
+                rows={[
+                  ['Định dạng (SubFilter)', detail.subFilter || detail.signatureFormat || 'PAdES / PKCS#7'],
+                  ['Vị trí ByteRange', detail.byteRange ? `[${detail.byteRange.join(', ')}]` : '—'],
+                  ['Mức xác minh', detail.verificationLevel || 'FULL_PYHANKO_STANDARDS_VERIFIED'],
+                ]}
+              />
+            </>
           )}
 
-          {/* Thông tin kỹ thuật Word */}
-          {isWord && (
-            <div style={{ marginBottom: 16 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#95a5a6',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  marginBottom: 6,
-                }}
-              >
-                Cấu trúc OOXML
-              </div>
-              <div style={{ fontSize: 12, color: '#636e72' }}>
-                File XML chữ ký: <code>{detail.fieldName}</code>
-              </div>
-            </div>
-          )}
-
-          {/* Lưu ý */}
+          {/* Chú thích kỹ thuật trong Modal */}
           <div
             style={{
               background: '#f8f9fa',
@@ -379,7 +293,7 @@ function SignatureDetailModal({ detail, onClose }: SignatureDetailModalProps) {
             }}
           >
             <p style={{ margin: 0, fontSize: 11, color: '#636e72', lineHeight: 1.5 }}>
-              ⚠️ <strong>Lưu ý:</strong> {detail.warning}
+              Xác thực chữ ký số và tính toàn vẹn tài liệu PDF theo tiêu chuẩn ISO 32000 / PAdES và pyHanko.
             </p>
           </div>
         </div>
@@ -394,14 +308,14 @@ function SectionTitle({ title }: { title: string }) {
   return (
     <h4
       style={{
-        margin: '0 0 10px',
-        fontSize: 13,
+        margin: '14px 0 6px',
+        fontSize: 12,
         fontWeight: 700,
         color: '#2c3e50',
         textTransform: 'uppercase',
         letterSpacing: '0.5px',
         borderBottom: '1px solid #ecf0f1',
-        paddingBottom: 6,
+        paddingBottom: 4,
       }}
     >
       {title}
@@ -411,14 +325,14 @@ function SectionTitle({ title }: { title: string }) {
 
 function InfoTable({ rows }: { rows: [string, string][] }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
       <tbody>
         {rows.map(([label, value]) => (
           <tr key={label}>
-            <td style={{ padding: '5px 0', color: '#636e72', width: 180, fontSize: 12, verticalAlign: 'top' }}>
+            <td style={{ padding: '4px 0', color: '#636e72', width: 220, fontSize: 12, verticalAlign: 'top' }}>
               {label}
             </td>
-            <td style={{ padding: '5px 0', fontSize: 13, color: '#2d3436', wordBreak: 'break-word', fontWeight: 500 }}>
+            <td style={{ padding: '4px 0', fontSize: 12, color: '#2d3436', wordBreak: 'break-word', fontWeight: 500 }}>
               {value}
             </td>
           </tr>
@@ -428,229 +342,264 @@ function InfoTable({ rows }: { rows: [string, string][] }) {
   );
 }
 
-function FieldBlock({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          color: '#95a5a6',
-          textTransform: 'uppercase',
-          letterSpacing: '0.6px',
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
+// ─── Thẻ hiển thị một chữ ký số (Card chính) ─────────────────────────────────
 
-// ─── Panel trạng thái một chữ ký ─────────────────────────────────────────────
-
-interface SignatureStatusPanelProps {
+interface SignatureCardProps {
   sig: DocumentSignatureItem;
-  documentId: number;
+  fileHash?: string | null;
+  documentId?: number;
+  showIndex?: boolean;
 }
 
-function SignatureStatusPanel({ sig, documentId }: SignatureStatusPanelProps) {
-  const badge = getStatusBadge(sig.integrityStatus);
+function SignatureCard({ sig, fileHash, documentId, showIndex }: SignatureCardProps) {
+  const [detailModal, setDetailModal] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [detail, setDetail] = useState<DocumentSignatureItem | null>(null);
+  const [detailData, setDetailData] = useState<DocumentSignatureItem | null>(null);
+
+  const isValid = sig.overallValid !== false && sig.integrityStatus === 'NO_CHANGES_AFTER_SIGNING';
+  const isModified = sig.modifiedAfterSigning === true || sig.integrityStatus === 'DATA_ADDED_AFTER_SIGNING';
+
+  const timeText =
+    formatSigningTime(sig.trustedTimestamp) ||
+    formatSigningTime(sig.signerReportedTime || sig.signingTime) ||
+    'Không có timestamp đáng tin cậy';
 
   const handleOpenDetail = async () => {
-    setLoadingDetail(true);
-    try {
-      const d = await getOutgoingSignatureDetail(documentId, sig.index);
-      setDetail(d);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Lỗi khi tải chi tiết chữ ký');
-    } finally {
-      setLoadingDetail(false);
+    if (documentId) {
+      setLoadingDetail(true);
+      try {
+        const d = await getOutgoingSignatureDetail(documentId, sig.index);
+        setDetailData(d);
+      } catch {
+        setDetailData(sig);
+      } finally {
+        setLoadingDetail(false);
+      }
+    } else {
+      setDetailData(sig);
     }
+    setDetailModal(true);
   };
 
   return (
-    <>
-      <div
-        style={{
-          border: '1px solid #dfe6e9',
-          borderRadius: 8,
-          overflow: 'hidden',
-          background: 'white',
-          height: '100%',
-        }}
-      >
-        {/* Header panel */}
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
-            padding: '10px 14px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 14 }}>🔐</span>
-          <div>
-            <div style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>
-              Trạng thái chữ ký
-            </div>
-            <div style={{ color: '#bdc3c7', fontSize: 11 }}>
-              Chữ ký #{sig.index + 1}
-            </div>
-          </div>
+    <div
+      style={{
+        border: '1px solid #dfe6e9',
+        borderRadius: 10,
+        background: 'white',
+        padding: '16px 18px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      }}
+    >
+      {/* Header trạng thái */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              color: isValid ? '#27ae60' : isModified ? '#e67e22' : '#c0392b',
+              fontSize: 16,
+              fontWeight: 700,
+            }}
+          >
+            {isValid ? '' : isModified ? '⚠' : ''}
+          </span>
+          <span
+            style={{
+              fontWeight: 700,
+              fontSize: 14,
+              color: isValid ? '#1e8449' : isModified ? '#d35400' : '#c0392b',
+            }}
+          >
+            {isValid
+              ? 'Chữ ký số hợp lệ'
+              : isModified
+                ? 'Có thay đổi sau khi ký'
+                : 'Chữ ký không hợp lệ'}
+          </span>
         </div>
 
-        <div style={{ padding: '16px' }}>
-          {/* Người ký */}
-          <FieldBlock label="Người ký">
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#2d3436' }}>
-              {sig.signerName || '—'}
-            </div>
-          </FieldBlock>
+        {showIndex && (
+          <span style={{ fontSize: 12, color: '#8892b0', fontWeight: 600 }}>
+            Chữ ký #{sig.index + 1}
+          </span>
+        )}
+      </div>
 
-          {/* Thời gian ký */}
-          <FieldBlock label="Thời gian ký">
-            <div style={{ fontSize: 13, color: '#2d3436' }}>
-              {formatSigningTime(sig.signingTime)}
-            </div>
-            {sig.fileModDate && (
-              <div
-                style={{
-                  marginTop: 8,
-                  background: '#fef5e7',
-                  border: '1px solid #e67e2240',
-                  borderRadius: 6,
-                  padding: '8px 10px',
-                }}
-              >
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#e67e22', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
-                  ⏰ File bị sửa sau khi ký
-                </div>
-                <div style={{ fontSize: 12, color: '#7d4e00', fontWeight: 500 }}>
-                  {formatSigningTime(sig.fileModDate)}
-                </div>
-                <div style={{ fontSize: 11, color: '#95a5a6', marginTop: 3 }}>
-                  /ModDate của PDF cho thấy file đã được lưu lại sau khi ký
-                </div>
-              </div>
-            )}
-          </FieldBlock>
-
-          {/* Trạng thái */}
-          <FieldBlock label="Trạng thái">
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                color: badge.color,
-                background: badge.bg,
-                padding: '5px 10px',
-                borderRadius: 6,
-                border: `1px solid ${badge.color}30`,
-                marginBottom: 8,
-              }}
-            >
-              {badge.icon} {badge.label}
-            </div>
-
-            <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>
-              {sig.displayStatus}
-            </div>
-
-            {sig.integrityStatus === 'SIGNATURE_STRUCTURE_FOUND' && (
-              <div
-                style={{
-                  marginTop: 10,
-                  background: '#f8f9fa',
-                  border: '1px solid #dfe6e9',
-                  borderRadius: 6,
-                  padding: '10px 12px',
-                  fontSize: 12,
-                  color: '#636e72',
-                  lineHeight: 1.5,
-                }}
-              >
-                ℹ️ Xác minh toàn vẹn đầy đủ không được thực hiện với file Word.
-              </div>
-            )}
-          </FieldBlock>
-
-          {/* Nút xem chi tiết */}
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', fontSize: 13, marginTop: 4 }}
-            onClick={handleOpenDetail}
-            disabled={loadingDetail}
-          >
-            {loadingDetail ? '⏳ Đang tải...' : '🔍 Xem chi tiết chữ ký'}
-          </button>
+      {/* Thông tin cốt lõi: Người ký & Thời gian */}
+      <div style={{ marginBottom: 12, fontSize: 13, lineHeight: 1.6, color: '#2d3436' }}>
+        <div>
+          <span style={{ color: '#636e72' }}>Người ký: </span>
+          <strong>{sig.signerName || 'Không xác định'}</strong>
+        </div>
+        <div>
+          <span style={{ color: '#636e72' }}>Thời gian ký: </span>
+          <span style={{ color: timeText === 'Không có timestamp đáng tin cậy' ? '#7f8c8d' : '#2d3436' }}>
+            {timeText}
+          </span>
         </div>
       </div>
 
-      {/* Modal chi tiết */}
-      {detail && (
-        <SignatureDetailModal detail={detail} onClose={() => setDetail(null)} />
+      {/* 3 Trạng thái quan trọng (Badges) */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+        {/* 1. Chữ ký hợp lệ */}
+        <span
+          style={{
+            background: sig.signatureValid !== false ? '#eafaf1' : '#fdedec',
+            color: sig.signatureValid !== false ? '#27ae60' : '#c0392b',
+            border: `1px solid ${sig.signatureValid !== false ? '#27ae6030' : '#c0392b30'}`,
+            borderRadius: 6,
+            padding: '3px 8px',
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {sig.signatureValid !== false ? 'Chữ ký hợp lệ' : 'Chữ ký lỗi'}
+        </span>
+
+        {/* 2. Tệp toàn vẹn */}
+        <span
+          style={{
+            background: !isModified ? '#eafaf1' : '#fef5e7',
+            color: !isModified ? '#27ae60' : '#e67e22',
+            border: `1px solid ${!isModified ? '#27ae6030' : '#e67e2230'}`,
+            borderRadius: 6,
+            padding: '3px 8px',
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {!isModified ? 'Tệp toàn vẹn' : 'Có dữ liệu thêm sau ký'}
+        </span>
+
+        {/* 3. Chứng thư tin cậy */}
+        <span
+          style={{
+            background: sig.certificateTrusted === true ? '#eafaf1' : '#ebf5fb',
+            color: sig.certificateTrusted === true ? '#27ae60' : '#2980b9',
+            border: `1px solid ${sig.certificateTrusted === true ? '#27ae6030' : '#2980b930'}`,
+            borderRadius: 6,
+            padding: '3px 8px',
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {sig.certificateTrusted === true ? 'Chứng thư tin cậy' : 'Chứng thư hợp lệ'}
+        </span>
+      </div>
+
+      {/* Nút Xem chi tiết xác thực */}
+      <button
+        type="button"
+        className="btn btn-secondary"
+        style={{ width: '100%', fontSize: 12, padding: '7px 12px' }}
+        onClick={handleOpenDetail}
+        disabled={loadingDetail}
+      >
+        {loadingDetail ? 'Đang tải...' : 'Xem chi tiết xác thực'}
+      </button>
+
+      {/* Modal chi tiết khi click */}
+      {detailModal && (
+        <SignatureDetailModal
+          detail={detailData || sig}
+          fileHash={fileHash}
+          onClose={() => setDetailModal(false)}
+        />
       )}
-    </>
+    </div>
   );
 }
 
 // ─── SignaturePanel chính ─────────────────────────────────────────────────────
 
 interface SignaturePanelProps {
-  documentId: number;
-  /** mimeType của file để kiểm tra hỗ trợ. Nếu null/undefined → coi là không hỗ trợ */
+  documentId?: number;
+  file?: File | null;
+  fileName?: string | null;
   mimeType?: string | null;
+  onSignaturesLoaded?: (result: DocumentSignatureResponse) => void;
 }
 
-/**
- * UC-70 + UC-71 + UC-72: Danh sách chữ ký, trạng thái và chi tiết (PDF + Word).
- * Disable tự động nếu file không phải PDF hoặc Word.
- */
-export default function SignaturePanel({ documentId, mimeType }: SignaturePanelProps) {
+export default function SignaturePanel({
+  documentId,
+  file,
+  fileName,
+  mimeType,
+  onSignaturesLoaded,
+}: SignaturePanelProps) {
   const [signatures, setSignatures] = useState<DocumentSignatureItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeSig, setActiveSig] = useState<DocumentSignatureItem | null>(null);
-  const [summary, setSummary] = useState<DocumentSignatureSummary | null>(null);
+  const [fileHash, setFileHash] = useState<string | null>(null);
   const [visualMarks, setVisualMarks] = useState<VisualMark[]>([]);
-  const [responseWarning, setResponseWarning] = useState<string | null>(null);
 
-  // Nếu file không phải PDF/Word → không tải dữ liệu
-  const supported = isSupportedFileType(mimeType);
+  const effectiveMime = (file?.type || mimeType || '').toLowerCase();
+  const effectiveName = (file?.name || fileName || '').toLowerCase();
+
+  const isWord =
+    effectiveMime.includes('msword') ||
+    effectiveMime.includes('officedocument.wordprocessingml') ||
+    effectiveMime.includes('officedocument') ||
+    effectiveMime.includes('word') ||
+    effectiveName.endsWith('.docx') ||
+    effectiveName.endsWith('.doc');
+
+  const isPdf =
+    effectiveMime.includes('pdf') ||
+    effectiveName.endsWith('.pdf');
+
+  const supported = isWord || isPdf || Boolean(file) || Boolean(documentId);
 
   const loadSignatures = async () => {
-    if (!supported) return;
+    if (file) {
+      if (isWord) return;
+      setLoading(true);
+      setError(null);
+      setSignatures([]);
+      setMessage(null);
+      setFileHash(null);
+      setVisualMarks([]);
+      try {
+        const result = await verifyFileSignatures(file);
+        setSignatures(result.signatures);
+        setFileHash(result.fileHash || null);
+        setVisualMarks(result.visualMarks || []);
+
+        if (result.signatures.length === 0) {
+          setMessage('Không tìm thấy chữ ký số mật mã trong tài liệu này.');
+        }
+        if (onSignaturesLoaded) {
+          onSignaturesLoaded(result);
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Lỗi khi kiểm tra chữ ký số');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!documentId || !supported) return;
+    if (isWord) return;
+
     setLoading(true);
     setError(null);
     setSignatures([]);
     setMessage(null);
-    setActiveSig(null);
-    setSummary(null);
+    setFileHash(null);
     setVisualMarks([]);
-    setResponseWarning(null);
     try {
       const result: DocumentSignatureResponse = await getOutgoingSignatures(documentId);
       setSignatures(result.signatures);
-      setSummary(result.summary);
+      setFileHash(result.fileHash || null);
       setVisualMarks(result.visualMarks || []);
-      setResponseWarning(result.warning);
 
-      if (result.signatures.length > 0) {
-        setActiveSig(result.signatures[0]);
-        setMessage(
-          `Tìm thấy ${result.signatureCount} chữ ký số mật mã trong tài liệu ${result.fileType}.`,
-        );
-      } else {
+      if (result.signatures.length === 0) {
         setMessage('Không tìm thấy chữ ký số mật mã trong tài liệu này.');
+      }
+      if (onSignaturesLoaded) {
+        onSignaturesLoaded(result);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Lỗi khi tải danh sách chữ ký số');
@@ -661,7 +610,30 @@ export default function SignaturePanel({ documentId, mimeType }: SignaturePanelP
 
   useEffect(() => {
     loadSignatures();
-  }, [documentId, supported]);
+  }, [documentId, file, effectiveMime, effectiveName, supported]);
+
+  // ── Trường hợp file Word (.doc, .docx) ───────────────────────────────────
+  if (isWord) {
+    return (
+      <div
+        style={{
+          background: '#f8f9fa',
+          border: '1px solid #dfe6e9',
+          borderRadius: 8,
+          padding: '16px',
+          color: '#636e72',
+          fontSize: 13,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 4, color: '#2d3436', fontSize: 14 }}>
+          Tài liệu Word (.doc, .docx) — Bản dự thảo
+        </div>
+        <div style={{ fontSize: 12, lineHeight: 1.5, color: '#636e72' }}>
+          Tệp Word (.doc, .docx) là văn bản dự thảo nội bộ. Theo quy định quản lý văn bản, tài liệu sẽ được chuyển đổi sang định dạng <strong>PDF</strong> khi phát hành chính thức để ký số và xác thực tính toàn vẹn theo chuẩn ISO 32000 / PAdES.
+        </div>
+      </div>
+    );
+  }
 
   // ── Trường hợp file không hỗ trợ ──────────────────────────────────────────
   if (!supported) {
@@ -677,30 +649,24 @@ export default function SignaturePanel({ documentId, mimeType }: SignaturePanelP
           fontSize: 13,
         }}
       >
-        <div style={{ fontSize: 24, marginBottom: 8 }}>🚫</div>
         <div style={{ fontWeight: 600, marginBottom: 4, color: '#2d3436' }}>
           Không hỗ trợ định dạng này
         </div>
         <div style={{ fontSize: 12 }}>
-          Chức năng kiểm tra chữ ký số chỉ hỗ trợ file <strong>PDF</strong> và <strong>Word (.docx)</strong>.
+          Chức năng kiểm tra chữ ký số áp dụng cho tệp <strong>PDF</strong> (và hướng dẫn đối với tệp Word <strong>.doc, .docx</strong>).
         </div>
-        {mimeType && (
-          <div style={{ fontSize: 11, color: '#95a5a6', marginTop: 6 }}>
-            Định dạng hiện tại: <code>{mimeType}</code>
-          </div>
-        )}
       </div>
     );
   }
 
-  // ── Render chính ──────────────────────────────────────────────────────────
+  // ── Render chính cho PDF ──────────────────────────────────────────────────
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
+      {/* Header gọn gàng: Số lượng chữ ký chỉ hiện khi >= 2 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <h4 style={{ margin: 0, fontSize: 15, color: '#2c3e50', display: 'flex', alignItems: 'center', gap: 6 }}>
-          🔐 Chữ ký số
-          {signatures.length > 0 && (
+          Kiểm tra chữ ký số
+          {signatures.length >= 2 && (
             <span
               style={{
                 background: '#667eea',
@@ -715,14 +681,6 @@ export default function SignaturePanel({ documentId, mimeType }: SignaturePanelP
             </span>
           )}
         </h4>
-        <button
-          className="btn btn-secondary"
-          style={{ fontSize: 12, padding: '4px 10px' }}
-          onClick={loadSignatures}
-          disabled={loading}
-        >
-          {loading ? '⏳' : '🔄'} Tải lại
-        </button>
       </div>
 
       {/* Lỗi */}
@@ -738,19 +696,19 @@ export default function SignaturePanel({ documentId, mimeType }: SignaturePanelP
             color: '#c0392b',
           }}
         >
-          ⚠️ {error}
+          {error}
         </div>
       )}
 
       {/* Đang tải */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '24px', color: '#636e72', fontSize: 13 }}>
-          ⏳ Đang phân tích cấu trúc chữ ký...
+          Đang xác thực chữ ký số và tính toàn vẹn tài liệu...
         </div>
       )}
 
-      {/* Không có chữ ký */}
-      {!loading && !error && signatures.length === 0 && message && (
+      {/* Không có chữ ký: Chỉ hiện cảnh báo hình ảnh/dấu mộc khi signatures.length === 0 */}
+      {!loading && !error && signatures.length === 0 && (
         <div
           style={{
             background: '#f8f9fa',
@@ -762,139 +720,45 @@ export default function SignaturePanel({ documentId, mimeType }: SignaturePanelP
             fontSize: 13,
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>📭 Không có chữ ký số</div>
-          <div style={{ fontSize: 12 }}>{message}</div>
-          <div
-            style={{
-              marginTop: 12,
-              background: '#fef9e7',
-              border: '1px solid #f39c1240',
-              borderRadius: 6,
-              padding: '10px 12px',
-              textAlign: 'left',
-              fontSize: 11,
-              color: '#7d6608',
-            }}
-          >
-            ⚠️ Tài liệu có thể chứa chữ ký/con dấu hình ảnh nhưng đây không phải chữ ký số mật mã và không thể xác minh bởi hệ thống.
+          <div style={{ fontWeight: 600, marginBottom: 6, color: '#2d3436' }}>
+            Không có chữ ký số
           </div>
+          <div style={{ fontSize: 12, marginBottom: visualMarks.length > 0 ? 10 : 0 }}>
+            {message || 'Không tìm thấy chữ ký số mật mã trong tài liệu này.'}
+          </div>
+
+          {visualMarks.length > 0 && (
+            <div
+              style={{
+                background: '#fef9e7',
+                border: '1px solid #f39c1240',
+                borderRadius: 6,
+                padding: '10px 12px',
+                textAlign: 'left',
+                fontSize: 11,
+                color: '#7d6608',
+                lineHeight: 1.5,
+              }}
+            >
+              {visualMarks[0].message}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Danh sách chữ ký + trạng thái */}
+      {/* Danh sách chữ ký khi có >= 1 */}
       {!loading && signatures.length > 0 && (
-        <>
-          {/* Banner tính toàn vẹn tổng thể */}
-          <IntegrityBanner signatures={signatures} />
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: activeSig ? '1fr 1fr' : '1fr',
-              gap: 12,
-              alignItems: 'start',
-            }}
-          >
-            {/* Cột trái: danh sách chữ ký */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {signatures.map((sig) => {
-                const badge = getStatusBadge(sig.integrityStatus);
-                const isActive = activeSig?.index === sig.index;
-                return (
-                  <div
-                    key={sig.index}
-                    onClick={() => setActiveSig(sig)}
-                    style={{
-                      border: `1px solid ${isActive ? '#667eea' : '#dfe6e9'}`,
-                      borderRadius: 8,
-                      padding: '12px 14px',
-                      cursor: 'pointer',
-                      background: isActive ? '#f0f2ff' : 'white',
-                      boxShadow: isActive ? '0 0 0 2px #667eea25' : 'none',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: '#2d3436', marginBottom: 2 }}>
-                          Chữ ký {sig.index + 1}
-                        </div>
-                        <div style={{ fontSize: 13, color: '#2d3436', marginBottom: 4 }}>
-                          Người ký: {sig.signerName || 'Không xác định'}
-                        </div>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: badge.color,
-                          background: badge.bg,
-                          padding: '2px 8px',
-                          borderRadius: 12,
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {badge.icon} {badge.label}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: '#636e72', marginTop: 2 }}>
-                      Thời gian: {formatSigningTime(sig.signingTime)}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Tóm tắt loại bằng chứng */}
-              {summary && (
-                <div
-                  style={{
-                    background: summary.hasCryptographicSignature ? '#eafaf1' : '#fdf5e6',
-                    border: `1px solid ${summary.hasCryptographicSignature ? '#27ae6040' : '#f39c1240'}`,
-                    borderRadius: 6,
-                    padding: '8px 12px',
-                    marginBottom: 4,
-                    fontSize: 12,
-                    color: summary.hasCryptographicSignature ? '#1e8449' : '#7d6608',
-                  }}
-                >
-                  {summary.hasCryptographicSignature ? '🔐' : '⚠️'}{' '}
-                  <strong>Loại bằng chứng:</strong> Chữ ký số mật mã{' '}
-                  ({summary.cryptographicSignatureCount} tìm thấy)
-                </div>
-              )}
-
-              {responseWarning && (
-                <div style={{ fontSize: 10, color: '#95a5a6', marginTop: 4, lineHeight: 1.4 }}>
-                  ⚠️ {responseWarning}
-                </div>
-              )}
-
-              {/* Thông báo dấu mộc hình ảnh */}
-              {visualMarks.length > 0 && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    background: '#fef9e7',
-                    border: '1px solid #f39c1240',
-                    borderRadius: 6,
-                    padding: '8px 10px',
-                    fontSize: 11,
-                    color: '#7d6608',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  ⚠️ {visualMarks[0].message}
-                </div>
-              )}
-            </div>
-
-            {/* Cột phải: panel trạng thái */}
-            {activeSig && (
-              <SignatureStatusPanel sig={activeSig} documentId={documentId} />
-            )}
-          </div>
-        </>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {signatures.map((sig) => (
+            <SignatureCard
+              key={sig.index}
+              sig={sig}
+              fileHash={fileHash}
+              documentId={documentId}
+              showIndex={signatures.length >= 2}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

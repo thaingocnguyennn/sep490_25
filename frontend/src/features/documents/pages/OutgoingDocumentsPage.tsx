@@ -133,13 +133,13 @@ export default function OutgoingDocumentsPage() {
             className="btn btn-secondary"
             onClick={() => handleExport('excel')}
           >
-            📊 Xuất Excel
+            Xuất Excel
           </button> */}
           {/* <button
             className="btn btn-secondary"
             onClick={() => handleExport('pdf')}
           >
-            📑 Xuất PDF
+            Xuất PDF
           </button> */}
           {canCreate && (
             <button
@@ -147,7 +147,7 @@ export default function OutgoingDocumentsPage() {
               className="btn btn-primary"
               onClick={() => navigate('/outgoing-documents/new')}
             >
-              + Tạo văn bản đi mới
+              + Thêm Văn bản đi mới
             </button>
           )}
         </div>
@@ -224,7 +224,7 @@ export default function OutgoingDocumentsPage() {
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
                 title="Đến ngày"
               />
-              <button type="submit" className="btn btn-secondary">🔍 Tìm kiếm</button>
+              <button type="submit" className="btn btn-secondary">Tìm kiếm</button>
             </form>
           </div>
 
@@ -232,7 +232,7 @@ export default function OutgoingDocumentsPage() {
           <div className="card-body" style={{ padding: 0 }}>
             {error && (
               <div style={{ padding: 16, color: '#e74c3c', background: '#fdf0f0', margin: 16, borderRadius: 8 }}>
-                ⚠️ {error}
+                {error}
               </div>
             )}
 
@@ -248,7 +248,7 @@ export default function OutgoingDocumentsPage() {
                     style={{ marginTop: 16 }}
                     onClick={() => navigate('/outgoing-documents/new')}
                   >
-                    + Tạo văn bản đi mới
+                    + Thêm Văn bản đi mới
                   </button>
                 )}
               </div>
@@ -306,20 +306,20 @@ export default function OutgoingDocumentsPage() {
                       <td onClick={(e) => e.stopPropagation()}>
                         <button
                           id={`btn-view-outgoing-${item.id}`}
-                          className="action-btn edit"
+                          className="action-btn view"
                           title="Xem chi tiết"
                           onClick={() => navigate(`/outgoing-documents/${item.id}`)}
                         >
-                          👁️
+                          &#128065;
                         </button>
                         {canCreate && item.document.status === 'DRAFT' && (
                           <button
                             id={`btn-edit-outgoing-${item.id}`}
-                            className="action-btn"
+                            className="action-btn edit"
                             title="Chỉnh sửa"
                             onClick={() => navigate(`/outgoing-documents/${item.id}/edit`)}
                           >
-                            ✏️
+                            &#9998;
                           </button>
                         )}
                       </td>
