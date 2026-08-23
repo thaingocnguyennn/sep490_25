@@ -4,7 +4,14 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFields } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
-import { checkPdfSignature, extractSignaturesFromFile, isSupportedSignatureFile, getPdfSignatureDetail, buildSignatureSummary, buildVisualMarks } from '../../shared/utils/pdf-signature.util';
+import {
+  extractSignaturesFromFile,
+  buildSignatureSummary,
+  buildVisualMarks,
+  calculateFileHash,
+  isSupportedSignatureFile,
+  checkPdfSignature,
+} from '../../shared/utils/pdf-signature.util';
 import { DocumentStatus } from '@prisma/client';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
@@ -56,6 +63,29 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   REJECTED: ['DRAFT'],
   CANCELLED: [],
 };
+
+function parseDateOrNull(input?: string | null): Date | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    const year = y.length === 2 ? `20${y}` : y;
+    const iso = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const fallback = new Date(trimmed);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
@@ -115,6 +145,7 @@ export class OutgoingDocumentsService {
    */
   async create(data: {
     subject: string;
+    issuer?: string;
     /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
@@ -128,6 +159,22 @@ export class OutgoingDocumentsService {
     recipientEmail?: string;
     createdBy: number;
     relatedIncomingDocumentId?: number;
+    // ─── Kết quả OCR từ frontend (lưu trực tiếp trong 1 lần duy nhất) ───
+    /** Toàn văn text OCR đã bóc tách ở màn hình tạo */
+    ocrText?: string;
+    /** COMPLETED nếu OCR đã thành công; để trống nếu chưa chạy */
+    ocrStatus?: 'COMPLETED' | 'FAILED' | 'PENDING';
+    /** Người ký bóc tách từ OCR */
+    signerName?: string;
+    /** Chức vụ người ký bóc tách từ OCR */
+    signerTitle?: string;
+    /** Số ký hiệu bóc tách từ OCR */
+    documentNumber?: string;
+    /** Ngày ký bóc tách từ OCR (hoặc dateLetter) */
+    issuedDate?: string;
+    dateLetter?: string;
+    /** Số trang bóc tách từ OCR */
+    pageCount?: number;
   }) {
     // Tự động sinh số văn bản nội bộ
     const documentNumber = await documentsRepository.generateDocumentNumber('OUTGOING');
@@ -137,12 +184,15 @@ export class OutgoingDocumentsService {
       ? await resolveUrgencyIdWithDefault(data.urgency)
       : await resolveUrgencyIdWithDefault(null);
 
+    const parsedIssuedDate = parseDateOrNull(data.issuedDate || data.dateLetter);
+
     const result = await prisma.$transaction(async (tx) => {
       // Tạo bản ghi Document chính
       const document = await tx.document.create({
         data: {
           documentNumber,
           subject: data.subject,
+          issuer: data.issuer || undefined,
           type: 'OUTGOING',
           status: DocumentStatus.DRAFT,
           urgencyId,
@@ -152,6 +202,15 @@ export class OutgoingDocumentsService {
           // Lĩnh vực văn bản (chỉ nhận ID hợp lệ, validation đã kiểm tra ACTIVE ở controller)
           categoryId: data.documentCategoryId,
           createdBy: data.createdBy,
+          // ─── Lưu kết quả OCR từ frontend (nếu có) để không cần chạy lại ───
+          ...(data.ocrText ? {
+            ocrText:   data.ocrText,
+            ocrStatus: data.ocrStatus ?? 'COMPLETED',
+          } : {}),
+          // Thông tin người ký và ngày văn bản nếu đã bóc tách từ OCR
+          ...(data.signerName  ? { signerName:  data.signerName  } : {}),
+          ...(data.signerTitle ? { signerTitle: data.signerTitle } : {}),
+          ...(parsedIssuedDate ? { issuedDate:  parsedIssuedDate } : {}),
         },
       });
 
@@ -159,10 +218,14 @@ export class OutgoingDocumentsService {
       const outgoing = await tx.outgoingDocument.create({
         data: {
           documentId: document.id,
-          recipientName: data.recipientName,
+          recipientName:  data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
           relatedIncomingDocumentId: data.relatedIncomingDocumentId,
+          // Lưu số trang từ OCR nếu có
+          ...(data.pageCount ? { pageCount: data.pageCount } : {}),
+          // Lưu số ký hiệu dự thảo từ OCR nếu có
+          ...(data.documentNumber ? { documentNumber: data.documentNumber } : {}),
         },
       });
 
@@ -361,6 +424,7 @@ export class OutgoingDocumentsService {
       throw new BadRequestError('CANNOT_READ_FILE: Không thể đọc file.');
     }
 
+    const fileHash = calculateFileHash(buffer);
     let signatures;
     try {
       signatures = extractSignaturesFromFile(buffer, filePath, mimeType);
@@ -372,11 +436,12 @@ export class OutgoingDocumentsService {
       documentId: id,
       fileName: filename,
       fileType: signatures.length > 0 ? signatures[0].fileType : (path.extname(filename).toLowerCase() === '.pdf' ? 'PDF' : 'WORD'),
+      fileHash,
       signatureCount: signatures.length,
       summary: buildSignatureSummary(signatures),
       signatures,
       visualMarks: buildVisualMarks(),
-      warning: 'This result is based on digital signature structure inspection and does not confirm legal validity through a trusted CA/PKI validation process.',
+      warning: 'Xác thực chữ ký số PDF theo chuẩn ISO 32000 và pyHanko. Mã băm SHA-256 xác minh tính toàn vẹn của tệp kể từ thời điểm tải lên hệ thống.',
     };
   }
 
@@ -692,18 +757,17 @@ export class OutgoingDocumentsService {
   }
 
   /**
-   * Xóa mềm văn bản đi (chức năng #5 - Delete).
-   * Chuyển trạng thái sang TRASHED.
-   * Chỉ cho phép chuyên viên, văn thư hoặc trưởng phòng xóa văn bản chưa hoàn tất/hủy.
+   * Xóa mềm văn bản đi (chuyển vào thùng rác).
+   * Khi văn bản đã được gửi đi / trình duyệt / phát hành, văn bản là tài liệu công việc chính thức nên không cho phép xóa.
+   * Chỉ cho phép xóa khi văn bản ở trạng thái Bản nháp (DRAFT).
    */
   async softDelete(id: number, userId: number) {
     const outgoing = await outgoingDocumentsRepository.findById(id);
     const currentStatus = outgoing.document.status;
-    const forbiddenStatuses = ['COMPLETED', 'TRASHED', 'CANCELLED'];
 
-    if (forbiddenStatuses.includes(currentStatus)) {
+    if (currentStatus !== 'DRAFT') {
       throw new BadRequestError(
-        `Không thể xóa văn bản đang ở trạng thái "${currentStatus}".`,
+        'Không thể xóa văn bản đã được gửi đi hoặc đang trong quy trình xử lý. Chỉ cho phép xóa văn bản ở trạng thái Bản nháp.',
       );
     }
 

@@ -138,9 +138,9 @@ export default function OutgoingDocumentEditPage() {
       <div className="page-content">
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: 40 }}>
-            <p style={{ color: '#e74c3c' }}>⚠️ {loadError || 'Không tìm thấy văn bản đi'}</p>
+            <p style={{ color: '#e74c3c' }}>{loadError || 'Không tìm thấy văn bản đi'}</p>
             <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => navigate('/outgoing-documents')}>
-              ← Quay lại
+              Quay lại
             </button>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function OutgoingDocumentEditPage() {
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btn btn-secondary" onClick={() => navigate(`/outgoing-documents/${doc.id}`)} style={{ padding: '6px 12px' }}>
-            ← Quay lại chi tiết
+            Quay lại chi tiết
           </button>
           <h1>Chỉnh sửa Văn bản đi</h1>
         </div>
@@ -162,13 +162,13 @@ export default function OutgoingDocumentEditPage() {
       <div className="page-content">
         {ocrFields && (
           <div style={{ background: '#d4edda', border: '1px solid #28a745', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#155724' }}>
-            ✅ Đã điền sẵn thông tin từ kết quả OCR. Vui lòng kiểm tra và chỉnh sửa nếu cần.
+            Đã điền sẵn thông tin từ kết quả OCR. Vui lòng kiểm tra và chỉnh sửa nếu cần.
           </div>
         )}
 
         <div className="card" style={{ maxWidth: 860, margin: '0 auto' }}>
           <div className="card-header">
-            <h2>✏️ Cập nhật thông tin văn bản đi</h2>
+            <h2>Cập nhật thông tin văn bản đi</h2>
             <p style={{ color: '#636e72', fontSize: 13, margin: 0 }}>
               Số văn bản hệ thống: <code style={{ color: '#667eea' }}>{doc.document.documentNumber}</code>
             </p>
@@ -177,7 +177,7 @@ export default function OutgoingDocumentEditPage() {
           <div className="card-body">
             {actionError && (
               <div style={{ padding: '12px 16px', background: '#fdf0f0', border: '1px solid #fcc', borderRadius: 8, color: '#e74c3c', marginBottom: 20 }}>
-                ⚠️ {actionError}
+                {actionError}
               </div>
             )}
 
@@ -314,7 +314,6 @@ export default function OutgoingDocumentEditPage() {
                 </div>
               </div>
 
-              {/* Người nhận */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div className="form-group">
                   <label htmlFor="recipientName" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Người/Cơ quan nhận</label>
@@ -355,8 +354,6 @@ export default function OutgoingDocumentEditPage() {
                 </div>
               </div>
 
-              {/* Mô tả + ghi chú đã được gộp vào Trích yếu — không còn trường riêng */}
-
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => navigate(`/outgoing-documents/${doc.id}`)} disabled={actionLoading}>
                   Hủy
@@ -367,7 +364,7 @@ export default function OutgoingDocumentEditPage() {
                   className="btn btn-primary"
                   disabled={actionLoading}
                 >
-                  {actionLoading ? '⏳ Đang lưu...' : '💾 Lưu thay đổi'}
+                  {actionLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
             </form>

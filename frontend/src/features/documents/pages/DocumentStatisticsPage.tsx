@@ -91,7 +91,7 @@ function HBar({ title, data, labelKey, countKey, colors }: {
         {data.map((row, idx) => {
           const label = row[labelKey] as string;
           const count = row[countKey] as number;
-          const pct   = Math.max((count / max) * 100, 2);
+          const pct = Math.max((count / max) * 100, 2);
           const color = colors ? (colors[idx] ?? PALETTE[idx % PALETTE.length]) : PALETTE[idx % PALETTE.length];
           return (
             <div key={`${label}-${idx}`}>
@@ -174,9 +174,9 @@ function DateFilter({ loading, dateFrom, dateTo, onDateFrom, onDateTo, onFilter,
   dateFrom: string;
   dateTo: string;
   onDateFrom: (v: string) => void;
-  onDateTo:   (v: string) => void;
-  onFilter:   () => void;
-  onReset:    () => void;
+  onDateTo: (v: string) => void;
+  onFilter: () => void;
+  onReset: () => void;
 }) {
   return (
     <div style={{
@@ -207,18 +207,18 @@ function DateFilter({ loading, dateFrom, dateTo, onDateFrom, onDateTo, onFilter,
 // ─── Tab: Văn bản đến ─────────────────────────────────────────────────────────
 
 function IncomingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
-  const [data, setData]       = useState<IncomingStatsData | null>(null);
+  const [data, setData] = useState<IncomingStatsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('');
-  const [dateTo,   setDateTo]   = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const fetch = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const p: { dateFrom?: string; dateTo?: string } = {};
       if (dateFrom) p.dateFrom = dateFrom;
-      if (dateTo)   p.dateTo   = dateTo;
+      if (dateTo) p.dateTo = dateTo;
       const res = await incomingDocumentsApi.getStatistics(p);
       setData(res.data.data ?? null);
     } catch (e: unknown) {
@@ -231,8 +231,8 @@ function IncomingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
   const statusData = (data?.byStatus ?? []).map((s) => ({
     label: INCOMING_STATUS_LABEL[s.status] ?? s.status, count: s.count, rawStatus: s.status,
   }));
-  const docTypeData  = (data?.byDocumentType ?? []).map((s) => ({ label: s.documentType, count: s.count }));
-  const deptData     = (data?.byDepartment   ?? []).map((s) => ({ label: s.departmentName, count: s.count }));
+  const docTypeData = (data?.byDocumentType ?? []).map((s) => ({ label: s.documentType, count: s.count }));
+  const deptData = (data?.byDepartment ?? []).map((s) => ({ label: s.departmentName, count: s.count }));
 
   return (
     <>
@@ -253,9 +253,9 @@ function IncomingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
       {!loading && !error && data && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-            <KpiCard label="Tổng văn bản đến"   value={data.totalCount}            color={INCOMING_COLOR} icon="📥" />
-            <KpiCard label="Loại văn bản"        value={data.byDocumentType.length} color="#fdcb6e"        icon="🗂️" />
-            <KpiCard label="Phòng ban liên quan" value={data.byDepartment.length}   color="#00b894"        icon="🏢" />
+            <KpiCard label="Tổng văn bản đến" value={data.totalCount} color={INCOMING_COLOR} icon="📥" />
+            <KpiCard label="Loại văn bản" value={data.byDocumentType.length} color="#fdcb6e" icon="🗂️" />
+            <KpiCard label="Phòng ban liên quan" value={data.byDepartment.length} color="#00b894" icon="🏢" />
           </div>
 
           <div style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: 20 }}>
@@ -266,8 +266,8 @@ function IncomingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
             <HBar title="📋 Theo trạng thái" data={statusData as any} labelKey="label" countKey="count"
               colors={statusData.map((s) => STATUS_COLORS[s.rawStatus] ?? '#636e72')} />
-            <HBar title="📁 Theo loại văn bản"      data={docTypeData as any} labelKey="label" countKey="count" />
-            <HBar title="🏢 Theo phòng ban (Top 10)" data={deptData    as any} labelKey="label" countKey="count" />
+            <HBar title="📁 Theo loại văn bản" data={docTypeData as any} labelKey="label" countKey="count" />
+            <HBar title="🏢 Theo phòng ban (Top 10)" data={deptData as any} labelKey="label" countKey="count" />
           </div>
 
           <p style={{ textAlign: 'center', color: '#b2bec3', fontSize: 12, marginTop: 16 }}>
@@ -283,18 +283,18 @@ function IncomingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
 // ─── Tab: Văn bản đi ──────────────────────────────────────────────────────────
 
 function OutgoingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
-  const [data, setData]       = useState<OutgoingStatisticsData | null>(null);
+  const [data, setData] = useState<OutgoingStatisticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('');
-  const [dateTo,   setDateTo]   = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const fetch = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const p: { dateFrom?: string; dateTo?: string } = {};
       if (dateFrom) p.dateFrom = dateFrom;
-      if (dateTo)   p.dateTo   = dateTo;
+      if (dateTo) p.dateTo = dateTo;
       const result = await getOutgoingStatistics(p);
       setData(result);
     } catch (e: unknown) {
@@ -311,7 +311,7 @@ function OutgoingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
     label: OUTGOING_STATUS_LABEL[s.status] ?? s.status, count: s.count, rawStatus: s.status,
   }));
   const docTypeData = (data?.byDocumentType ?? []).map((s) => ({ label: s.documentType, count: s.count }));
-  const deptData    = (data?.byDepartment   ?? []).map((s) => ({ label: s.departmentName, count: s.count }));
+  const deptData = (data?.byDepartment ?? []).map((s) => ({ label: s.departmentName, count: s.count }));
 
   return (
     <>
@@ -332,10 +332,10 @@ function OutgoingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
       {!loading && !error && data && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-            <KpiCard label="Tổng văn bản đi"     value={data.totalCount}            color={OUTGOING_COLOR} icon="📤" />
-            <KpiCard label="Đã phát hành"         value={data.issuedCount}           color="#00b894"        icon="✅" />
-            <KpiCard label="Tỷ lệ phát hành (%)"  value={issuanceRate}               color="#0984e3"        icon="📈" />
-            <KpiCard label="Loại văn bản"          value={data.byDocumentType.length} color="#fdcb6e"        icon="🗂️" />
+            <KpiCard label="Tổng văn bản đi" value={data.totalCount} color={OUTGOING_COLOR} icon="📤" />
+            <KpiCard label="Đã phát hành" value={data.issuedCount} color="#00b894" icon="✅" />
+            <KpiCard label="Tỷ lệ phát hành (%)" value={issuanceRate} color="#0984e3" icon="📈" />
+            <KpiCard label="Loại văn bản" value={data.byDocumentType.length} color="#fdcb6e" icon="🗂️" />
           </div>
 
           <div style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: 20 }}>
@@ -346,8 +346,8 @@ function OutgoingTab({ isSpecialistOnly }: { isSpecialistOnly: boolean }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
             <HBar title="📋 Theo trạng thái" data={statusData as any} labelKey="label" countKey="count"
               colors={statusData.map((s) => STATUS_COLORS[s.rawStatus] ?? '#636e72')} />
-            <HBar title="📁 Theo loại văn bản"      data={docTypeData as any} labelKey="label" countKey="count" />
-            <HBar title="🏢 Theo phòng ban (Top 10)" data={deptData    as any} labelKey="label" countKey="count" />
+            <HBar title="📁 Theo loại văn bản" data={docTypeData as any} labelKey="label" countKey="count" />
+            <HBar title="🏢 Theo phòng ban (Top 10)" data={deptData as any} labelKey="label" countKey="count" />
           </div>
 
           <p style={{ textAlign: 'center', color: '#b2bec3', fontSize: 12, marginTop: 16 }}>
@@ -375,8 +375,8 @@ export default function DocumentStatisticsPage() {
     !(user?.roles ?? []).includes('DOCUMENT_CLERK');
 
   const tabs: { key: TabKey; label: string; icon: string; color: string }[] = [
-    { key: 'incoming', label: 'Văn bản đến', icon: '📥', color: INCOMING_COLOR },
-    { key: 'outgoing', label: 'Văn bản đi',  icon: '📤', color: OUTGOING_COLOR },
+    { key: 'incoming', label: 'Văn bản đến', icon: '', color: INCOMING_COLOR },
+    { key: 'outgoing', label: 'Văn bản đi', icon: '', color: OUTGOING_COLOR },
   ];
 
   return (
@@ -384,7 +384,7 @@ export default function DocumentStatisticsPage() {
       {/* Tiêu đề */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: '#2d3436' }}>
-          📊 Thống kê Văn bản
+          Thống kê Văn bản
         </h1>
         <p style={{ margin: '4px 0 0', color: '#636e72', fontSize: 14 }}>
           Tổng hợp số liệu văn bản đến và văn bản đi trong hệ thống

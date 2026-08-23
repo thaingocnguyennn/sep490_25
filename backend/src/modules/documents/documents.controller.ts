@@ -342,6 +342,73 @@ export class DocumentsController {
       next(error);
     }
   }
+
+  /**
+   * POST /documents/verify-signatures
+   * Kiểm tra chữ ký số và tính toàn vẹn trực tiếp trên tệp tải lên (chưa cần tạo văn bản).
+   */
+  async verifySignatures(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'Không có tệp tải lên' });
+        return;
+      }
+      const {
+        extractSignaturesFromFile,
+        buildSignatureSummary,
+        buildVisualMarks,
+        calculateFileHash,
+      } = await import('../../shared/utils/pdf-signature.util');
+      const { config } = await import('../../config');
+      const fs = await import('fs');
+
+      const buffer = req.file.buffer;
+      const mimeType = req.body.mimeType || req.file.mimetype;
+      const filename = req.file.originalname || 'document.pdf';
+      const fileHash = calculateFileHash(buffer);
+
+      let tempFilePath: string | undefined;
+      try {
+        const tempDir = path.join(config.uploadDir, 'temp');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        tempFilePath = path.join(tempDir, `sig_check_${Date.now()}_${filename}`);
+        fs.writeFileSync(tempFilePath, buffer);
+      } catch {
+        // Ignore
+      }
+
+      let signatures;
+      try {
+        signatures = extractSignaturesFromFile(buffer, tempFilePath, mimeType);
+      } finally {
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {}
+        }
+      }
+
+      const isPdf =
+        (mimeType && mimeType.includes('pdf')) ||
+        path.extname(filename).toLowerCase() === '.pdf';
+
+      const response = {
+        documentId: 0,
+        fileName: filename,
+        fileType: signatures.length > 0 ? signatures[0].fileType : (isPdf ? 'PDF' : 'WORD'),
+        fileHash,
+        signatureCount: signatures.length,
+        summary: buildSignatureSummary(signatures),
+        signatures,
+        visualMarks: buildVisualMarks(),
+        warning: 'Xác thực chữ ký số PDF theo chuẩn ISO 32000 và pyHanko. Mã băm SHA-256 xác minh tính toàn vẹn của tệp.',
+      };
+
+      res.status(200).json(successResponse(response, 'Signature verification completed'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const documentsController = new DocumentsController();

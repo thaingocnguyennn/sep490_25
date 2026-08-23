@@ -14,6 +14,35 @@ export const createOutgoingDocumentValidation = [
     .notEmpty().withMessage('Trích yếu văn bản không được để trống')
     .isLength({ max: 2000 }).withMessage('Trích yếu tối đa 2000 ký tự'),
 
+  body('issuer')
+    .optional()
+    .trim()
+    .isString().withMessage('Cơ quan ban hành phải là chuỗi ký tự'),
+
+  body('documentNumber')
+    .optional()
+    .trim()
+    .isString().withMessage('Số ký hiệu phải là chuỗi ký tự'),
+
+  body('issuedDate')
+    .optional()
+    .trim()
+    .isString().withMessage('Ngày văn bản phải là chuỗi ký tự'),
+
+  body('signerName')
+    .optional()
+    .trim()
+    .isString().withMessage('Họ tên người ký phải là chuỗi ký tự'),
+
+  body('signerTitle')
+    .optional()
+    .trim()
+    .isString().withMessage('Chức vụ người ký phải là chuỗi ký tự'),
+
+  body('pageCount')
+    .optional()
+    .isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
+
   body('urgency')
     .optional()
     .custom((value) => {
@@ -77,6 +106,14 @@ export const createOutgoingDocumentValidation = [
     .optional()
     .trim()
     .isEmail().withMessage('Email người nhận không hợp lệ'),
+
+  body('ocrText')
+    .optional()
+    .isString(),
+
+  body('ocrStatus')
+    .optional()
+    .isString(),
 
   body('relatedIncomingDocumentId')
     .optional()
