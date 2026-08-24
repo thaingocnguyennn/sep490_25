@@ -288,7 +288,15 @@ export class IncomingDocumentsController {
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string | undefined;
 
-      const result = await incomingDocumentsService.listPendingForHead({ page, limit, search });
+      const result = await incomingDocumentsService.listPendingForHead({
+        page,
+        limit,
+        search,
+        viewerFor: {
+          userId: req.user!.userId,
+          userRoles: req.user!.roles ?? [],
+        },
+      });
       res.status(200).json(
         successResponse(
           {
@@ -317,6 +325,10 @@ export class IncomingDocumentsController {
         limit,
         search,
         userId: req.user!.userId,
+        viewerFor: {
+          userId: req.user!.userId,
+          userRoles: req.user!.roles ?? [],
+        },
       });
       res.status(200).json(
         successResponse(

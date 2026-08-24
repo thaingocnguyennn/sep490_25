@@ -192,6 +192,14 @@ export interface Document {
   department: { id: number; name: string } | null;
   // Optional fields from dev schema (DocumentWorkflow, processors, attachments)
   status: string; // DocumentStatus enum - DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
+  /**
+   * Per-actor status badge value. When the API supports it (incoming
+   * document list/detail endpoints), this reflects the calling user's own
+   * workflow progress on the document rather than the global document
+   * status. Frontend falls back to `status` when this field is absent
+   * (e.g. older API responses or other document types).
+   */
+  viewerStatus?: string;
   workflows?: Array<{
     id: number;
     status: string;

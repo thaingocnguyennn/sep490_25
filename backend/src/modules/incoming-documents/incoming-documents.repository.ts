@@ -2,6 +2,38 @@ import { default as prisma } from '../../config/database';
 import { NotFoundError } from '../../shared/exceptions/app-error';
 import { Prisma, DocumentStatus, WorkflowStatus } from '@prisma/client';
 import { resolveUrgencyId } from '../../shared/utils/urgency';
+import {
+  resolveViewerStatus,
+  type ViewerStatus,
+  type ViewerStatusDocument,
+} from '../../shared/access/viewer-status';
+
+/**
+ * Augment the underlying Prisma Document with the per-actor `viewerStatus`
+ * field used by the frontend to render the status badge.
+ */
+type DocumentWithViewerStatus = ViewerStatusDocument & { viewerStatus?: ViewerStatus };
+
+/**
+ * Row shape returned by the list endpoints. The frontend only needs the
+ * fields we project below; the full `IncomingDocumentWithRelations` shape is
+ * reserved for `findById`.
+ */
+type IncomingDocumentListRow = {
+  id: number;
+  documentId: number;
+  arrivalNumber: number | null;
+  dateReceived: Date;
+  pageCount: number | null;
+  processingInstructions: string | null;
+  documentBookId: number | null;
+  documentBook?: {
+    id: number;
+    name: string;
+    code: string | null;
+  } | null;
+  document: DocumentWithViewerStatus;
+};
 
 export interface IncomingDocumentWithRelations {
   id: number;
@@ -73,6 +105,9 @@ export interface IncomingDocumentWithRelations {
       workflowStep: { id: number; name: string; stepOrder: number; roleName: string | null };
       user: { id: number; fullName: string } | null;
     }[];
+    /** Per-actor status. Populated when the caller supplied `viewerFor`,
+     *  otherwise undefined. The frontend falls back to `status` in that case. */
+    viewerStatus?: ViewerStatus;
   };
 }
 
@@ -89,8 +124,12 @@ export class IncomingDocumentsRepository {
     assignedToUserId?: number;
     /** Restrict to documents where the user has at least one XLC/PHXL/XDB processor record */
     assignedProcessorTypes?: string[];
-  }) {
-    const { page, limit, search, status, documentTypeId, urgency, assignedToUserId, assignedProcessorTypes } = params;
+    /** When supplied, each returned item is decorated with `viewerStatus`
+     *  computed for this caller. Omit for callers that should see the raw
+     *  global document status (e.g. internal service-layer callers). */
+    viewerFor?: { userId: number; userRoles: string[] };
+  }): Promise<{ items: IncomingDocumentListRow[]; total: number }> {
+    const { page, limit, search, status, documentTypeId, urgency, assignedToUserId, assignedProcessorTypes, viewerFor } = params;
     const skip = (page - 1) * limit;
 
     const documentWhere: Prisma.DocumentWhereInput = {};
@@ -161,10 +200,31 @@ export class IncomingDocumentsRepository {
       prisma.incomingDocument.count({ where }),
     ]);
 
-    return { items, total };
+    if (viewerFor) {
+      const decorated = items.map((item) => {
+        const docWithStatus = {
+          ...item.document,
+          viewerStatus: resolveViewerStatus(
+            item.document as unknown as ViewerStatusDocument,
+            viewerFor.userId,
+            viewerFor.userRoles
+          ),
+        } as unknown as DocumentWithViewerStatus;
+        return {
+          ...item,
+          document: docWithStatus,
+        };
+      }) as unknown as IncomingDocumentListRow[];
+      return { items: decorated, total };
+    }
+
+    return { items: items as unknown as IncomingDocumentListRow[], total };
   }
 
-  async findById(id: number): Promise<IncomingDocumentWithRelations> {
+  async findById(
+    id: number,
+    viewerFor?: { userId: number; userRoles: string[] }
+  ): Promise<IncomingDocumentWithRelations> {
     const incoming = await prisma.incomingDocument.findUnique({
       where: { id },
       include: {
@@ -193,11 +253,23 @@ export class IncomingDocumentsRepository {
       },
     });
     if (!incoming) throw new NotFoundError('Không tìm thấy văn bản đến');
-    return incoming as unknown as IncomingDocumentWithRelations;
+
+    const incomingWithStatus = incoming as unknown as IncomingDocumentWithRelations;
+    if (viewerFor) {
+      (incomingWithStatus.document as DocumentWithViewerStatus).viewerStatus =
+        resolveViewerStatus(
+          incomingWithStatus.document as unknown as ViewerStatusDocument,
+          viewerFor.userId,
+          viewerFor.userRoles
+        );
+    }
+    return incomingWithStatus;
   }
 
-  async findAllPendingForHead(params: { page: number; limit: number; search?: string }) {
-    const { page, limit, search } = params;
+  async findAllPendingForHead(
+    params: { page: number; limit: number; search?: string; viewerFor?: { userId: number; userRoles: string[] } }
+  ): Promise<{ items: IncomingDocumentListRow[]; total: number }> {
+    const { page, limit, search, viewerFor } = params;
     const skip = (page - 1) * limit;
 
     const documentWhere: Prisma.DocumentWhereInput = {
@@ -253,11 +325,35 @@ export class IncomingDocumentsRepository {
       prisma.incomingDocument.count({ where }),
     ]);
 
-    return { items, total };
+    if (viewerFor) {
+      const decorated = items.map((item) => {
+        const docWithStatus = {
+          ...item.document,
+          viewerStatus: resolveViewerStatus(
+            item.document as unknown as ViewerStatusDocument,
+            viewerFor.userId,
+            viewerFor.userRoles
+          ),
+        } as unknown as DocumentWithViewerStatus;
+        return {
+          ...item,
+          document: docWithStatus,
+        };
+      }) as unknown as IncomingDocumentListRow[];
+      return { items: decorated, total };
+    }
+
+    return { items: items as unknown as IncomingDocumentListRow[], total };
   }
 
-  async findAllPendingForSpecialist(params: { page: number; limit: number; search?: string; userId: number }) {
-    const { page, limit, search, userId } = params;
+  async findAllPendingForSpecialist(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    userId: number;
+    viewerFor?: { userId: number; userRoles: string[] };
+  }): Promise<{ items: IncomingDocumentListRow[]; total: number }> {
+    const { page, limit, search, userId, viewerFor } = params;
     const skip = (page - 1) * limit;
 
     const documentWhere: Prisma.DocumentWhereInput = {
@@ -313,7 +409,25 @@ export class IncomingDocumentsRepository {
       prisma.incomingDocument.count({ where }),
     ]);
 
-    return { items, total };
+    if (viewerFor) {
+      const decorated = items.map((item) => {
+        const docWithStatus = {
+          ...item.document,
+          viewerStatus: resolveViewerStatus(
+            item.document as unknown as ViewerStatusDocument,
+            viewerFor.userId,
+            viewerFor.userRoles
+          ),
+        } as unknown as DocumentWithViewerStatus;
+        return {
+          ...item,
+          document: docWithStatus,
+        };
+      }) as unknown as IncomingDocumentListRow[];
+      return { items: decorated, total };
+    }
+
+    return { items: items as unknown as IncomingDocumentListRow[], total };
   }
 }
 
