@@ -968,6 +968,7 @@ export default function OutgoingDocumentDetailPage() {
           loading={registering}
           onClose={() => setRegisterModalOpen(false)}
           onRegister={handleRegister}
+          documentSymbol={doc?.documentNumber || ''}
         />
       )}
     </>

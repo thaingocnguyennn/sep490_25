@@ -377,14 +377,20 @@ export class OutgoingDocumentsService {
     const outgoing = await outgoingDocumentsRepository.findById(id);
 
     // 2. Kiểm tra quyền truy cập
-    const { roles } = currentUser;
+    const { roles, id: userId } = currentUser;
     const isAdmin = roles.includes('ADMIN');
     const isClerk = roles.includes('DOCUMENT_CLERK');
     const isDeptHead = roles.includes('DEPARTMENT_HEAD');
     const isSpecialist = roles.includes('SPECIALIST');
 
-    // Chuyên viên chỉ xem được văn bản của phòng mình
-    if (!isAdmin && !isClerk && !isDeptHead && isSpecialist) {
+    const isCreator = outgoing.document.createdByUser?.id === userId;
+    const isSubmitter = outgoing.submittedBy === userId;
+    const isApprover = outgoing.assignedApproverId === userId || outgoing.approvedBy === userId;
+    const isAssignedClerk = outgoing.assignedClerkId === userId || outgoing.forwardedBy === userId || outgoing.issuedBy === userId;
+    const isPublicStatus = ['APPROVED', 'WAITING_FOR_ISSUE', 'REGISTERED', 'ISSUED', 'COMPLETED'].includes(outgoing.document.status);
+
+    // Chỉ chặn nếu là chuyên viên xem văn bản nháp của phòng khác mà không có liên quan đến luồng xử lý
+    if (!isAdmin && !isClerk && !isDeptHead && !isCreator && !isSubmitter && !isApprover && !isAssignedClerk && !isPublicStatus && isSpecialist) {
       const docDeptId = outgoing.document.department?.id;
       if (
         docDeptId !== undefined &&
@@ -457,13 +463,19 @@ export class OutgoingDocumentsService {
     const outgoing = await outgoingDocumentsRepository.findById(id);
 
     // 2. Kiểm tra quyền truy cập (giống getSignatures)
-    const { roles } = currentUser;
+    const { roles, id: userId } = currentUser;
     const isAdmin = roles.includes('ADMIN');
     const isClerk = roles.includes('DOCUMENT_CLERK');
     const isDeptHead = roles.includes('DEPARTMENT_HEAD');
     const isSpecialist = roles.includes('SPECIALIST');
 
-    if (!isAdmin && !isClerk && !isDeptHead && isSpecialist) {
+    const isCreator = outgoing.document.createdByUser?.id === userId;
+    const isSubmitter = outgoing.submittedBy === userId;
+    const isApprover = outgoing.assignedApproverId === userId || outgoing.approvedBy === userId;
+    const isAssignedClerk = outgoing.assignedClerkId === userId || outgoing.forwardedBy === userId || outgoing.issuedBy === userId;
+    const isPublicStatus = ['APPROVED', 'WAITING_FOR_ISSUE', 'REGISTERED', 'ISSUED', 'COMPLETED'].includes(outgoing.document.status);
+
+    if (!isAdmin && !isClerk && !isDeptHead && !isCreator && !isSubmitter && !isApprover && !isAssignedClerk && !isPublicStatus && isSpecialist) {
       const docDeptId = outgoing.document.department?.id;
       if (
         docDeptId !== undefined &&
