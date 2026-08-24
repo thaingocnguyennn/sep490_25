@@ -73,7 +73,6 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
           description: formData.description.trim() || null,
           status: formData.status,
         };
-        // Only send code if it changed and no usage
         const newCode = formData.code.trim().toUpperCase();
         if (newCode !== documentType!.code && documentType!.usageCount === 0) {
           dto.code = formData.code.trim();
@@ -99,41 +98,56 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
   const codeDisabled = loading || (isEditing && (documentType?.usageCount ?? 0) > 0);
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="modal" style={{ maxWidth: 520 }}>
         <div className="modal-header">
-          <h2 style={{ fontSize: 18 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
             {isEditing ? 'Chỉnh sửa thể loại văn bản' : 'Thêm thể loại văn bản mới'}
-          </h2>
-          <button className="modal-close" onClick={onClose} aria-label="Đóng">&times;</button>
+          </h3>
+          <button className="modal-close" onClick={onClose} aria-label="Đóng">
+            &times;
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             {apiError && (
               <div className="alert alert-error" style={{ marginBottom: 16 }}>
-                ⚠ {apiError}
+                {apiError}
               </div>
             )}
             <div className="form-group">
-              <label>Tên thể loại <span style={{ color: '#e74c3c' }}>*</span></label>
+              <label htmlFor="typeName">
+                Tên thể loại <span style={{ color: '#e74c3c' }}>*</span>
+              </label>
               <input
+                id="typeName"
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="VD: Công văn, Quyết định..."
+                placeholder="VD: Công văn, Quyết định, Tờ trình..."
                 maxLength={100}
                 disabled={loading}
                 style={errors.name ? { borderColor: '#e74c3c' } : {}}
               />
-              {errors.name && <div className="error-text">{errors.name}</div>}
+              {errors.name && (
+                <span style={{ color: '#e74c3c', fontSize: 12 }}>{errors.name}</span>
+              )}
             </div>
             <div className="form-group">
-              <label>Mã thể loại <span style={{ color: '#e74c3c' }}>*</span></label>
+              <label htmlFor="typeCode">
+                Mã thể loại <span style={{ color: '#e74c3c' }}>*</span>
+              </label>
               <input
+                id="typeCode"
                 type="text"
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="VD: CV, QD..."
+                placeholder="VD: CV, QD, TTr..."
                 maxLength={20}
                 disabled={codeDisabled}
                 style={{
@@ -143,37 +157,57 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
               />
               {isEditing && (documentType?.usageCount ?? 0) > 0 && (
                 <div style={{ color: '#e67e22', fontSize: 12, marginTop: 4 }}>
-                  ⚠ Mã không thể thay đổi vì đang được sử dụng bởi {documentType?.usageCount} văn bản
+                  Mã không thể thay đổi vì đang được sử dụng bởi {documentType?.usageCount} văn bản
                 </div>
               )}
-              {errors.code && <div className="error-text">{errors.code}</div>}
+              {errors.code && (
+                <span style={{ color: '#e74c3c', fontSize: 12 }}>{errors.code}</span>
+              )}
             </div>
             <div className="form-group">
-              <label>Mô tả</label>
+              <label htmlFor="typeDescription">Mô tả</label>
               <textarea
+                id="typeDescription"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Mô tả (tùy chọn)"
+                placeholder="Mô tả thể loại (tùy chọn)"
                 maxLength={500}
                 rows={3}
                 disabled={loading}
                 style={{
-                  width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9',
-                  borderRadius: 8, fontSize: 14, outline: 'none', resize: 'vertical',
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: '1px solid #dfe6e9',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  outline: 'none',
+                  resize: 'vertical',
                   fontFamily: 'inherit',
                   ...(errors.description ? { borderColor: '#e74c3c' } : {}),
                 }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                {errors.description ? <div className="error-text">{errors.description}</div> : <span />}
-                <span style={{ fontSize: 12, color: '#b2bec3' }}>{formData.description.length}/500</span>
+                {errors.description ? (
+                  <span style={{ color: '#e74c3c', fontSize: 12 }}>{errors.description}</span>
+                ) : (
+                  <span />
+                )}
+                <span style={{ fontSize: 12, color: '#b2bec3' }}>
+                  {formData.description.length}/500
+                </span>
               </div>
             </div>
             <div className="form-group">
-              <label>Trạng thái</label>
+              <label htmlFor="typeStatus">Trạng thái</label>
               <select
+                id="typeStatus"
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    status: e.target.value as 'ACTIVE' | 'INACTIVE',
+                  })
+                }
                 disabled={loading}
               >
                 <option value="ACTIVE">Đang hoạt động</option>
@@ -181,17 +215,22 @@ export const DocumentTypeFormModal: React.FC<DocumentTypeFormModalProps> = ({
               </select>
               {isEditing && formData.status === 'INACTIVE' && documentType?.status === 'ACTIVE' && (
                 <div style={{ color: '#e67e22', fontSize: 12, marginTop: 4 }}>
-                  ⚠ Văn bản cũ vẫn giữ thể loại này nhưng sẽ không thể chọn khi tạo mới
+                  Văn bản cũ vẫn giữ thể loại này nhưng sẽ không thể chọn khi tạo mới
                 </div>
               )}
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+              disabled={loading}
+            >
               Hủy
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Đang lưu...' : 'Lưu lại'}
+              {loading ? 'Đang lưu...' : isEditing ? 'Lưu thay đổi' : 'Tạo mới'}
             </button>
           </div>
         </form>
