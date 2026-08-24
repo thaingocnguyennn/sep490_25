@@ -158,11 +158,20 @@ export class IncomingDocumentsService {
       ...params,
       assignedToUserId,
       assignedProcessorTypes,
+      viewerFor:
+        params.userId !== undefined && params.userRoles !== undefined
+          ? { userId: params.userId, userRoles: params.userRoles }
+          : undefined,
     });
   }
 
   async getById(id: number, userId?: number, userRoles?: string[]) {
-    const incoming = await incomingDocumentsRepository.findById(id);
+    const incoming = await incomingDocumentsRepository.findById(
+      id,
+      userId !== undefined && userRoles !== undefined
+        ? { userId, userRoles }
+        : undefined,
+    );
 
     if (userId !== undefined && userRoles !== undefined) {
       await checkIncomingDocumentAccess(id, userId, userRoles);
@@ -171,7 +180,12 @@ export class IncomingDocumentsService {
     return incoming;
   }
 
-  async listPendingForHead(params: { page: number; limit: number; search?: string }) {
+  async listPendingForHead(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    viewerFor?: { userId: number; userRoles: string[] };
+  }) {
     return incomingDocumentsRepository.findAllPendingForHead(params);
   }
 
@@ -521,6 +535,24 @@ export class IncomingDocumentsService {
           workflowStepId: step.id,
           status: WorkflowStatus.PENDING,
         })),
+      });
+
+      // The clerk's own step (Tiếp nhận văn bản) is finished the moment the
+      // document is filed and forwarded to the next actors. Mark it
+      // COMPLETED so the clerk sees the document as "done" in their list
+      // while downstream actors (Trưởng phòng / Chuyên viên) still see it
+      // as pending until they finish their respective steps.
+      await tx.documentWorkflow.updateMany({
+        where: {
+          documentId: document.id,
+          workflowStep: { stepOrder: 1, roleName: 'DOCUMENT_CLERK' },
+        },
+        data: {
+          status: WorkflowStatus.COMPLETED,
+          userId: data.createdBy,
+          completedAt: new Date(),
+          notes: 'Văn thư đã tiếp nhận và chuyển xử lý',
+        },
       });
 
       return { documentId: document.id, incomingId: incoming.id };
@@ -1090,6 +1122,22 @@ export class IncomingDocumentsService {
           })),
         });
 
+        // The clerk's own step (Tiếp nhận văn bản) is finished the moment
+        // the document is filed and forwarded. See the matching block in
+        // `create()` for the rationale.
+        await tx.documentWorkflow.updateMany({
+          where: {
+            documentId: document.id,
+            workflowStep: { stepOrder: 1, roleName: 'DOCUMENT_CLERK' },
+          },
+          data: {
+            status: WorkflowStatus.COMPLETED,
+            userId: userId,
+            completedAt: new Date(),
+            notes: 'Văn thư đã tiếp nhận và chuyển xử lý',
+          },
+        });
+
         return { documentId: document.id, incomingId: incoming.id };
       });
 
@@ -1377,7 +1425,13 @@ export class IncomingDocumentsService {
   //     instead of back to the document clerk,
   //   • FORWARD does not accept deadline / attachments (kept simple).
 
-  async listPendingForSpecialist(params: { page: number; limit: number; search?: string; userId: number }) {
+  async listPendingForSpecialist(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    userId: number;
+    viewerFor?: { userId: number; userRoles: string[] };
+  }) {
     return incomingDocumentsRepository.findAllPendingForSpecialist(params);
   }
 

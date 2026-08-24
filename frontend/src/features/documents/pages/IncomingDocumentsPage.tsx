@@ -165,7 +165,7 @@ export default function IncomingDocumentsPage() {
                     <th>Trích yếu</th>
                     <th>Ngày đến</th>
                     <th>Độ khẩn</th>
-                    <th>Trạng thái</th>
+                    <th title="Trạng thái hiển thị là của bạn trong quy trình xử lý này">Trạng thái</th>
                     <th>Thao tác</th>
                   </tr>
                 </thead>
@@ -206,7 +206,7 @@ export default function IncomingDocumentsPage() {
                           </span>
                         ) : '—'}
                       </td>
-                      <td><DocumentStatusBadge status={item.document.status} /></td>
+                      <td><DocumentStatusBadge status={item.document.viewerStatus ?? item.document.status} /></td>
                       <td>
                         {item.document.status === 'DRAFT' ? (
                           <button

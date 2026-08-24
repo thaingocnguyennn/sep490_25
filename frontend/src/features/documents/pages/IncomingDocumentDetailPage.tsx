@@ -302,7 +302,7 @@ export default function IncomingDocumentDetailPage() {
             <div className="card-header">
               <h2>Thông tin văn bản</h2>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <DocumentStatusBadge status={d.status} />
+                <DocumentStatusBadge status={d.viewerStatus ?? d.status} />
               </div>
             </div>
             <div className="card-body">
@@ -445,7 +445,7 @@ export default function IncomingDocumentDetailPage() {
               <div className="card-header">
                 <h2>Quy trình xử lý</h2>
                 <div style={{ fontSize: 13, color: '#636e72' }}>
-                  Trạng thái: <strong>{WORKFLOW_STATUS_LABELS[d.status] || d.status}</strong>
+                  Trạng thái: <strong>{(WORKFLOW_STATUS_LABELS[d.viewerStatus ?? d.status] || (d.viewerStatus ?? d.status))}</strong>
                 </div>
               </div>
               <div className="card-body">
