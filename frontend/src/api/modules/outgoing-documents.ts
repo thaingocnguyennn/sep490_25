@@ -28,8 +28,17 @@ export const getOutgoingDocuments = async (
   if (params.limit)  queryParams.set('limit',  String(params.limit));
   if (params.search) queryParams.set('search', params.search);
   if (params.status) queryParams.set('status', params.status);
+  if (params.documentTypeId) queryParams.set('documentTypeId', String(params.documentTypeId));
   if (params.urgency !== undefined && params.urgency !== null)
     queryParams.set('urgency', String(params.urgency));
+  if (params.confidentialityLevel)
+    queryParams.set('confidentialityLevel', String(params.confidentialityLevel));
+  if (params.departmentId)
+    queryParams.set('departmentId', String(params.departmentId));
+  if (params.dateFrom)
+    queryParams.set('dateFrom', params.dateFrom);
+  if (params.dateTo)
+    queryParams.set('dateTo', params.dateTo);
 
   const query = queryParams.toString();
   const res = await api.get<ApiResponse<PaginatedResponse<OutgoingDocument>>>(
@@ -282,3 +291,11 @@ export const registerOutgoingDocument = async (
   const res = await api.post<ApiResponse<OutgoingDocument>>(`${BASE}/${id}/register`, data);
   return res.data.data!;
 };
+
+/** Lấy số lượng văn bản đi chưa xử lý (Lãnh đạo chưa duyệt, Văn thư chưa vào sổ) */
+export const getOutgoingUnprocessedCount = async (): Promise<number> => {
+  const res = await api.get<ApiResponse<{ count: number }>>(`${BASE}/unprocessed-count`);
+  return res.data.data?.count ?? 0;
+};
+
+

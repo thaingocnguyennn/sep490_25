@@ -44,7 +44,8 @@ export class UsersController {
 
   async getApprovers(req: Request, res: Response, next: NextFunction) {
     try {
-      const departmentId = req.user?.departmentId;
+      const queryDeptId = req.query.departmentId ? Number(req.query.departmentId) : undefined;
+      const departmentId = !Number.isNaN(queryDeptId) && queryDeptId ? queryDeptId : req.user?.departmentId;
       const result = await usersService.getAll({
         limit: 100,
         role: 'DEPARTMENT_HEAD',
@@ -59,7 +60,8 @@ export class UsersController {
 
   async getClerks(req: Request, res: Response, next: NextFunction) {
     try {
-      const departmentId = req.user?.departmentId;
+      const queryDeptId = req.query.departmentId ? Number(req.query.departmentId) : undefined;
+      const departmentId = !Number.isNaN(queryDeptId) && queryDeptId ? queryDeptId : req.user?.departmentId;
       const result = await usersService.getAll({
         limit: 100,
         role: 'DOCUMENT_CLERK',

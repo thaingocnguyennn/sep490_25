@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { outgoingDocumentsService } from './outgoing-documents.service';
 import { successResponse } from '../../shared/utils/response.util';
+import { UnauthorizedError } from '../../shared/exceptions/app-error';
 import prisma from '../../config/database';
 
 async function buildCurrentUserContext(user: any) {
@@ -48,6 +49,11 @@ export class OutgoingDocumentsController {
       const status = req.query.status as string | undefined;
       const urgency = (req.query.urgencyId ?? req.query.urgency) as string | undefined;
       const documentType = req.query.documentType as string | undefined;
+      const documentTypeIdParam = req.query.documentTypeId as string | undefined;
+      const parsedDocumentTypeId = documentTypeIdParam ? parseInt(documentTypeIdParam, 10) : NaN;
+      const documentTypeId = Number.isInteger(parsedDocumentTypeId) && parsedDocumentTypeId > 0
+        ? parsedDocumentTypeId
+        : undefined;
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;
       const confidentialityLevel = req.query.confidentialityLevel as string | undefined;
@@ -57,7 +63,7 @@ export class OutgoingDocumentsController {
 
       const result = await outgoingDocumentsService.list({ 
         page, limit, search, status, urgency, 
-        documentType, dateFrom, dateTo, confidentialityLevel, departmentId, currentUser 
+        documentType, documentTypeId, dateFrom, dateTo, confidentialityLevel, departmentId, currentUser 
       });
 
       res.status(200).json(
@@ -153,7 +159,8 @@ export class OutgoingDocumentsController {
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = parseInt(req.params.id as string);
-      const result = await outgoingDocumentsService.getById(id);
+      const currentUser = await buildCurrentUserContext(req.user);
+      const result = await outgoingDocumentsService.getById(id, currentUser);
       res.status(200).json(successResponse(result, 'Chi tiết văn bản đi'));
     } catch (error) {
       next(error);
@@ -371,6 +378,23 @@ export class OutgoingDocumentsController {
       });
 
       res.status(200).json(successResponse(data, 'Lấy thống kê văn bản đi thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /outgoing-documents/unprocessed-count
+   * Lấy số lượng văn bản đi chưa xử lý (Lãnh đạo chưa duyệt, Văn thư chưa vào sổ)
+   */
+  async getUnprocessedCount(req: Request, res: Response, next: NextFunction) {
+    try {
+      const currentUser = await buildCurrentUserContext(req.user);
+      if (!currentUser) {
+        return res.status(200).json(successResponse({ count: 0 }));
+      }
+      const data = await outgoingDocumentsService.getUnprocessedCount(currentUser);
+      res.status(200).json(successResponse(data, 'Lấy số lượng văn bản đi chưa xử lý thành công'));
     } catch (error) {
       next(error);
     }

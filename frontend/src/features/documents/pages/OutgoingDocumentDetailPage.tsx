@@ -121,12 +121,12 @@ export default function OutgoingDocumentDetailPage() {
 
   const canEdit = (isSpecialist || isClerk) && ['DRAFT', 'RETURNED'].includes(doc?.document.status ?? '');
   const canUpload = (isSpecialist || isClerk) && ['DRAFT', 'RETURNED'].includes(doc?.document.status ?? '');
-  const canSubmit = isSpecialist && doc?.document.status === 'DRAFT';
-  const canApprove = isDeptHead && doc?.document.status === 'SUBMITTED';
-  const canReturn = isDeptHead && doc?.document.status === 'SUBMITTED';
-  const canRegister = isClerk && doc?.document.status === 'APPROVED' && doc.assignedClerkId === user?.id;
-  const canIssue = isClerk && doc?.document.status === 'WAITING_FOR_ISSUE';
-  const canRecall = isClerk && doc?.document.status === 'ISSUED';
+  const canSubmit = (isSpecialist || isClerk || isAdmin) && doc?.document.status === 'DRAFT';
+  const canApprove = (isDeptHead || isAdmin) && doc?.document.status === 'SUBMITTED';
+  const canReturn = (isDeptHead || isAdmin) && doc?.document.status === 'SUBMITTED';
+  const canRegister = (isClerk || isAdmin) && doc?.document.status === 'APPROVED' && (doc.assignedClerkId === user?.id || doc.document.createdByUser?.id === user?.id || !doc.assignedClerkId || (doc.document.department?.id !== undefined && doc.document.department?.id === user?.department?.id));
+  const canIssue = (isClerk || isAdmin) && doc?.document.status === 'WAITING_FOR_ISSUE';
+  const canRecall = (isClerk || isAdmin) && doc?.document.status === 'ISSUED';
   const canSendEmail = (isSpecialist || isClerk || isDeptHead || isAdmin) && doc?.document.status === 'ISSUED';
   const canTrash = (isSpecialist || isClerk || isAdmin) && doc?.document.status === 'DRAFT';
   const canRestore = (isClerk || isAdmin) && doc?.document.status === 'TRASHED';
@@ -233,7 +233,8 @@ export default function OutgoingDocumentDetailPage() {
     if (action === 'submit') {
       setLoadingUsers(true);
       try {
-        const res = await usersApi.getApprovers();
+        const deptId = doc?.document.department?.id;
+        const res = await usersApi.getApprovers(deptId ? { departmentId: deptId } : undefined);
         setApprovers(res.data.data || []);
       } catch (err) {
         console.error('Failed to load approvers', err);
@@ -244,7 +245,8 @@ export default function OutgoingDocumentDetailPage() {
     if (action === 'approve') {
       setLoadingUsers(true);
       try {
-        const res = await usersApi.getClerks();
+        const deptId = doc?.document.department?.id;
+        const res = await usersApi.getClerks(deptId ? { departmentId: deptId } : undefined);
         setClerks(res.data.data || []);
       } catch (err) {
         console.error('Failed to load clerks', err);
@@ -969,6 +971,7 @@ export default function OutgoingDocumentDetailPage() {
           onClose={() => setRegisterModalOpen(false)}
           onRegister={handleRegister}
           documentSymbol={doc?.documentNumber || ''}
+          departmentId={doc?.document.department?.id}
         />
       )}
     </>

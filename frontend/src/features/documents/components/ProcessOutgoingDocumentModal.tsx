@@ -77,8 +77,12 @@ export default function ProcessOutgoingDocumentModal({
 
   useEffect(() => {
     if (open) {
+      // Khi Lãnh đạo phê duyệt, nếu người tạo/trình là văn thư thì ưu tiên chọn, ngược lại chọn văn thư đầu tiên
+      const creatorClerk = clerks.find(
+        (c) => c.id === doc.document.createdByUser?.id || c.id === doc.submittedBy
+      );
       setAssignedApproverId(approvers.length > 0 ? approvers[0].id : '');
-      setAssignedClerkId(clerks.length > 0 ? clerks[0].id : '');
+      setAssignedClerkId(creatorClerk ? creatorClerk.id : (clerks.length > 0 ? clerks[0].id : ''));
       setReturnReason('');
       setRecallReason('');
       setSentDate(new Date().toISOString().split('T')[0]);
@@ -87,7 +91,7 @@ export default function ProcessOutgoingDocumentModal({
       setNote('');
       setValidationError('');
     }
-  }, [open, action, approvers, clerks]);
+  }, [open, action, approvers, clerks, doc]);
 
   if (!open || !action) return null;
 

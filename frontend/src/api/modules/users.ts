@@ -42,9 +42,9 @@ export const usersApi = {
   updateMe: (data: { fullName?: string; phone?: string }) =>
     api.put<ApiResponse<User>>('/users/me', data),
 
-  getApprovers: () =>
-    api.get<ApiResponse<User[]>>('/users/approvers'),
+  getApprovers: (params?: { departmentId?: number }) =>
+    api.get<ApiResponse<User[]>>('/users/approvers', { params }),
 
-  getClerks: () =>
-    api.get<ApiResponse<User[]>>('/users/clerks'),
+  getClerks: (params?: { departmentId?: number }) =>
+    api.get<ApiResponse<User[]>>('/users/clerks', { params }),
 };

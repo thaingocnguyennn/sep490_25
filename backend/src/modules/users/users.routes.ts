@@ -27,13 +27,13 @@ router.get(
 
 router.get(
   '/approvers',
-  requireRole(ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK),
+  requireRole(ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK, ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
   usersController.getApprovers.bind(usersController)
 );
 
 router.get(
   '/clerks',
-  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.SPECIALIST),
+  requireRole(ROLES.DEPARTMENT_HEAD, ROLES.SPECIALIST, ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   usersController.getClerks.bind(usersController)
 );
 

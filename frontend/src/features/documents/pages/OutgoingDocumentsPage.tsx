@@ -1,146 +1,100 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useOutgoingDocuments, useDepartments } from '../../../shared/hooks';
+import { useOutgoingDocuments } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
-import { URGENCY_OPTIONS as URGENCY_LIST } from '../../../shared/constants/urgency';
-import { exportOutgoingExcel, exportOutgoingPdf } from '../../../api/modules/outgoing-documents';
-import type { OutgoingDocumentStatus, UrgencyName, ConfidentialityName } from '../../../types';
+import type { OutgoingDocumentStatus } from '../../../types';
 import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 
-const OUTGOING_STATUSES: { value: OutgoingDocumentStatus | ''; label: string }[] = [
-  { value: '',                 label: 'Tất cả trạng thái' },
-  { value: 'DRAFT',            label: 'Bản nháp' },
-  { value: 'SUBMITTED',        label: 'Chờ duyệt' },
-  { value: 'RETURNED',         label: 'Trả lại' },
-  { value: 'APPROVED',         label: 'Đã duyệt' },
-  { value: 'WAITING_FOR_ISSUE',label: 'Chờ phát hành' },
-  { value: 'ISSUED',           label: 'Đã phát hành' },
-  { value: 'COMPLETED',        label: 'Hoàn tất' },
-  { value: 'RECALLED',         label: 'Thu hồi' },
-  { value: 'TRASHED',          label: 'Đã xóa' },
-];
+// Kiểu dữ liệu Tab trạng thái cho Văn bản đi
+type StatusTab = '' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'WAITING_FOR_ISSUE' | 'ISSUED' | 'RETURNED';
 
-const URGENCY_OPTIONS: { value: UrgencyName | ''; label: string }[] = [
-  { value: '',           label: 'Tất cả độ khẩn' },
-  ...URGENCY_LIST.map((o) => ({ value: o.value, label: o.label })),
+// Danh sách các tab trạng thái văn bản đi hiển thị trên giao diện
+const TABS: { value: StatusTab; label: string }[] = [
+  { value: '', label: 'Tất cả' },
+  { value: 'DRAFT', label: 'Bản nháp' },
+  { value: 'SUBMITTED', label: 'Chờ duyệt' },
+  { value: 'APPROVED', label: 'Đã duyệt' },
+  { value: 'WAITING_FOR_ISSUE', label: 'Chờ phát hành' },
+  { value: 'ISSUED', label: 'Đã phát hành' },
+  { value: 'RETURNED', label: 'Trả lại' },
 ];
-
-const CONFIDENTIALITY_OPTIONS_LOCAL: { value: ConfidentialityName | ''; label: string }[] = [
-  { value: '',         label: 'Tất cả độ mật' },
-  { value: 'THUONG',   label: 'Thường' },
-  { value: 'MAT',      label: 'Mật (C)' },
-  { value: 'TOI_MAT',  label: 'Tối mật (B)' },
-  { value: 'TUYET_MAT',label: 'Tuyệt mật (A)' },
-];
-
-// Document kinds fetched dynamically
 
 export default function OutgoingDocumentsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isDocumentClerk, isAdmin, isSpecialist } = useAuth();
   const { documents, total, totalPages, loading, error, fetchDocuments } = useOutgoingDocuments();
+  const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
 
-  const [search, setSearch]           = useState('');
-  const [statusFilter, setStatusFilter] = useState<OutgoingDocumentStatus | ''>('');
-  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyName | ''>('');
+  // State tìm kiếm, lọc theo tab và loại văn bản
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusTab>('');
+  const [activeTab, setActiveTab] = useState<StatusTab>('');
   const [documentTypeFilter, setDocumentTypeFilter] = useState('');
-  const [confidentialityFilter, setConfidentialityFilter] = useState<ConfidentialityName | ''>('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  const [dateFromFilter, setDateFromFilter] = useState('');
-  const [dateToFilter, setDateToFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const LIMIT = 10;
 
-  const { departments } = useDepartments();
-  const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
+  // Quyền tạo văn bản đi mới (Chuyên viên, Văn thư, Quản trị viên)
+  const canCreate = isSpecialist || isDocumentClerk || isAdmin || user?.roles.some((r) => ['SPECIALIST', 'DOCUMENT_CLERK'].includes(r));
 
-  // Xác định quyền tạo văn bản đi
-  const canCreate = user?.roles.some((r) => ['SPECIALIST', 'DOCUMENT_CLERK'].includes(r));
-
+  // Hàm tải dữ liệu danh sách văn bản đi
   const loadData = useCallback(
-    (page = 1) => {
+    (page = 1, currentStatus = statusFilter, currentDocType = documentTypeFilter, currentSearch = search) => {
       fetchDocuments({
         page,
         limit: LIMIT,
-        search: search || undefined,
-        status: statusFilter || undefined,
-        urgency: urgencyFilter || undefined,
-        documentTypeId: documentTypeFilter ? Number(documentTypeFilter) : undefined,
-        confidentialityLevel: confidentialityFilter || undefined,
-        departmentId: departmentFilter ? Number(departmentFilter) : undefined,
-        dateFrom: dateFromFilter || undefined,
-        dateTo: dateToFilter || undefined,
+        search: currentSearch.trim() || undefined,
+        status: (currentStatus || undefined) as OutgoingDocumentStatus | undefined,
+        documentTypeId: currentDocType ? Number(currentDocType) : undefined,
       });
     },
-    [fetchDocuments, search, statusFilter, urgencyFilter, documentTypeFilter, confidentialityFilter, departmentFilter, dateFromFilter, dateToFilter],
+    [fetchDocuments, search, statusFilter, documentTypeFilter]
   );
 
   useEffect(() => {
     fetchDocumentTypes();
+    loadData(1, '', '', '');
   }, [fetchDocumentTypes]);
 
   useEffect(() => {
-    loadData(currentPage);
-  }, [currentPage, statusFilter, urgencyFilter, documentTypeFilter, confidentialityFilter, departmentFilter, dateFromFilter, dateToFilter, loadData]);
+    setStatusFilter(activeTab);
+  }, [activeTab]);
 
+  // Xử lý sự kiện tìm kiếm theo từ khóa
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    loadData(1);
+    loadData(1, statusFilter, documentTypeFilter, search);
   };
 
-  const handleExport = async (format: 'excel' | 'pdf') => {
-    try {
-      const params = {
-        search: search || undefined,
-        status: statusFilter || undefined,
-        urgency: urgencyFilter || undefined,
-        documentType: documentTypeFilter || undefined, // Keep string for export or pass ID depending on backend export
-        confidentialityLevel: confidentialityFilter || undefined,
-        departmentId: departmentFilter ? Number(departmentFilter) : undefined,
-        dateFrom: dateFromFilter || undefined,
-        dateTo: dateToFilter || undefined,
-      };
-
-      const res = format === 'excel' ? await exportOutgoingExcel(params) : await exportOutgoingPdf(params);
-      
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `bao_cao_van_ban_di.${format === 'excel' ? 'xlsx' : 'pdf'}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error('Lỗi khi xuất file:', err);
-      alert('Đã có lỗi xảy ra khi xuất báo cáo. Vui lòng thử lại.');
-    }
+  // Xử lý khi chuyển tab trạng thái
+  const handleTabChange = (tab: StatusTab) => {
+    setActiveTab(tab);
+    setStatusFilter(tab);
+    setCurrentPage(1);
+    loadData(1, tab, documentTypeFilter, search);
   };
 
+  // Xử lý khi lọc theo loại văn bản
+  const handleDocumentTypeChange = (documentTypeId: string) => {
+    setDocumentTypeFilter(documentTypeId);
+    setCurrentPage(1);
+    loadData(1, statusFilter, documentTypeId, search);
+  };
+
+  // Xử lý chuyển trang phân trang
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    loadData(page, statusFilter, documentTypeFilter, search);
   };
 
   return (
     <>
-      {/* Top bar */}
+      {/* Thanh tiêu đề trên cùng (Top Bar) */}
       <div className="top-bar">
         <h1>Văn bản đi</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          {/* <button
-            className="btn btn-secondary"
-            onClick={() => handleExport('excel')}
-          >
-            Xuất Excel
-          </button> */}
-          {/* <button
-            className="btn btn-secondary"
-            onClick={() => handleExport('pdf')}
-          >
-            Xuất PDF
-          </button> */}
           {canCreate && (
             <button
               id="btn-create-outgoing"
@@ -155,80 +109,60 @@ export default function OutgoingDocumentsPage() {
 
       <div className="page-content">
         <div className="card">
-          {/* Header với filter */}
+          {/* Header của thẻ card gồm tiêu đề tổng số lượng và form tìm kiếm tinh gọn */}
           <div className="card-header">
             <h2>Tất cả Văn bản đi ({total})</h2>
             <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input
                 id="outgoing-search"
                 type="text"
-                placeholder="Tìm theo tiêu đề, số ký hiệu..."
+                placeholder="Tìm theo số ký hiệu hoặc trích yếu..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, minWidth: 260 }}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, width: 280 }}
               />
               <select
-                id="outgoing-status-filter"
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value as OutgoingDocumentStatus | ''); setCurrentPage(1); }}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
-              >
-                {OUTGOING_STATUSES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <select
-                id="outgoing-urgency-filter"
-                value={urgencyFilter}
-                onChange={(e) => { setUrgencyFilter(e.target.value as UrgencyName | ''); setCurrentPage(1); }}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
-              >
-                {URGENCY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <select
+                id="outgoing-document-type-filter"
                 value={documentTypeFilter}
-                onChange={(e) => { setDocumentTypeFilter(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => handleDocumentTypeChange(e.target.value)}
                 style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
               >
                 <option value="">Tất cả loại VB</option>
-                {documentTypeOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {documentTypeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
               </select>
-              <select
-                value={confidentialityFilter}
-                onChange={(e) => { setConfidentialityFilter(e.target.value as ConfidentialityName | ''); setCurrentPage(1); }}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
-              >
-                {CONFIDENTIALITY_OPTIONS_LOCAL.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
-              <select
-                value={departmentFilter}
-                onChange={(e) => { setDepartmentFilter(e.target.value); setCurrentPage(1); }}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
-              >
-                <option value="">Tất cả phòng ban</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-              <input
-                type="date"
-                value={dateFromFilter}
-                onChange={(e) => { setDateFromFilter(e.target.value); setCurrentPage(1); }}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
-                title="Từ ngày"
-              />
-              <input
-                type="date"
-                value={dateToFilter}
-                onChange={(e) => { setDateToFilter(e.target.value); setCurrentPage(1); }}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14 }}
-                title="Đến ngày"
-              />
               <button type="submit" className="btn btn-secondary">Tìm kiếm</button>
             </form>
           </div>
 
-          {/* Body: bảng dữ liệu */}
+          {/* Thanh Tab trạng thái văn bản đi (gạch chân active indicator giống trang Văn bản đến) */}
+          <div style={{ display: 'flex', gap: 4, padding: '12px 16px 0', borderBottom: '1px solid #dfe6e9', overflowX: 'auto' }}>
+            {TABS.map((tab) => (
+              <button
+                key={tab.value || 'all'}
+                type="button"
+                onClick={() => handleTabChange(tab.value)}
+                className={`tab-btn ${activeTab === tab.value ? 'active' : ''}`}
+                style={{
+                  padding: '8px 16px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === tab.value ? '2px solid #667eea' : '2px solid transparent',
+                  color: activeTab === tab.value ? '#667eea' : '#636e72',
+                  fontWeight: activeTab === tab.value ? 600 : 500,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  marginBottom: -1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Nội dung bảng danh sách dữ liệu */}
           <div className="card-body" style={{ padding: 0 }}>
             {error && (
               <div style={{ padding: 16, color: '#e74c3c', background: '#fdf0f0', margin: 16, borderRadius: 8 }}>
@@ -241,7 +175,7 @@ export default function OutgoingDocumentsPage() {
             ) : documents.length === 0 ? (
               <div className="empty-state">
                 <h3>Không tìm thấy văn bản đi</h3>
-                <p>Thử điều chỉnh bộ lọc hoặc tạo văn bản đi mới.</p>
+                <p>Thử điều chỉnh tìm kiếm hoặc tạo văn bản đi mới.</p>
                 {canCreate && (
                   <button
                     className="btn btn-primary"
@@ -259,7 +193,7 @@ export default function OutgoingDocumentsPage() {
                     <th>Số phát hành</th>
                     <th>Số ký hiệu</th>
                     <th>Loại VB</th>
-                    <th>Tiêu đề</th>
+                    <th>Trích yếu</th>
                     <th>Người nhận</th>
                     <th>Ngày tạo</th>
                     <th>Độ khẩn</th>
@@ -279,7 +213,7 @@ export default function OutgoingDocumentsPage() {
                       </td>
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#667eea' }}>
-                          {item.documentNumber || item.document.documentNumber}
+                          {item.documentNumber || item.document.documentNumber || '—'}
                         </span>
                       </td>
                       <td>
@@ -287,15 +221,23 @@ export default function OutgoingDocumentsPage() {
                           <span className="badge badge-type">{item.documentTypeRef.name}</span>
                         ) : '—'}
                       </td>
-                      <td style={{ maxWidth: 220 }}>
+                      <td style={{ maxWidth: 200 }}>
                         <span
-                          title={item.document.subject}
-                          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                          title={item.document.subject || ''}
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}
                         >
-                          {item.document.subject}
+                          {item.document.subject || '—'}
                         </span>
                       </td>
-                      <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td
+                        style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={item.recipientName || ''}
+                      >
                         {item.recipientName || '—'}
                       </td>
                       <td>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</td>
@@ -304,22 +246,23 @@ export default function OutgoingDocumentsPage() {
                         <DocumentStatusBadge status={item.document.status} />
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                          id={`btn-view-outgoing-${item.id}`}
-                          className="action-btn view"
-                          title="Xem chi tiết"
-                          onClick={() => navigate(`/outgoing-documents/${item.id}`)}
-                        >
-                          &#128065;
-                        </button>
-                        {canCreate && item.document.status === 'DRAFT' && (
+                        {item.document.status === 'DRAFT' && canCreate ? (
                           <button
                             id={`btn-edit-outgoing-${item.id}`}
                             className="action-btn edit"
-                            title="Chỉnh sửa"
+                            title="Sửa bản nháp"
                             onClick={() => navigate(`/outgoing-documents/${item.id}/edit`)}
                           >
                             &#9998;
+                          </button>
+                        ) : (
+                          <button
+                            id={`btn-view-outgoing-${item.id}`}
+                            className="action-btn view"
+                            title="Xem chi tiết"
+                            onClick={() => navigate(`/outgoing-documents/${item.id}`)}
+                          >
+                            &#128065;
                           </button>
                         )}
                       </td>
@@ -330,7 +273,7 @@ export default function OutgoingDocumentsPage() {
             )}
           </div>
 
-          {/* Pagination */}
+          {/* Phân trang đồng bộ với IncomingDocumentsPage */}
           {totalPages > 1 && (
             <div className="pagination">
               <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>
@@ -354,7 +297,7 @@ export default function OutgoingDocumentsPage() {
                     >
                       {p}
                     </button>
-                  ),
+                  )
                 )}
               <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>
                 Sau
@@ -366,3 +309,4 @@ export default function OutgoingDocumentsPage() {
     </>
   );
 }
+

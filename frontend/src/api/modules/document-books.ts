@@ -121,6 +121,7 @@ export const documentBooksApi = {
     bookType?: string;
     year?: number;
     status?: string;
+    departmentId?: number;
   }) => {
     const response = await api.get<DocumentBooksListResponse>('/document-books', { params });
     return response.data;

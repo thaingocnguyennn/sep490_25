@@ -8,6 +8,7 @@ interface RegisterDocumentModalProps {
   loading: boolean;
   documentSymbol?: string;
   documentTypeName?: string;
+  departmentId?: number;
 }
 
 export default function RegisterDocumentModal({
@@ -17,6 +18,7 @@ export default function RegisterDocumentModal({
   loading,
   documentSymbol,
   documentTypeName,
+  departmentId,
 }: RegisterDocumentModalProps) {
   const [selectedBookId, setSelectedBookId] = useState<number | ''>('');
   const [customDate, setCustomDate] = useState<string>(
@@ -27,6 +29,7 @@ export default function RegisterDocumentModal({
     limit: 100,
     bookType: type,
     status: 'ACTIVE',
+    ...(departmentId ? { departmentId } : {}),
   });
 
   // Tự động chọn sổ mặc định hoặc sổ đầu tiên
