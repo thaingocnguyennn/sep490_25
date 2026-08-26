@@ -43,6 +43,14 @@ router.get(
   outgoingDocumentsController.getStatistics.bind(outgoingDocumentsController),
 );
 
+// GET /outgoing-documents/unprocessed-count — Số lượng văn bản đi chưa xử lý (Lãnh đạo chưa duyệt, Văn thư chưa vào sổ)
+// PHẢI đặt TRƯỚC /:id để tránh Express nhầm "unprocessed-count" là một :id
+router.get(
+  '/unprocessed-count',
+  authenticate,
+  outgoingDocumentsController.getUnprocessedCount.bind(outgoingDocumentsController),
+);
+
 // GET /outgoing-documents/export — Xuất danh sách ra Excel/PDF
 // Đặt TRƯỚC /:id
 router.get(

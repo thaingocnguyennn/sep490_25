@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { NavLink, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getOutgoingUnprocessedCount } from '../api/modules/outgoing-documents';
 
 interface LayoutContextValue {
   sidebarCollapsed: boolean;
@@ -10,6 +11,25 @@ interface LayoutContextValue {
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { user, logout, isDepartmentHead, isSpecialist, isAdmin, isDocumentClerk } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const [outgoingUnprocessedCount, setOutgoingUnprocessedCount] = useState(0);
+
+  const fetchUnprocessedCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const count = await getOutgoingUnprocessedCount();
+      setOutgoingUnprocessedCount(count);
+    } catch {
+      // Ignore background error
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchUnprocessedCount();
+    const interval = setInterval(fetchUnprocessedCount, 15000);
+    return () => clearInterval(interval);
+  }, [fetchUnprocessedCount, location.pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -82,11 +102,21 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                 </svg>
               </NavLink>
             )}
-            <NavLink to="/outgoing-documents" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Văn bản đi">
+            <NavLink
+              to="/outgoing-documents"
+              className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`}
+              title="Văn bản đi"
+              style={{ position: 'relative' }}
+            >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
+              {outgoingUnprocessedCount > 0 && (
+                <span className="sidebar-icon-badge-red">
+                  {outgoingUnprocessedCount > 99 ? '99+' : outgoingUnprocessedCount}
+                </span>
+              )}
             </NavLink>
             {!isSpecialist && (
               <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item-icon ${isActive ? 'active' : ''}`} title="Thống kê văn bản">
@@ -166,7 +196,12 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
-              Văn bản đi
+              <span>Văn bản đi</span>
+              {outgoingUnprocessedCount > 0 && (
+                <span className="sidebar-badge-red">
+                  {outgoingUnprocessedCount > 99 ? '99+' : outgoingUnprocessedCount}
+                </span>
+              )}
             </NavLink>
             {!isSpecialist && (
               <NavLink to="/documents/statistics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>

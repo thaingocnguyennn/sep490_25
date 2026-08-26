@@ -101,6 +101,7 @@ export class OutgoingDocumentsService {
     urgency?: string;
     includeTrashed?: boolean;
     documentType?: string;
+    documentTypeId?: number;
     dateFrom?: string;
     dateTo?: string;
     confidentialityLevel?: string;
@@ -134,9 +135,30 @@ export class OutgoingDocumentsService {
 
   /**
    * Lấy chi tiết văn bản đi theo ID.
+   * Bản nháp (DRAFT) chỉ có người tạo hoặc ADMIN mới có quyền xem.
    */
-  async getById(id: number) {
-    return outgoingDocumentsRepository.findById(id);
+  async getById(
+    id: number,
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    }
+  ) {
+    const doc = await outgoingDocumentsRepository.findById(id);
+    if (!doc) throw new NotFoundError('Không tìm thấy văn bản đi');
+
+    // Nếu văn bản ở trạng thái DRAFT thì CHỈ người tạo (createdBy) hoặc ADMIN mới có quyền xem
+    if (currentUser && doc.document.status === 'DRAFT') {
+      const isAdmin = currentUser.roles.includes('ADMIN');
+      const isCreator = doc.document.createdByUser?.id === currentUser.id;
+      if (!isAdmin && !isCreator) {
+        throw new ForbiddenError('Bản nháp này chưa được gửi đi và chỉ người soạn thảo mới có quyền truy cập');
+      }
+    }
+
+    return doc;
   }
 
   /**
@@ -1273,6 +1295,18 @@ export class OutgoingDocumentsService {
 
       doc.end();
     });
+  }
+
+  /**
+   * Đếm số lượng văn bản đi chưa xử lý theo vai trò (Lãnh đạo chưa duyệt, Văn thư chưa vào sổ)
+   */
+  async getUnprocessedCount(currentUser: {
+    id: number;
+    roles: string[];
+    departmentId?: number | null;
+    departmentName?: string | null;
+  }) {
+    return outgoingDocumentsRepository.getUnprocessedCount(currentUser);
   }
 }
 

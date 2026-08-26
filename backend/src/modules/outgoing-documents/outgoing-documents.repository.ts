@@ -177,12 +177,29 @@ export class OutgoingDocumentsRepository {
       } else {
         const authOr: Prisma.OutgoingDocumentWhereInput[] = [];
 
+        // 1. Tài liệu do chính user hiện tại tạo (bao gồm cả bản nháp DRAFT của chính họ)
+        authOr.push({ document: { createdBy: currentUser.id } });
+
+        // 2. Điều kiện chỉ áp dụng cho các tài liệu ĐÃ GỬI / KHÔNG PHẢI BẢN NHÁP (status != 'DRAFT')
+        const notDraft: Prisma.DocumentWhereInput = {
+          status: { not: 'DRAFT' as any },
+        };
+
         if (isSpecialist) {
-          authOr.push(
-            { document: { createdBy: currentUser.id } },
-            { document: { departmentId: currentUser.departmentId || -1 } },
-            { document: { processors: { some: { userId: currentUser.id } } } }
-          );
+          if (currentUser.departmentId) {
+            authOr.push({
+              document: {
+                ...notDraft,
+                departmentId: currentUser.departmentId,
+              },
+            });
+          }
+          authOr.push({
+            document: {
+              ...notDraft,
+              processors: { some: { userId: currentUser.id } },
+            },
+          });
           if (currentUser.departmentName) {
             authOr.push({
               document: { status: 'ISSUED' },
@@ -192,11 +209,24 @@ export class OutgoingDocumentsRepository {
         }
 
         if (isDeptHead) {
-          authOr.push(
-            { document: { departmentId: currentUser.departmentId || -1 } },
-            { assignedApproverId: currentUser.id },
-            { document: { processors: { some: { userId: currentUser.id } } } }
-          );
+          if (currentUser.departmentId) {
+            authOr.push({
+              document: {
+                ...notDraft,
+                departmentId: currentUser.departmentId,
+              },
+            });
+          }
+          authOr.push({
+            document: notDraft,
+            assignedApproverId: currentUser.id,
+          });
+          authOr.push({
+            document: {
+              ...notDraft,
+              processors: { some: { userId: currentUser.id } },
+            },
+          });
           if (currentUser.departmentName) {
             authOr.push({
               document: { status: 'ISSUED' },
@@ -206,12 +236,17 @@ export class OutgoingDocumentsRepository {
         }
 
         if (isClerk) {
-          authOr.push(
-            { document: { createdBy: currentUser.id } },
-            { assignedClerkId: currentUser.id }
-          );
+          authOr.push({
+            document: notDraft,
+            assignedClerkId: currentUser.id,
+          });
           if (currentUser.departmentId) {
-            authOr.push({ document: { departmentId: currentUser.departmentId } });
+            authOr.push({
+              document: {
+                ...notDraft,
+                departmentId: currentUser.departmentId,
+              },
+            });
           }
           if (currentUser.departmentName) {
             authOr.push({
@@ -399,6 +434,72 @@ export class OutgoingDocumentsRepository {
     ]);
 
     return { items, total };
+  }
+
+  /**
+   * Đếm số lượng văn bản đi chưa xử lý để hiển thị thông báo số đỏ:
+   * - Lãnh đạo (DEPARTMENT_HEAD): số văn bản chờ duyệt (SUBMITTED)
+   * - Văn thư (DOCUMENT_CLERK): số văn bản đã duyệt chưa vào sổ (APPROVED)
+   */
+  async getUnprocessedCount(currentUser: {
+    id: number;
+    roles: string[];
+    departmentId?: number | null;
+    departmentName?: string | null;
+  }): Promise<{ count: number }> {
+    const isDeptHead = currentUser.roles.includes('DEPARTMENT_HEAD');
+    const isClerk = currentUser.roles.includes('DOCUMENT_CLERK');
+    const isAdmin = currentUser.roles.includes('ADMIN');
+
+    let count = 0;
+
+    if (isDeptHead) {
+      // Đếm số văn bản đi chờ Lãnh đạo duyệt (SUBMITTED)
+      const authOr: Prisma.OutgoingDocumentWhereInput[] = [
+        { assignedApproverId: currentUser.id },
+        { document: { processors: { some: { userId: currentUser.id } } } },
+      ];
+      if (currentUser.departmentId) {
+        authOr.push({ document: { departmentId: currentUser.departmentId } });
+      }
+      count += await prisma.outgoingDocument.count({
+        where: {
+          document: { status: 'SUBMITTED', documentStatus: 'ACTIVE' },
+          OR: authOr,
+        },
+      });
+    }
+
+    if (isClerk) {
+      // Đếm số văn bản đi đã duyệt chờ Văn thư vào sổ (APPROVED)
+      const authOr: Prisma.OutgoingDocumentWhereInput[] = [
+        { assignedClerkId: currentUser.id },
+        { document: { createdBy: currentUser.id } },
+      ];
+      if (currentUser.departmentId) {
+        authOr.push({ document: { departmentId: currentUser.departmentId } });
+      }
+      count += await prisma.outgoingDocument.count({
+        where: {
+          document: { status: 'APPROVED', documentStatus: 'ACTIVE' },
+          OR: authOr,
+        },
+      });
+    }
+
+    if (isAdmin && !isDeptHead && !isClerk) {
+      // Admin xem tổng số vb chờ duyệt và chờ vào sổ trên hệ thống
+      count = await prisma.outgoingDocument.count({
+        where: {
+          document: {
+            status: { in: ['SUBMITTED', 'APPROVED'] },
+            documentStatus: 'ACTIVE',
+          },
+        },
+      });
+    }
+
+    return { count };
   }
 
   /**
