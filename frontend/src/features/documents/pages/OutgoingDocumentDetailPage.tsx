@@ -200,6 +200,7 @@ export default function OutgoingDocumentDetailPage() {
       confidentialityLevel: (payload.issueConfidentiality || undefined) as any,
       assignedApproverId: payload.assignedApproverId,
       assignedClerkId: payload.assignedClerkId,
+      note: payload.note,
     };
 
     const result = await updateStatus(doc.id, updatePayload);
@@ -401,15 +402,15 @@ export default function OutgoingDocumentDetailPage() {
                     <div className="detail-item">
                       <label>2. Số ký hiệu</label>
                       <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea' }}>
-                        {doc.documentNumber || doc.document.documentNumber}
+                        {doc.document.documentNumber || doc.documentNumber}
                       </span>
                     </div>
                   )}
 
-                  {/* Số phát hành chính thức (khi đã vào sổ/ban hành) */}
+                  {/* Số đi chính thức (khi đã vào sổ/ban hành) */}
                   {doc.dispatchNumber && (
                     <div className="detail-item">
-                      <label>Số phát hành chính thức</label>
+                      <label>Số đi chính thức</label>
                       <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#667eea', fontSize: 16 }}>
                         {doc.dispatchNumber}
                       </span>
@@ -532,7 +533,7 @@ export default function OutgoingDocumentDetailPage() {
                 <div className="card-header">
                   <h2>Upload file nháp</h2>
                   <p style={{ color: '#636e72', fontSize: 13, margin: 0 }}>
-                    Hỗ trợ: PDF, DOCX, JPG, PNG, TIFF, BMP (tối đa 10MB)
+                    Hỗ trợ: PDF, DOCX, JPG, PNG, TIFF, BMP (tối đa 50MB)
                   </p>
                 </div>
                 <div className="card-body">

@@ -29,6 +29,7 @@ export const getOutgoingDocuments = async (
   if (params.search) queryParams.set('search', params.search);
   if (params.status) queryParams.set('status', params.status);
   if (params.documentTypeId) queryParams.set('documentTypeId', String(params.documentTypeId));
+  if (params.documentBookId) queryParams.set('documentBookId', String(params.documentBookId));
   if (params.urgency !== undefined && params.urgency !== null)
     queryParams.set('urgency', String(params.urgency));
   if (params.confidentialityLevel)

@@ -35,6 +35,17 @@ export interface OutgoingDocumentWithRelations {
   trashedBy: number | null;
   assignedApproverId: number | null;
   assignedClerkId: number | null;
+  documentBookId: number | null;
+  documentBook: {
+    id: number;
+    name: string;
+    code: string | null;
+    year: number;
+  } | null;
+  bookEntry: {
+    sequenceNumber: number;
+    officialNumber: string;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
   document: {
@@ -118,6 +129,20 @@ const OUTGOING_INCLUDE = {
       },
     },
   },
+  documentBook: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      year: true,
+    },
+  },
+  bookEntry: {
+    select: {
+      sequenceNumber: true,
+      officialNumber: true,
+    },
+  },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },
@@ -140,6 +165,7 @@ export class OutgoingDocumentsRepository {
     status?: string;
     urgency?: string;
     documentTypeId?: number;
+    documentBookId?: number;
     dateFrom?: string;
     dateTo?: string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy enum value */
@@ -153,7 +179,7 @@ export class OutgoingDocumentsRepository {
       departmentName?: string | null;
     };
   }) {
-    const { page, limit, search, status, urgency, documentTypeId, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed, currentUser } = params;
+    const { page, limit, search, status, urgency, documentTypeId, documentBookId, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed, currentUser } = params;
     const skip = (page - 1) * limit;
 
     // Mặc định chỉ hiện văn bản ACTIVE (không ở thùng rác)
@@ -268,6 +294,7 @@ export class OutgoingDocumentsRepository {
     if (search) {
       (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({
         OR: [
+          { dispatchNumber: { contains: search, mode: 'insensitive' } },
           { document: { subject: { contains: search, mode: 'insensitive' } } },
           { document: { documentNumber: { contains: search, mode: 'insensitive' } } },
           { document: { ocrText: { contains: search, mode: 'insensitive' } } },
@@ -302,6 +329,10 @@ export class OutgoingDocumentsRepository {
         ...(where.document as object),
         documentTypeId,
       };
+    }
+
+    if (documentBookId !== undefined) {
+      where.documentBookId = documentBookId;
     }
 
     if (dateFrom || dateTo) {

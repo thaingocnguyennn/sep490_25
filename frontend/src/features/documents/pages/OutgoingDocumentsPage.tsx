@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { OutgoingDocumentStatus } from '../../../types';
 import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
+import { documentBooksApi, type DocumentBook } from '../../../api/modules/document-books';
 
 // Kiểu dữ liệu Tab trạng thái cho Văn bản đi
 type StatusTab = '' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'WAITING_FOR_ISSUE' | 'ISSUED' | 'RETURNED';
@@ -27,11 +28,13 @@ export default function OutgoingDocumentsPage() {
   const { documents, total, totalPages, loading, error, fetchDocuments } = useOutgoingDocuments();
   const { options: documentTypeOptions, fetchOptions: fetchDocumentTypes } = useDocumentTypeOptions();
 
-  // State tìm kiếm, lọc theo tab và loại văn bản
+  // State tìm kiếm, lọc theo tab, loại văn bản và sổ văn bản
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusTab>('');
   const [activeTab, setActiveTab] = useState<StatusTab>('');
   const [documentTypeFilter, setDocumentTypeFilter] = useState('');
+  const [documentBookFilter, setDocumentBookFilter] = useState('');
+  const [outgoingBooks, setOutgoingBooks] = useState<DocumentBook[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const LIMIT = 10;
 
@@ -40,21 +43,36 @@ export default function OutgoingDocumentsPage() {
 
   // Hàm tải dữ liệu danh sách văn bản đi
   const loadData = useCallback(
-    (page = 1, currentStatus = statusFilter, currentDocType = documentTypeFilter, currentSearch = search) => {
+    (
+      page = 1,
+      currentStatus = statusFilter,
+      currentDocType = documentTypeFilter,
+      currentBook = documentBookFilter,
+      currentSearch = search
+    ) => {
       fetchDocuments({
         page,
         limit: LIMIT,
         search: currentSearch.trim() || undefined,
         status: (currentStatus || undefined) as OutgoingDocumentStatus | undefined,
         documentTypeId: currentDocType ? Number(currentDocType) : undefined,
+        documentBookId: currentBook ? Number(currentBook) : undefined,
       });
     },
-    [fetchDocuments, search, statusFilter, documentTypeFilter]
+    [fetchDocuments, search, statusFilter, documentTypeFilter, documentBookFilter]
   );
 
   useEffect(() => {
     fetchDocumentTypes();
-    loadData(1, '', '', '');
+    documentBooksApi
+      .list({ bookType: 'OUTGOING', status: 'ACTIVE', limit: 100 })
+      .then((res) => {
+        if (res?.items) {
+          setOutgoingBooks(res.items);
+        }
+      })
+      .catch(() => {});
+    loadData(1, '', '', '', '');
   }, [fetchDocumentTypes]);
 
   useEffect(() => {
@@ -65,7 +83,7 @@ export default function OutgoingDocumentsPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    loadData(1, statusFilter, documentTypeFilter, search);
+    loadData(1, statusFilter, documentTypeFilter, documentBookFilter, search);
   };
 
   // Xử lý khi chuyển tab trạng thái
@@ -73,20 +91,27 @@ export default function OutgoingDocumentsPage() {
     setActiveTab(tab);
     setStatusFilter(tab);
     setCurrentPage(1);
-    loadData(1, tab, documentTypeFilter, search);
+    loadData(1, tab, documentTypeFilter, documentBookFilter, search);
   };
 
   // Xử lý khi lọc theo loại văn bản
   const handleDocumentTypeChange = (documentTypeId: string) => {
     setDocumentTypeFilter(documentTypeId);
     setCurrentPage(1);
-    loadData(1, statusFilter, documentTypeId, search);
+    loadData(1, statusFilter, documentTypeId, documentBookFilter, search);
+  };
+
+  // Xử lý khi lọc theo sổ văn bản
+  const handleDocumentBookChange = (bookId: string) => {
+    setDocumentBookFilter(bookId);
+    setCurrentPage(1);
+    loadData(1, statusFilter, documentTypeFilter, bookId, search);
   };
 
   // Xử lý chuyển trang phân trang
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    loadData(page, statusFilter, documentTypeFilter, search);
+    loadData(page, statusFilter, documentTypeFilter, documentBookFilter, search);
   };
 
   return (
@@ -119,8 +144,21 @@ export default function OutgoingDocumentsPage() {
                 placeholder="Tìm theo số ký hiệu hoặc trích yếu..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, width: 280 }}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, width: 260 }}
               />
+              <select
+                id="outgoing-document-book-filter"
+                value={documentBookFilter}
+                onChange={(e) => handleDocumentBookChange(e.target.value)}
+                style={{ padding: '6px 12px', border: '1px solid #dfe6e9', borderRadius: 6, fontSize: 14, maxWidth: 220 }}
+              >
+                <option value="">Tất cả sổ văn bản</option>
+                {outgoingBooks.map((book) => (
+                  <option key={book.id} value={book.id}>
+                    {book.name} ({book.year})
+                  </option>
+                ))}
+              </select>
               <select
                 id="outgoing-document-type-filter"
                 value={documentTypeFilter}
@@ -190,7 +228,7 @@ export default function OutgoingDocumentsPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Số phát hành</th>
+                    <th>Số đi</th>
                     <th>Số ký hiệu</th>
                     <th>Loại VB</th>
                     <th>Trích yếu</th>
@@ -208,12 +246,20 @@ export default function OutgoingDocumentsPage() {
                       style={{ cursor: 'pointer' }}
                       onClick={() => navigate(`/outgoing-documents/${item.id}`)}
                     >
-                      <td style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea' }}>
-                        {item.dispatchNumber || '—'}
+                      <td
+                        style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea', textAlign: 'center' }}
+                      >
+                        {item.bookEntry?.sequenceNumber
+                          ? String(item.bookEntry.sequenceNumber).padStart(2, '0')
+                          : item.dispatchNumber
+                          ? item.dispatchNumber.includes('/')
+                            ? item.dispatchNumber.split('/')[0]
+                            : item.dispatchNumber
+                          : '—'}
                       </td>
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#667eea' }}>
-                          {item.documentNumber || item.document.documentNumber || '—'}
+                          {item.document.documentNumber || item.documentNumber || '—'}
                         </span>
                       </td>
                       <td>

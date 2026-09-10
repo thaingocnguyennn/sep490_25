@@ -29,7 +29,7 @@ export default function RegisterDocumentModal({
     limit: 100,
     bookType: type,
     status: 'ACTIVE',
-    ...(departmentId ? { departmentId } : {}),
+    ...(type === 'INCOMING' && departmentId ? { departmentId } : {}),
   });
 
   // Tự động chọn sổ mặc định hoặc sổ đầu tiên
@@ -129,7 +129,7 @@ export default function RegisterDocumentModal({
                 {selectedBook && (
                   <div className="form-group">
                     <label>
-                      {type === 'INCOMING' ? 'Số đến dự kiến cấp' : 'Số phát hành dự kiến cấp (NĐ 30)'}
+                      {type === 'INCOMING' ? 'Số đến dự kiến cấp' : 'Số đi dự kiến cấp (NĐ 30)'}
                     </label>
                     <div
                       style={{
@@ -154,7 +154,7 @@ export default function RegisterDocumentModal({
                     <small style={{ color: '#636e72', fontSize: 12, marginTop: 4, display: 'block' }}>
                       {type === 'INCOMING'
                         ? 'Số đến sẽ được tự động tăng liên tục theo thứ tự thời gian vào sổ.'
-                        : 'Số phát hành được tự động định dạng chuẩn: [Số thứ tự]/[Ký hiệu loại VB]-[Ký hiệu đơn vị].'}
+                        : 'Số đi được tự động định dạng chuẩn: [Số thứ tự]/[Ký hiệu loại VB]-[Ký hiệu đơn vị].'}
                     </small>
                   </div>
                 )}
