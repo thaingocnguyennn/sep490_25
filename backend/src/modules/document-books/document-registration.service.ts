@@ -159,17 +159,28 @@ export class DocumentRegistrationService {
       if (book.bookType !== 'OUTGOING') throw new BadRequestError('Sổ này không phải là sổ văn bản đi');
       if (book.status !== 'ACTIVE') throw new BadRequestError('Sổ văn bản không ở trạng thái hoạt động');
 
-      // 3. Increment số hiện tại của sổ (Atomic counter)
+      // 3. Tính toán số thứ tự tiếp theo (đảm bảo tăng dần và tuyệt đối không trùng lặp trong năm)
+      const maxEntryInYear = await tx.outgoingBookEntry.findFirst({
+        where: {
+          documentBook: { year: book.year },
+        },
+        orderBy: { sequenceNumber: 'desc' },
+        select: { sequenceNumber: true },
+      });
+
+      const maxSeq = maxEntryInYear ? maxEntryInYear.sequenceNumber : 0;
+      const targetSeq = Math.max(book.currentNumber, maxSeq) + 1;
+
       const updatedBook = await tx.documentBook.update({
         where: { id: documentBookId },
         data: {
-          currentNumber: { increment: 1 }
+          currentNumber: targetSeq,
         },
-        select: { currentNumber: true }
+        select: { currentNumber: true },
       });
       const sequenceNumber = updatedBook.currentNumber;
 
-      // 4. Tạo số phát hành chính thức (officialNumber) chuẩn Nghị định 30
+      // 4. Tạo số đi chính thức (officialNumber) chuẩn Nghị định 30
       // Cấu trúc: [Số thứ tự]/[Ký hiệu loại VB]-[Ký hiệu đơn vị soạn thảo]
       // VD: sequenceNumber = 5, documentNumber = "QĐ-UBND" -> "05/QĐ-UBND"
       const typeCode = doc.document.documentTypeRef?.code || 'VB';
@@ -181,6 +192,21 @@ export class DocumentRegistrationService {
         departmentCode: deptCode,
         documentSymbol: doc.documentNumber,
       });
+
+      // Kiểm tra trùng lặp officialNumber với văn bản khác đang hoạt động
+      const existingConflict = await tx.outgoingDocument.findFirst({
+        where: {
+          id: { not: outgoingDocumentId },
+          dispatchNumber: officialNumber,
+          document: { documentStatus: 'ACTIVE', status: { not: 'TRASHED' as any } },
+        },
+        select: { id: true, dispatchNumber: true },
+      });
+      if (existingConflict) {
+        throw new BadRequestError(
+          `Số đi/Số ký hiệu chính thức "${officialNumber}" đã tồn tại trên một văn bản khác trong hệ thống. Vui lòng kiểm tra lại sổ văn bản.`
+        );
+      }
 
       const docSymbol = doc.documentNumber || (deptCode ? `${typeCode}-${deptCode}` : typeCode);
 
@@ -232,7 +258,7 @@ export class DocumentRegistrationService {
   }
 
   /**
-   * Giữ số phát hành trước (Đặt gạch số) cho văn bản đi
+   * Giữ số đi trước (Đặt gạch số) cho văn bản đi
    */
   async reserveOutgoingNumber(
     outgoingDocumentId: number,
@@ -263,10 +289,21 @@ export class DocumentRegistrationService {
         throw new BadRequestError('Sổ văn bản không hợp lệ hoặc đang bị khóa');
       }
 
-      // Increment số trong sổ
+      // Tính toán số thứ tự dự kiến tiếp theo trong năm (đảm bảo tuyệt đối không trùng lặp)
+      const maxEntryInYear = await tx.outgoingBookEntry.findFirst({
+        where: {
+          documentBook: { year: book.year },
+        },
+        orderBy: { sequenceNumber: 'desc' },
+        select: { sequenceNumber: true },
+      });
+
+      const maxSeq = maxEntryInYear ? maxEntryInYear.sequenceNumber : 0;
+      const targetSeq = Math.max(book.currentNumber, maxSeq) + 1;
+
       const updatedBook = await tx.documentBook.update({
         where: { id: documentBookId },
-        data: { currentNumber: { increment: 1 } },
+        data: { currentNumber: targetSeq },
         select: { currentNumber: true },
       });
       const sequenceNumber = updatedBook.currentNumber;
@@ -280,6 +317,21 @@ export class DocumentRegistrationService {
         departmentCode: deptCode,
         documentSymbol: doc.documentNumber,
       });
+
+      // Kiểm tra trùng lặp reservedNumber với văn bản khác đang hoạt động
+      const existingConflict = await tx.outgoingDocument.findFirst({
+        where: {
+          id: { not: outgoingDocumentId },
+          dispatchNumber: reservedNumber,
+          document: { documentStatus: 'ACTIVE', status: { not: 'TRASHED' as any } },
+        },
+        select: { id: true, dispatchNumber: true },
+      });
+      if (existingConflict) {
+        throw new BadRequestError(
+          `Số đi dự kiến "${reservedNumber}" đã tồn tại trên một văn bản khác trong hệ thống.`
+        );
+      }
 
       await tx.outgoingDocument.update({
         where: { id: outgoingDocumentId },

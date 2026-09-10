@@ -54,6 +54,11 @@ export class OutgoingDocumentsController {
       const documentTypeId = Number.isInteger(parsedDocumentTypeId) && parsedDocumentTypeId > 0
         ? parsedDocumentTypeId
         : undefined;
+      const documentBookIdParam = req.query.documentBookId as string | undefined;
+      const parsedDocumentBookId = documentBookIdParam ? parseInt(documentBookIdParam, 10) : NaN;
+      const documentBookId = Number.isInteger(parsedDocumentBookId) && parsedDocumentBookId > 0
+        ? parsedDocumentBookId
+        : undefined;
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;
       const confidentialityLevel = req.query.confidentialityLevel as string | undefined;
@@ -63,7 +68,7 @@ export class OutgoingDocumentsController {
 
       const result = await outgoingDocumentsService.list({ 
         page, limit, search, status, urgency, 
-        documentType, documentTypeId, dateFrom, dateTo, confidentialityLevel, departmentId, currentUser 
+        documentType, documentTypeId, documentBookId, dateFrom, dateTo, confidentialityLevel, departmentId, currentUser 
       });
 
       res.status(200).json(
@@ -306,13 +311,42 @@ export class OutgoingDocumentsController {
   async updateStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const id = parseInt(req.params.id as string);
-      const { status, returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress, urgency, confidentialityLevel, assignedApproverId, assignedClerkId } = req.body;
+      const {
+        status,
+        returnReason,
+        recallReason,
+        dispatchNumber,
+        issuanceDate,
+        sentDate,
+        recipientName,
+        recipientAddress,
+        recipientEmail,
+        urgency,
+        confidentialityLevel,
+        assignedApproverId,
+        assignedClerkId,
+        note,
+      } = req.body;
 
       const result = await outgoingDocumentsService.updateStatus(
         id,
         status as string,
         req.user!.userId,
-        { returnReason, recallReason, dispatchNumber, issuanceDate, sentDate, recipientName, recipientAddress, urgency, confidentialityLevel, assignedApproverId: assignedApproverId ? Number(assignedApproverId) : undefined, assignedClerkId: assignedClerkId ? Number(assignedClerkId) : undefined },
+        {
+          returnReason,
+          recallReason,
+          dispatchNumber,
+          issuanceDate,
+          sentDate,
+          recipientName,
+          recipientAddress,
+          recipientEmail,
+          urgency,
+          confidentialityLevel,
+          assignedApproverId: assignedApproverId ? Number(assignedApproverId) : undefined,
+          assignedClerkId: assignedClerkId ? Number(assignedClerkId) : undefined,
+          note,
+        },
       );
 
       res.status(200).json(successResponse(result, 'Cập nhật trạng thái thành công'));

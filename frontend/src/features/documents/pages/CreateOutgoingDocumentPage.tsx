@@ -24,6 +24,30 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const parseDateToYmd = (val?: string | null): string => {
+  if (!val) return getTodayDateString();
+  const trimmed = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    const year = y.length === 2 ? `20${y}` : y;
+    const iso = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    if (!Number.isNaN(new Date(iso).getTime())) return iso;
+  }
+
+  const d = new Date(trimmed);
+  if (!Number.isNaN(d.getTime())) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return getTodayDateString();
+};
+
 export default function CreateOutgoingDocumentPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -91,7 +115,10 @@ export default function CreateOutgoingDocumentPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: name === 'issuedDate' && !value ? getTodayDateString() : value,
+    }));
     if (validationErrors[name]) {
       setValidationErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -182,8 +209,8 @@ export default function CreateOutgoingDocumentPage() {
         issuer: fields.issuer || prev.issuer,
         // 2. Số ký hiệu
         documentNumber: fields.documentNumber || prev.documentNumber,
-        // 3. Ngày tháng năm văn bản
-        issuedDate: fields.dateLetter || prev.issuedDate,
+        // 3. Ngày tháng năm văn bản: Luôn giữ nguyên ngày người dùng đã chọn hoặc mặc định ngày hiện tại, không để OCR làm mất ngày
+        issuedDate: prev.issuedDate ? parseDateToYmd(prev.issuedDate) : getTodayDateString(),
         // 4. Loại văn bản
         ...(matchedDocumentTypeId ? { documentTypeId: matchedDocumentTypeId } : {}),
         // 5. Trích yếu
@@ -207,7 +234,7 @@ export default function CreateOutgoingDocumentPage() {
         setError('Không trích xuất được thông tin nào. Vui lòng nhập thủ công.');
       } else {
         setOcrSuccess(
-          `Đã trích xuất thành công ${filledCount} trường: Cơ quan ban hành, Số ký hiệu, Ngày văn bản, Trích yếu, Người ký, Chức vụ, Nơi nhận...`,
+          `Đã trích xuất thành công ${filledCount} trường: Cơ quan ban hành, Số ký hiệu, Trích yếu, Người ký, Chức vụ, Nơi nhận...`,
         );
       }
     } catch (err: any) {
@@ -461,12 +488,13 @@ export default function CreateOutgoingDocumentPage() {
                       id="issuedDate"
                       name="issuedDate"
                       type="date"
-                      value={form.issuedDate || ''}
+                      value={form.issuedDate || getTodayDateString()}
                       onChange={handleChange}
                       style={{
                         borderColor: validationErrors.issuedDate ? '#e74c3c' : undefined,
                       }}
                     />
+
                     {validationErrors.issuedDate && (
                       <span style={{ color: '#e74c3c', fontSize: 12 }}>
                         {validationErrors.issuedDate}

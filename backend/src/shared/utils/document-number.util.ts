@@ -1,5 +1,5 @@
 /**
- * Utility định dạng Số phát hành văn bản đi và Số đến văn bản đến
+ * Utility định dạng Số đi văn bản đi và Số đến văn bản đến
  * tuân thủ chuẩn Nghị định 30/2020/NĐ-CP và hệ thống Quản trị văn phòng điện tử (E-Office).
  */
 
@@ -12,7 +12,7 @@ export interface FormatOfficialNumberOptions {
 }
 
 /**
- * Tạo số phát hành chuẩn:
+ * Tạo số đi chính thức chuẩn:
  * Cấu trúc: [Số thứ tự]/[Ký hiệu loại VB]-[Ký hiệu đơn vị soạn thảo]
  * VD: 5, "QĐ", "NS" -> "05/QĐ-NS"
  *     125, "CV", "KT" -> "125/CV-KT"

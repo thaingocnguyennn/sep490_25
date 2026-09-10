@@ -280,6 +280,34 @@ export const updateOutgoingStatusValidation = [
       }
       return true;
     }),
+
+  body('assignedApproverId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID người phê duyệt phải là số nguyên dương'),
+
+  body('assignedClerkId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID văn thư tiếp nhận phải là số nguyên dương'),
+
+  body('note')
+    .optional()
+    .trim()
+    .isString().withMessage('Ý kiến/ghi chú phải là chuỗi ký tự'),
+
+  body('recipientName')
+    .optional()
+    .trim()
+    .isString(),
+
+  body('recipientAddress')
+    .optional()
+    .trim()
+    .isString(),
+
+  body('recipientEmail')
+    .optional()
+    .trim()
+    .isEmail().withMessage('Email người nhận không hợp lệ'),
 ];
 
 // ─── Validation params ID chung ───────────────────────────────────────────────
@@ -307,6 +335,10 @@ export const listOutgoingDocumentsValidation = [
   query('documentTypeId')
     .optional()
     .isInt({ min: 1 }).withMessage('ID thể loại văn bản phải là số nguyên dương'),
+
+  query('documentBookId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
 
   query('urgency')
     .optional()

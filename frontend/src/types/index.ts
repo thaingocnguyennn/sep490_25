@@ -312,6 +312,17 @@ export interface OutgoingDocument {
   trashedBy: number | null;
   assignedApproverId: number | null;
   assignedClerkId: number | null;
+  documentBookId?: number | null;
+  documentBook?: {
+    id: number;
+    name: string;
+    code?: string | null;
+    year: number;
+  } | null;
+  bookEntry?: {
+    sequenceNumber: number;
+    officialNumber: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   // Relations
@@ -426,6 +437,7 @@ export interface UpdateOutgoingStatusRequest {
   confidentialityLevel?: ConfidentialityCodeOrName;
   assignedApproverId?: number;
   assignedClerkId?: number;
+  note?: string;
 }
 
 export interface OutgoingDocumentFilterParams {
@@ -437,6 +449,7 @@ export interface OutgoingDocumentFilterParams {
   urgencyId?: UrgencyCodeOrName;
   documentType?: string;
   documentTypeId?: number;
+  documentBookId?: number;
   dateFrom?: string;
   dateTo?: string;
   confidentialityLevel?: ConfidentialityCodeOrName;

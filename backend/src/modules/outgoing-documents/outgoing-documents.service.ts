@@ -4,6 +4,7 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFields } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
+import { emitNotificationToUser } from '../../shared/services/notification.service';
 import {
   extractSignaturesFromFile,
   buildSignatureSummary,
@@ -102,6 +103,7 @@ export class OutgoingDocumentsService {
     includeTrashed?: boolean;
     documentType?: string;
     documentTypeId?: number;
+    documentBookId?: number;
     dateFrom?: string;
     dateTo?: string;
     confidentialityLevel?: string;
@@ -652,12 +654,14 @@ export class OutgoingDocumentsService {
       sentDate?: string;
       recipientName?: string;
       recipientAddress?: string;
+      recipientEmail?: string;
       /** Urgency name/id để cập nhật khi phát hành (THUONG, KHAN, THUONG_KHAN, HOA_TOC) */
       urgency?: string;
       /** Confidentiality name/code/id để cập nhật khi phát hành */
       confidentialityLevel?: string;
       assignedApproverId?: number;
       assignedClerkId?: number;
+      note?: string;
     },
   ) {
     const outgoing = await outgoingDocumentsRepository.findById(id);
@@ -708,7 +712,24 @@ export class OutgoingDocumentsService {
         if (outgoing.assignedClerkId && outgoing.assignedClerkId !== userId) {
           throw new BadRequestError('Bạn không được phân quyền để vào sổ văn bản này');
         }
-        if (options?.dispatchNumber) outgoingUpdateData.dispatchNumber = options.dispatchNumber;
+        if (options?.dispatchNumber) {
+          const cleanDispatchNum = options.dispatchNumber.trim();
+          // Kiểm tra xem số đi / số phát hành này đã được sử dụng ở văn bản khác hay chưa
+          const existingDoc = await prisma.outgoingDocument.findFirst({
+            where: {
+              id: { not: id },
+              dispatchNumber: cleanDispatchNum,
+              document: { documentStatus: 'ACTIVE', status: { not: 'TRASHED' as any } },
+            },
+            select: { id: true, dispatchNumber: true, document: { select: { documentNumber: true } } },
+          });
+          if (existingDoc) {
+            throw new BadRequestError(
+              `Số đi/Số phát hành "${cleanDispatchNum}" đã được sử dụng cho văn bản khác (ID: ${existingDoc.id}${existingDoc.document?.documentNumber ? ` - ${existingDoc.document.documentNumber}` : ''}). Vui lòng chọn số khác.`
+            );
+          }
+          outgoingUpdateData.dispatchNumber = cleanDispatchNum;
+        }
         if (options?.issuanceDate) outgoingUpdateData.issuanceDate = new Date(options.issuanceDate);
         outgoingUpdateData.forwardedAt = now;
         outgoingUpdateData.forwardedBy = userId;
@@ -717,11 +738,29 @@ export class OutgoingDocumentsService {
         if (outgoing.assignedClerkId && outgoing.assignedClerkId !== userId) {
           throw new BadRequestError('Bạn không được phân quyền để phát hành văn bản này');
         }
+        if (options?.dispatchNumber) {
+          const cleanDispatchNum = options.dispatchNumber.trim();
+          const existingDoc = await prisma.outgoingDocument.findFirst({
+            where: {
+              id: { not: id },
+              dispatchNumber: cleanDispatchNum,
+              document: { documentStatus: 'ACTIVE', status: { not: 'TRASHED' as any } },
+            },
+            select: { id: true, dispatchNumber: true, document: { select: { documentNumber: true } } },
+          });
+          if (existingDoc) {
+            throw new BadRequestError(
+              `Số đi/Số phát hành "${cleanDispatchNum}" đã được sử dụng cho văn bản khác (ID: ${existingDoc.id}${existingDoc.document?.documentNumber ? ` - ${existingDoc.document.documentNumber}` : ''}). Vui lòng chọn số khác.`
+            );
+          }
+          outgoingUpdateData.dispatchNumber = cleanDispatchNum;
+        }
         outgoingUpdateData.issuedAt = now;
         outgoingUpdateData.issuedBy = userId;
         if (options?.sentDate) outgoingUpdateData.sentDate = new Date(options.sentDate);
         if (options?.recipientName) outgoingUpdateData.recipientName = options.recipientName;
         if (options?.recipientAddress) outgoingUpdateData.recipientAddress = options.recipientAddress;
+        if (options?.recipientEmail) outgoingUpdateData.recipientEmail = options.recipientEmail;
         break;
       case 'RECALLED':
         outgoingUpdateData.recalledAt = now;
@@ -781,11 +820,169 @@ export class OutgoingDocumentsService {
           entityType: 'OutgoingDocument',
           entityId: id,
           details: `Chuyển trạng thái từ "${currentStatus}" sang "${newStatus}"${
+            options?.note ? `. Ghi chú/Ý kiến: ${options.note}` : ''
+          }${
             options?.returnReason ? `. Lý do: ${options.returnReason}` : ''
           }${options?.recallReason ? `. Lý do thu hồi: ${options.recallReason}` : ''}`,
         },
       });
     });
+
+    // ─── Gửi thông báo & Email khi Chuyên viên trình duyệt (SUBMITTED) ───
+    if (newStatus === 'SUBMITTED' && options?.assignedApproverId) {
+      try {
+        const submitter = await prisma.user.findUnique({
+          where: { id: userId },
+          include: { department: true },
+        });
+        const submitterName = submitter?.fullName || 'Chuyên viên';
+        const submitterDept = submitter?.department?.name ? ` (${submitter.department.name})` : '';
+
+        // 1. Gửi thông báo in-app cho Lãnh đạo
+        await emitNotificationToUser(
+          options.assignedApproverId,
+          'Văn bản đi chờ phê duyệt',
+          `Chuyên viên ${submitterName}${submitterDept} đã trình duyệt văn bản "${outgoing.document.subject}". Vui lòng xem xét và phê duyệt.`,
+        );
+
+        // 2. Gửi Email thông báo qua Nodemailer cho Lãnh đạo
+        const approver = await prisma.user.findUnique({
+          where: { id: options.assignedApproverId },
+          select: { id: true, fullName: true, email: true },
+        });
+
+        // Xác định danh sách email nhận thông báo:
+        // 1. Ưu tiên gửi đến email nhận ngoài nếu được nhập trên form (outgoing.recipientEmail hoặc options?.recipientEmail)
+        // 2. Gửi đến email của Lãnh đạo nếu là email hợp lệ (không phải đuôi ảo .local)
+        const recipientList: string[] = [];
+
+        const docRecipientEmail = (options?.recipientEmail || outgoing.recipientEmail || '').trim();
+        if (docRecipientEmail && docRecipientEmail.includes('@')) {
+          recipientList.push(docRecipientEmail);
+        }
+
+        if (approver?.email && approver.email.includes('@')) {
+          if (!approver.email.endsWith('.local') && !recipientList.includes(approver.email)) {
+            recipientList.push(approver.email.trim());
+          } else if (recipientList.length === 0) {
+            recipientList.push(approver.email.trim());
+          }
+        }
+
+        if (recipientList.length > 0) {
+          const docTitle = outgoing.document.subject;
+          const docNumber = outgoing.documentNumber || outgoing.document.documentNumber || 'Chưa cấp số';
+          const docType = outgoing.document.documentTypeRef?.name || 'Chưa phân loại';
+          const recipientName = outgoing.recipientName || 'Chưa xác định';
+          const recipientEmail = outgoing.recipientEmail || '';
+          const signerInfo = outgoing.document.signerName
+            ? `${outgoing.document.signerName}${outgoing.document.signerTitle ? ` (${outgoing.document.signerTitle})` : ''}`
+            : 'Chưa xác định';
+          const reviewUrl = `${config.frontendUrl}/outgoing-documents/${id}`;
+
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 20px; border-radius: 6px 6px 0 0; text-align: center;">
+                <h2 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 600;">Thông Báo Trình Duyệt Văn Bản Đi</h2>
+              </div>
+              <div style="padding: 24px 20px; color: #333333; line-height: 1.6;">
+                <p style="font-size: 15px; margin-top: 0;">Kính gửi Thầy/Cô <strong>${approver?.fullName || 'Lãnh đạo'}</strong>,</p>
+                <p style="font-size: 14px;">Chuyên viên <strong>${submitterName}</strong>${submitterDept} đã trình duyệt một văn bản đi mới trên hệ thống với thông tin chi tiết như sau:</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px;">
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569; width: 160px;">Trích yếu:</td>
+                    <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${docTitle}</td>
+                  </tr>
+                  <tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Số ký hiệu dự thảo:</td>
+                    <td style="padding: 10px 12px; color: #1e293b; font-family: monospace; font-weight: 600;">${docNumber}</td>
+                  </tr>
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Loại văn bản:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${docType}</td>
+                  </tr>
+                  <tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Người ký dự kiến:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${signerInfo}</td>
+                  </tr>
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Nơi nhận / Kính gửi:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${recipientName}</td>
+                  </tr>
+                  ${
+                    recipientEmail
+                      ? `
+                  <tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Email nhận:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${recipientEmail}</td>
+                  </tr>`
+                      : ''
+                  }
+                  ${
+                    options?.note
+                      ? `
+                  <tr style="background: #fef9c3; border-bottom: 1px solid #fde047;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #854d0e;">Ý kiến trình duyệt:</td>
+                    <td style="padding: 10px 12px; color: #713f12; font-style: italic;">${options.note}</td>
+                  </tr>`
+                      : ''
+                  }
+                </table>
+
+                <div style="text-align: center; margin: 26px 0 16px;">
+                  <a href="${reviewUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 15px; font-weight: 600; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    Xem &amp; Phê duyệt Văn bản
+                  </a>
+                </div>
+                <p style="font-size: 13px; color: #64748b; text-align: center; margin-top: 8px;">Hoặc truy cập đường dẫn: <a href="${reviewUrl}" style="color: #2563eb;">${reviewUrl}</a></p>
+                
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 0;">Email này được gửi tự động từ Hệ thống Quản lý Văn bản và Điều hành (DMS). Vui lòng không phản hồi trực tiếp email này.</p>
+              </div>
+            </div>
+          `;
+
+          // Chuẩn bị file đính kèm nếu có
+          const attachments: Array<{ filename: string; path: string }> = [];
+          const fileUrl = outgoing.document.fileUrl;
+          if (fileUrl) {
+            const filePath = path.join(config.uploadDir || 'uploads', path.basename(fileUrl));
+            if (fs.existsSync(filePath)) {
+              attachments.push({
+                filename: outgoing.document.originalFileName || `${docTitle}.${path.extname(fileUrl).slice(1) || 'pdf'}`,
+                path: filePath,
+              });
+            }
+          }
+
+          try {
+            await sendEmail({
+              to: recipientList,
+              subject: `[Trình duyệt văn bản] ${docTitle} - Chờ phê duyệt`,
+              html: emailHtml,
+              attachments,
+            });
+
+            await prisma.systemLog.create({
+              data: {
+                userId,
+                action: 'OUTGOING_SUBMIT_EMAIL_SENT',
+                entityType: 'OutgoingDocument',
+                entityId: id,
+                details: `Đã gửi email thông báo trình duyệt tới: [${recipientList.join(', ')}] cho Lãnh đạo ${approver?.fullName || 'Lãnh đạo'}`,
+              },
+            });
+          } catch (emailErr) {
+            // eslint-disable-next-line no-console
+            console.warn('[Outgoing Document] Không thể gửi email cho lãnh đạo (kiểm tra cấu hình SMTP trong backend/.env):', emailErr);
+          }
+        }
+      } catch (notifyErr) {
+        // eslint-disable-next-line no-console
+        console.warn('[Outgoing Document] Lỗi khi tạo thông báo cho lãnh đạo:', notifyErr);
+      }
+    }
 
     return outgoingDocumentsRepository.findById(id);
   }
@@ -871,27 +1068,27 @@ export class OutgoingDocumentsService {
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 6px 6px 0 0; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 20px;">&#128394; Văn bản chính thức</h1>
+        <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 20px; border-radius: 6px 6px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">Văn bản chính thức</h1>
         </div>
         <div style="background: #f9f9f9; padding: 20px;">
           <p style="color: #333;">Kính gửi Quý đơn vị / Cá nhân,</p>
           <p style="color: #333;">Hệ thống quản lý văn bản trân trọng gửi đến Quý vị văn bản sau:</p>
           <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
             <tr style="background: #fff; border-bottom: 1px solid #eee;">
-              <td style="padding: 10px; font-weight: bold; color: #555; width: 160px;">&#128204; Tiêu đề:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555; width: 160px;">Tiêu đề:</td>
               <td style="padding: 10px; color: #222;">${title}</td>
             </tr>
             <tr style="background: #f5f5f5; border-bottom: 1px solid #eee;">
-              <td style="padding: 10px; font-weight: bold; color: #555;">&#128196; Số hiệu:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555;">Số hiệu:</td>
               <td style="padding: 10px; color: #222;">${docNumber}</td>
             </tr>
             <tr style="background: #fff; border-bottom: 1px solid #eee;">
-              <td style="padding: 10px; font-weight: bold; color: #555;">&#128197; Ngày ban hành:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555;">Ngày ban hành:</td>
               <td style="padding: 10px; color: #222;">${issuanceDate}</td>
             </tr>
             <tr style="background: #f5f5f5;">
-              <td style="padding: 10px; font-weight: bold; color: #555;">&#128100; Người ký:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555;">Người ký:</td>
               <td style="padding: 10px; color: #222;">${signerName}${signerTitle ? ` &ndash; ${signerTitle}` : ''}</td>
             </tr>
           </table>
