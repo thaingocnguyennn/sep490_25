@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import {
   documentsApi,
   incomingDocumentsApi,
+  type IncomingDocumentDetail,
   type Urgency,
 } from '../../../api';
 import { documentBooksApi, type DocumentBook } from '../../../api/modules/document-books';
@@ -56,6 +57,8 @@ type Step = 1 | 2;
 export default function AddIncomingDocumentPage({ editMode = false }: AddIncomingDocumentPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isReturnedResubmit = searchParams.get('returned') === '1';
   const { isDocumentClerk, isAdmin } = useAuth();
   const hasAccess = isDocumentClerk || isAdmin;
   const { processors, loading: loadingProcessors, fetch: fetchProcessors } = useProcessors();
@@ -69,6 +72,8 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   const [ocrSuccess, setOcrSuccess] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
+  // Loaded incoming document (only set in editMode / returned-resubmit).
+  const [loadedIncomingDoc, setLoadedIncomingDoc] = useState<IncomingDocumentDetail | null>(null);
   const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null); // Track existing file from draft
   const [existingFileName, setExistingFileName] = useState<string | null>(null);
   const [existingFileSize, setExistingFileSize] = useState<number | null>(null);
@@ -153,11 +158,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     fetchDocumentBooks();
   }, [fetchProcessors, fetchDocumentTypes, fetchDocumentBooks]);
 
-  // Load draft document data when in edit mode
+  // Load existing document data when in edit mode OR when handling a
+  // returned-document resubmit (URL `?returned=1`). Both modes reuse the
+  // same form layout — the only difference is the submit handler.
   useEffect(() => {
-    if (!editMode || !id) return;
+    if ((!editMode && !isReturnedResubmit) || !id) return;
 
-    const loadDraft = async () => {
+    const loadExisting = async () => {
       try {
         const { data } = await incomingDocumentsApi.getById(Number(id));
         const doc = data.data;
@@ -166,6 +173,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
           setLoadingDraft(false);
           return;
         }
+        setLoadedIncomingDoc(doc);
 
         // Populate form fields
         setForm({
@@ -240,14 +248,14 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
           }
         }
       } catch (err) {
-        setError('Không thể tải dữ liệu bản nháp');
+        setError('Không thể tải dữ liệu văn bản');
       } finally {
         setLoadingDraft(false);
       }
     };
 
-    loadDraft();
-  }, [editMode, id]);
+    loadExisting();
+  }, [editMode, isReturnedResubmit, id]);
 
   // Auto-collapse sidebar when entering OCR workspace (step 1), restore on unmount
   useEffect(() => {
@@ -488,6 +496,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     setSubmitting(true);
     setError('');
 
+    const processorIds = buildProcessorIds();
     const payload = {
       issuer: form.issuer || undefined,
       documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
@@ -502,7 +511,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       urgency,
       confidentialityLevel: confidentiality,
       processingInstructions: processingInstructions || undefined,
-      processorIds: buildProcessorIds(),
+      processorIds,
       documentBookId: selectedBookId || undefined,
       attachments: attachments.map((a) => ({
         fileName: a.name,
@@ -513,6 +522,18 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     const attachmentFiles = attachments.map((a) => a.file);
 
     try {
+      // Resubmit-after-RETURN path. The clerk picks a new XLC; we POST to
+      // the dedicated resubmit endpoint which re-opens the document and
+      // resets the participations.
+      if (isReturnedResubmit && id) {
+        await incomingDocumentsApi.resubmit(Number(id), {
+          processorIds,
+          processingInstructions: processingInstructions || undefined,
+        });
+        navigate('/incoming-documents');
+        return;
+      }
+
       // In edit mode, first update the draft, then submit
       if (editMode && id) {
         // Update existing draft with file if changed
@@ -521,20 +542,20 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         } else {
           await incomingDocumentsApi.updateDraft(Number(id), payload);
         }
-        // Mark document as submitted (PENDING status)
-        await incomingDocumentsApi.updateStatus(Number(id), { status: 'PENDING' });
+        // Submit the draft (creates workflow rows + participations; flips
+        // Document.status from DRAFT to PENDING).
+        await incomingDocumentsApi.submitDraft(Number(id));
         navigate('/incoming-documents');
-      } else {
-        // Normal create flow
-        if (selectedFile) {
-          // Persist the PDF file and create the incoming document in one request
-          await incomingDocumentsApi.createWithFile(payload, selectedFile, attachmentFiles);
-        } else {
-          // No file — create without attachment
-          await incomingDocumentsApi.create(payload);
-        }
-        navigate('/incoming-documents');
+        return;
       }
+
+      // Normal create flow
+      if (selectedFile) {
+        await incomingDocumentsApi.createWithFile(payload, selectedFile, attachmentFiles);
+      } else {
+        await incomingDocumentsApi.create(payload);
+      }
+      navigate('/incoming-documents');
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
       setError(apiError.response?.data?.message || 'Tạo văn bản đến thất bại. Vui lòng thử lại.');
@@ -598,7 +619,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     return (
       <>
         <div className="top-bar">
-          <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
+          <h1>
+            {isReturnedResubmit
+              ? 'Gửi lại văn bản sau khi trả lại'
+              : editMode
+                ? 'Sửa Văn bản đến'
+                : 'Thêm Văn bản đến mới'}
+          </h1>
           <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
         </div>
         <div className="page-content">
@@ -608,12 +635,16 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     );
   }
 
-  // Show loading spinner while fetching draft data in edit mode
+  // Show loading spinner while fetching existing data in edit / returned mode
   if (loadingDraft) {
     return (
       <>
         <div className="top-bar">
-          <h1>Sửa Văn bản đến</h1>
+          <h1>
+            {isReturnedResubmit
+              ? 'Gửi lại văn bản sau khi trả lại'
+              : 'Sửa Văn bản đến'}
+          </h1>
           <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
         </div>
         <div className="page-content">
@@ -631,7 +662,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       <div className="ocr-page-shell">
         {/* Compact topbar */}
         <div className="ocr-workspace-topbar">
-          <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
+          <h1>
+            {isReturnedResubmit
+              ? 'Gửi lại văn bản sau khi trả lại'
+              : editMode
+                ? 'Sửa Văn bản đến'
+                : 'Thêm Văn bản đến mới'}
+          </h1>
           <div className="ocr-status-pill">
             <span className="ocr-status-dot" />
             OCR
@@ -979,7 +1016,11 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             className="btn btn-primary"
             onClick={handleContinue}
           >
-            {editMode ? 'Cập nhật & Tiếp tục' : 'Tiếp tục →'}
+            {isReturnedResubmit
+              ? 'Chọn lại XLC và gửi →'
+              : editMode
+                ? 'Cập nhật & Tiếp tục'
+                : 'Tiếp tục →'}
           </button>
         </div>
       </div>
@@ -990,7 +1031,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   return (
     <>
       <div className="top-bar">
-        <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
+        <h1>
+          {isReturnedResubmit
+            ? 'Gửi lại văn bản sau khi trả lại'
+            : editMode
+              ? 'Sửa Văn bản đến'
+              : 'Thêm Văn bản đến mới'}
+        </h1>
         <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>
           Quay lại
         </button>
@@ -1008,6 +1055,36 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             <div className="step-label">Phân công xử lý</div>
           </div>
         </div>
+
+        {isReturnedResubmit && (
+          <div
+            className="alert alert-warning"
+            style={{
+              marginBottom: 12,
+              background: '#fff8e1',
+              border: '1px solid #fcd34d',
+              padding: 12,
+              borderRadius: 6,
+              color: '#92400e',
+            }}
+          >
+            <strong>Văn bản này đang ở trạng thái "Trả lại".</strong>
+            {(() => {
+              const participationReason = loadedIncomingDoc?.document.participations?.find(
+                (p) => p.status === 'RETURNED' && p.returnReason
+              )?.returnReason;
+              return participationReason ? (
+                <div style={{ marginTop: 6 }}>
+                  <strong>Lý do trả lại:</strong> {participationReason}
+                </div>
+              ) : null;
+            })()}
+            <div style={{ marginTop: 6 }}>
+              Vui lòng chọn lại <strong>Người xử lý chính (XLC)</strong> và nhấn
+              "Gửi lại sau trả lại" để văn bản tiếp tục được xử lý.
+            </div>
+          </div>
+        )}
 
         <div className="card">
           <div className="card-header">
@@ -1194,7 +1271,11 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             onClick={handleConfirm}
             disabled={submitting}
           >
-            {submitting ? 'Đang gửi...' : 'Xác nhận & Gửi'}
+            {submitting
+              ? 'Đang gửi...'
+              : isReturnedResubmit
+                ? 'Gửi lại sau trả lại'
+                : 'Xác nhận & Gửi'}
           </button>
         </div>
       </div>

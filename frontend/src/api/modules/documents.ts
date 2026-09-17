@@ -432,6 +432,28 @@ export const incomingDocumentsApi = {
   updateStatus: (id: number, data: { status: string; notes?: string }) =>
     api.patch<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/status`, data),
 
+  /**
+   * Submit a DRAFT incoming document for processing. Used by the create/edit
+   * page instead of the older `updateStatus({ status: 'PENDING' })` flow,
+   * because the new flow also creates workflow rows and participations.
+   */
+  submitDraft: (id: number) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/submit-draft`, {}),
+
+  /**
+   * Resubmit a returned document. The clerk picks a new primary handler
+   * (XLC) and the document is re-opened for the head/specialist to act on.
+   */
+  resubmit: (id: number, data: { processorIds: { userId: number; processorType: 'XLC' | 'PHXL' | 'XDB' }[]; processingInstructions?: string }) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/resubmit`, data),
+
+  /**
+   * Mark the calling user as having viewed this document for the first
+   * time. Idempotent. The detail page calls this on mount.
+   */
+  markViewed: (id: number) =>
+    api.post<ApiResponse<{ id: number }>>(`/incoming-documents/${id}/view`, {}),
+
   updateWorkflowStep: (id: number, workflowId: number, data: { stepStatus: string; notes?: string }) =>
     api.patch<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/workflow/${workflowId}`, data),
 

@@ -62,6 +62,28 @@ export default function IncomingDocumentDetailPage() {
     fetchDoc();
   }, [id]);
 
+  // Mark the document as viewed by the current user the first time the
+  // detail page mounts. Idempotent — the backend only sets `viewedAt`
+  // when the user has not opened the document yet, so re-mounting and
+  // reloads are safe.
+  //
+  // We deliberately fire-and-forget; a failure here should not block
+  // showing the document. The list will eventually refresh with the new
+  // per-viewer status.
+  useEffect(() => {
+    if (!id || !user) return;
+    // Don't bother calling /view for DRAFT documents — the clerk is the
+    // editor and there's no "unread" semantics for them.
+    if (doc?.document.status === 'DRAFT') return;
+    incomingDocumentsApi.markViewed(Number(id)).catch(() => {
+      // Silently ignore — the resolver will still work without viewedAt
+      // (it just won't switch PENDING → IN_PROGRESS on this load).
+    });
+    // We intentionally only depend on `id` and `user?.id`; we don't want
+    // to re-fire when `doc` updates after the view call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.id]);
+
   useEffect(() => {
     if (searchParams.get('process') === '1' && doc) {
       setProcessOpen(true);

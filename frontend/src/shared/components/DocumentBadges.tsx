@@ -2,16 +2,16 @@ import React from 'react';
 import type { DocumentStatus } from '../../api';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  // Trạng thái chung
+  // Trạng thái chung (per-user workflow statuses)
   DRAFT:             { label: 'Bản nháp',          className: 'status-draft' },
   PENDING:           { label: 'Chờ xử lý',          className: 'status-pending' },
   IN_PROGRESS:       { label: 'Đang xử lý',         className: 'status-in-progress' },
-  COMPLETED:         { label: 'Hoàn tất',            className: 'status-completed' },
-  REJECTED:          { label: 'Từ chối',             className: 'status-rejected' },
-  CANCELLED:         { label: 'Đã hủy',              className: 'status-cancelled' },
-  // Trạng thái văn bản đi
+  COMPLETED:         { label: 'Hoàn thành',         className: 'status-completed' },
+  REJECTED:          { label: 'Trả lại',            className: 'status-rejected' },
+  CANCELLED:         { label: 'Trả lại',            className: 'status-cancelled' },
+  RETURNED:          { label: 'Trả lại',            className: 'status-returned' },
+  // Trạng thái văn bản đi (kept for outgoing docs)
   SUBMITTED:         { label: 'Chờ duyệt',           className: 'status-submitted' },
-  RETURNED:          { label: 'Trả lại',             className: 'status-returned' },
   APPROVED:          { label: 'Đã duyệt',            className: 'status-approved' },
   WAITING_FOR_ISSUE: { label: 'Chờ phát hành',       className: 'status-waiting' },
   ISSUED:            { label: 'Đã phát hành',        className: 'status-issued' },

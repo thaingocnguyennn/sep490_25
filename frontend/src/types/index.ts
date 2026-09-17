@@ -200,6 +200,22 @@ export interface Document {
    * (e.g. older API responses or other document types).
    */
   viewerStatus?: string;
+  /**
+   * Per-actor participation rows as returned by the backend. Each row
+   * describes one (user, role) tuple's progress on this document. The
+   * `viewerStatus` field above is computed from this list — the frontend
+   * reads `viewerStatus` directly for badges, but `participations` is
+   * available for richer displays.
+   */
+  participations?: Array<{
+    id: number;
+    status: string;
+    participationRole: string;
+    viewedAt: string | null;
+    completedAt: string | null;
+    returnedAt: string | null;
+    returnReason: string | null;
+  }>;
   workflows?: Array<{
     id: number;
     status: string;

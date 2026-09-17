@@ -7,7 +7,7 @@ import {
   ForbiddenError,
   ConflictError,
 } from '../../shared/exceptions/app-error';
-import { DocumentStatus, WorkflowStatus, OcrStatus } from '@prisma/client';
+import { DocumentStatus, WorkflowStatus, OcrStatus, Prisma } from '@prisma/client';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import {
@@ -298,6 +298,58 @@ export class IncomingDocumentsService {
             })),
           });
         }
+
+        // Per-user participation rows for FORWARD.
+        // The actor's HEAD and XLC participations are marked COMPLETED.
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'DEPARTMENT_HEAD',
+          workflowStepId: headStep.id,
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'XLC',
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+
+        // New participants get a fresh PENDING participation. The new XLC
+        // also gets a DEPARTMENT_HEAD row so the head flow can resolve them.
+        const xlcEntriesForward = processorIds.filter(
+          (p) => p.processorType === 'XLC'
+        );
+        const supportEntriesForward = processorIds.filter(
+          (p) => p.processorType === 'PHXL' || p.processorType === 'XDB'
+        );
+        for (const xlc of xlcEntriesForward) {
+          await upsertParticipation(tx, {
+            documentId,
+            userId: xlc.userId,
+            participationRole: 'XLC',
+            status: 'PENDING',
+          });
+          await upsertParticipation(tx, {
+            documentId,
+            userId: xlc.userId,
+            participationRole: 'DEPARTMENT_HEAD',
+            workflowStepId: headStep.id,
+            status: 'PENDING',
+          });
+        }
+        for (const s of supportEntriesForward) {
+          await upsertParticipation(tx, {
+            documentId,
+            userId: s.userId,
+            participationRole: s.processorType,
+            status: 'PENDING',
+          });
+        }
       });
 
       await emitNotificationToUsers(
@@ -344,6 +396,27 @@ export class IncomingDocumentsService {
           where: { id: documentId },
           data: { status: DocumentStatus.COMPLETED },
         });
+
+        // Per-user participations: mark the actor's HEAD/XLC participation
+        // COMPLETED. Other actors are left in PENDING so they don't see a
+        // false "Hoàn thành"; admins still see the global truth.
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'DEPARTMENT_HEAD',
+          workflowStepId: headStep.id,
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'XLC',
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
       });
       await logSystemAction({
         userId,
@@ -372,6 +445,54 @@ export class IncomingDocumentsService {
         });
 
         await tx.documentProcessor.deleteMany({ where: { documentId } });
+
+        // Per-user participation rows for head RETURN:
+        //   - Actor's HEAD + XLC participation rows → RETURNED.
+        //   - Clerk (creator) participation row → RETURNED so they see
+        //     "Trả lại" in their list and the UI prompts them to pick a
+        //     new XLC. Their existing participation is preserved (not
+        //     deleted) so the audit trail is intact.
+        const nowReturn = new Date();
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'DEPARTMENT_HEAD',
+          workflowStepId: headStep.id,
+          status: 'RETURNED',
+          returnedAt: nowReturn,
+          returnReason: payload.reason ?? null,
+          forceUpdate: true,
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'XLC',
+          status: 'RETURNED',
+          returnedAt: nowReturn,
+          returnReason: payload.reason ?? null,
+          forceUpdate: true,
+        });
+        const createdBy = incoming.document.createdBy;
+        if (createdBy) {
+          await upsertParticipation(tx, {
+            documentId,
+            userId: createdBy,
+            participationRole: 'CLERK',
+            status: 'RETURNED',
+            returnedAt: nowReturn,
+            returnReason: payload.reason ?? null,
+            forceUpdate: true,
+          });
+        }
+        // Other processor participation rows become CANCELLED.
+        await tx.documentWorkflowParticipation.updateMany({
+          where: {
+            documentId,
+            userId: { notIn: [userId, createdBy ?? -1] },
+            participationRole: { in: ['XLC', 'PHXL', 'XDB'] },
+          },
+          data: { status: 'CANCELLED' },
+        });
       });
       // Notify the clerk who created the document so they can act.
       if (incoming.document.createdBy && incoming.document.createdByUser) {
@@ -555,10 +676,243 @@ export class IncomingDocumentsService {
         },
       });
 
+      // Per-user participation rows. The clerk is COMPLETED; the head /
+      // specialist / processor rows are PENDING with no viewedAt yet.
+      await upsertParticipation(tx, {
+        documentId: document.id,
+        userId: data.createdBy,
+        participationRole: 'CLERK',
+        status: 'COMPLETED',
+        completedAt: new Date(),
+        forceUpdate: true,
+      });
+      const clerkStep = workflowSteps.find((s: { stepOrder: number }) => s.stepOrder === 1);
+      if (clerkStep) {
+        await tx.documentWorkflowParticipation.update({
+          where: {
+            documentId_userId_participationRole: {
+              documentId: document.id,
+              userId: data.createdBy,
+              participationRole: 'CLERK',
+            },
+          },
+          data: { workflowStepId: clerkStep.id },
+        });
+      }
+      // Head participation row points at stepOrder=2.
+      const headStep = workflowSteps.find((s: { stepOrder: number }) => s.stepOrder === 2);
+      if (headStep) {
+        const xlcEntries = data.processorIds.filter((p) => p.processorType === 'XLC');
+        for (const xlc of xlcEntries) {
+          await upsertParticipation(tx, {
+            documentId: document.id,
+            userId: xlc.userId,
+            participationRole: 'XLC',
+            workflowStepId: headStep.id,
+            status: 'PENDING',
+          });
+          await upsertParticipation(tx, {
+            documentId: document.id,
+            userId: xlc.userId,
+            participationRole: 'DEPARTMENT_HEAD',
+            workflowStepId: headStep.id,
+            status: 'PENDING',
+          });
+        }
+        const supportEntries = data.processorIds.filter(
+          (p) => p.processorType === 'PHXL' || p.processorType === 'XDB'
+        );
+        for (const s of supportEntries) {
+          await upsertParticipation(tx, {
+            documentId: document.id,
+            userId: s.userId,
+            participationRole: s.processorType,
+            status: 'PENDING',
+          });
+        }
+      }
+
       return { documentId: document.id, incomingId: incoming.id };
     });
 
     return this.getById(result.incomingId);
+  }
+
+  /**
+   * Resubmit a returned incoming document.
+   *
+   * Used when the original clerk receives a RETURN from the department head
+   * (or higher). The clerk must pick a new primary handler (XLC) before the
+   * document can continue down the workflow.
+   *
+   * Behaviour:
+   *   - Validates that the caller is the original creator (the clerk).
+   *   - Validates that the document is in RETURNED state.
+   *   - Validates the new processor set (same rules as create()).
+   *   - Re-opens the document: Document.status flips back to PENDING, the
+   *     clerk's CLERK participation row resets to PENDING with cleared
+   *     returnedAt, and the document's workflow rows for steps 1/2/3 are
+   *     refreshed: step 1 (CLERK) → PENDING (re-opened), step 2 (HEAD) →
+   *     PENDING (re-opened so the new head can act), step 3 (SPECIALIST)
+   *     → PENDING (the head will FORWARD to a specialist later).
+   *   - Old processor participations are CANCELLED (except the actor's
+   *     historical ones, which are preserved as RETURNED for audit).
+   *   - New participations for the freshly-assigned head + processors are
+   *     created as PENDING (no viewedAt).
+   */
+  async resubmitReturned(
+    id: number,
+    data: {
+      processorIds: ProcessorInput[];
+      processingInstructions?: string;
+    },
+    userId: number
+  ) {
+    const incoming = await incomingDocumentsRepository.findById(id);
+    if (incoming.document.status !== DocumentStatus.RETURNED) {
+      throw new BadRequestError(
+        'Chỉ có thể gửi lại văn bản đang ở trạng thái Trả lại'
+      );
+    }
+    if (incoming.document.createdBy !== userId) {
+      throw new ForbiddenError(
+        'Chỉ văn thư đã tạo văn bản này mới có thể gửi lại sau khi bị trả lại'
+      );
+    }
+    if (!Array.isArray(data.processorIds) || data.processorIds.length === 0) {
+      throw new BadRequestError('Phải chọn ít nhất một người xử lý');
+    }
+    await validateProcessorRoles(data.processorIds);
+    const hasPrimary = data.processorIds.some((p) => p.processorType === 'XLC');
+    if (!hasPrimary) {
+      throw new BadRequestError('Phải chọn đúng 1 Người xử lý chính (XLC)');
+    }
+
+    const documentId = incoming.documentId;
+
+    await prisma.$transaction(async (tx) => {
+      // Re-open workflow steps. We deliberately reuse the existing rows so
+      // the audit trail of who acted when stays intact.
+      await tx.documentWorkflow.updateMany({
+        where: {
+          documentId,
+          workflowStep: { stepOrder: 1, roleName: 'DOCUMENT_CLERK' },
+        },
+        data: {
+          status: WorkflowStatus.PENDING,
+          completedAt: null,
+          notes: 'Văn thư đang gửi lại sau khi bị trả lại',
+        },
+      });
+      await tx.documentWorkflow.updateMany({
+        where: {
+          documentId,
+          workflowStep: { stepOrder: 2, roleName: 'DEPARTMENT_HEAD' },
+        },
+        data: {
+          status: WorkflowStatus.PENDING,
+          completedAt: null,
+          notes: null,
+          userId: null,
+        },
+      });
+      await tx.documentWorkflow.updateMany({
+        where: {
+          documentId,
+          workflowStep: { stepOrder: 3, roleName: 'SPECIALIST' },
+        },
+        data: {
+          status: WorkflowStatus.PENDING,
+          completedAt: null,
+          notes: null,
+          userId: null,
+        },
+      });
+
+      // Reset global status to PENDING so the resolver + filters work
+      // correctly (the clerk participation row will be PENDING too).
+      await tx.document.update({
+        where: { id: documentId },
+        data: { status: DocumentStatus.PENDING },
+      });
+
+      // Re-open the clerk's CLERK participation row.
+      await upsertParticipation(tx, {
+        documentId,
+        userId,
+        participationRole: 'CLERK',
+        status: 'PENDING',
+        completedAt: null,
+        returnedAt: null,
+        forceUpdate: true,
+      });
+
+      // Cancel any non-clerk participation rows from the previous round.
+      // The clerk row is already reset to PENDING above.
+      await tx.documentWorkflowParticipation.updateMany({
+        where: {
+          documentId,
+          userId: { not: userId },
+        },
+        data: {
+          status: 'CANCELLED',
+          completedAt: null,
+          returnedAt: null,
+        },
+      });
+
+      // Replace DocumentProcessor rows with the new set.
+      await tx.documentProcessor.deleteMany({ where: { documentId } });
+      await tx.documentProcessor.createMany({
+        data: data.processorIds.map((p) => ({
+          documentId,
+          userId: p.userId,
+          processorType: p.processorType,
+        })),
+      });
+
+      // Create fresh participation rows for the new head + processors.
+      const workflowSteps = await tx.workflowStep.findMany({
+        orderBy: { stepOrder: 'asc' },
+      });
+      const headStepRow = workflowSteps.find((s) => s.stepOrder === 2);
+      const xlcEntries = data.processorIds.filter((p) => p.processorType === 'XLC');
+      for (const xlc of xlcEntries) {
+        await upsertParticipation(tx, {
+          documentId,
+          userId: xlc.userId,
+          participationRole: 'XLC',
+          workflowStepId: headStepRow?.id ?? null,
+          status: 'PENDING',
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId: xlc.userId,
+          participationRole: 'DEPARTMENT_HEAD',
+          workflowStepId: headStepRow?.id ?? null,
+          status: 'PENDING',
+        });
+      }
+      for (const s of data.processorIds.filter(
+        (p) => p.processorType === 'PHXL' || p.processorType === 'XDB'
+      )) {
+        await upsertParticipation(tx, {
+          documentId,
+          userId: s.userId,
+          participationRole: s.processorType,
+          status: 'PENDING',
+        });
+      }
+
+      if (data.processingInstructions) {
+        await tx.incomingDocument.update({
+          where: { id },
+          data: { processingInstructions: data.processingInstructions },
+        });
+      }
+    });
+
+    return this.getById(id);
   }
 
   /**
@@ -648,6 +1002,17 @@ export class IncomingDocumentsService {
           })),
         });
       }
+
+      // Per-user participation: the clerk is in DRAFT status (still
+      // editing). Use status 'PENDING' on the participation row plus
+      // global Document.status = DRAFT so the resolver maps it to the
+      // 'DRAFT' label.
+      await upsertParticipation(tx, {
+        documentId: document.id,
+        userId: data.createdBy,
+        participationRole: 'CLERK',
+        status: 'PENDING',
+      });
 
       return { documentId: document.id, incomingId: incoming.id };
     });
@@ -764,6 +1129,15 @@ export class IncomingDocumentsService {
             })),
           });
         }
+
+        // CLERK participation row (PENDING); global status remains DRAFT
+        // so the resolver maps it to the 'DRAFT' label.
+        await upsertParticipation(tx, {
+          documentId: document.id,
+          userId,
+          participationRole: 'CLERK',
+          status: 'PENDING',
+        });
 
         return { documentId: document.id, incomingId: incoming.id };
       });
@@ -1138,6 +1512,66 @@ export class IncomingDocumentsService {
           },
         });
 
+        // Per-user participation rows (mirror of create()).
+        await upsertParticipation(tx, {
+          documentId: document.id,
+          userId,
+          participationRole: 'CLERK',
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+        const clerkStepWithFile = workflowSteps.find(
+          (s: { stepOrder: number }) => s.stepOrder === 1
+        );
+        if (clerkStepWithFile) {
+          await tx.documentWorkflowParticipation.update({
+            where: {
+              documentId_userId_participationRole: {
+                documentId: document.id,
+                userId,
+                participationRole: 'CLERK',
+              },
+            },
+            data: { workflowStepId: clerkStepWithFile.id },
+          });
+        }
+        const headStepWithFile = workflowSteps.find(
+          (s: { stepOrder: number }) => s.stepOrder === 2
+        );
+        if (headStepWithFile) {
+          const xlcEntriesWf = data.processorIds.filter(
+            (p) => p.processorType === 'XLC'
+          );
+          for (const xlc of xlcEntriesWf) {
+            await upsertParticipation(tx, {
+              documentId: document.id,
+              userId: xlc.userId,
+              participationRole: 'XLC',
+              workflowStepId: headStepWithFile.id,
+              status: 'PENDING',
+            });
+            await upsertParticipation(tx, {
+              documentId: document.id,
+              userId: xlc.userId,
+              participationRole: 'DEPARTMENT_HEAD',
+              workflowStepId: headStepWithFile.id,
+              status: 'PENDING',
+            });
+          }
+          const supportEntriesWf = data.processorIds.filter(
+            (p) => p.processorType === 'PHXL' || p.processorType === 'XDB'
+          );
+          for (const s of supportEntriesWf) {
+            await upsertParticipation(tx, {
+              documentId: document.id,
+              userId: s.userId,
+              participationRole: s.processorType,
+              status: 'PENDING',
+            });
+          }
+        }
+
         return { documentId: document.id, incomingId: incoming.id };
       });
 
@@ -1220,6 +1654,66 @@ export class IncomingDocumentsService {
     }
   }
 
+  /**
+   * Mark the calling user's first view of an incoming document.
+   *
+   * Idempotent. Safe to call from the detail page on mount. Only sets
+   * `viewedAt` when the user has at least one participation row that is
+   * still in PENDING (i.e. they have not opened it yet). If the user has
+   * no participation row, we silently return success — they may be an
+   * admin viewing a document for which no participation rows were created
+   * (e.g. legacy backfill edge case).
+   */
+  async markViewed(
+    id: number,
+    userId: number,
+    userRoles: string[]
+  ): Promise<void> {
+    // Access check uses the same shared helper as getById. Admin and the
+    // creator bypass; processors, former processors, and former workflow
+    // actors are all allowed through.
+    await checkIncomingDocumentAccess(id, userId, userRoles);
+
+    // Set viewedAt on every participation the viewer has on this document.
+    // We do this in two steps because the XDB observer role has a special
+    // semantic: the act of viewing is the observer's only action, so the
+    // row's stored status must also flip from PENDING → COMPLETED. Without
+    // this second update, the list-filter WHERE clauses that look at
+    // `participations.status = 'COMPLETED'` would miss XDB rows that the
+    // resolver is correctly displaying as Hoàn thành.
+    const incoming = await prisma.incomingDocument.findUnique({
+      where: { id },
+      select: { documentId: true },
+    });
+    if (!incoming) return;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.documentWorkflowParticipation.updateMany({
+        where: {
+          documentId: incoming.documentId,
+          userId,
+          viewedAt: null,
+        },
+        data: { viewedAt: new Date() },
+      });
+
+      // XDB observers: viewing = completing. Only flip rows that were
+      // still PENDING — do not override an explicit RETURNED / COMPLETED
+      // status that was written by another code path. (If `viewedAt` was
+      // just set above, `status` is still PENDING in the DB, so this
+      // update applies to fresh first-view XDB rows.)
+      await tx.documentWorkflowParticipation.updateMany({
+        where: {
+          documentId: incoming.documentId,
+          userId,
+          participationRole: 'XDB',
+          status: 'PENDING',
+        },
+        data: { status: 'COMPLETED' },
+      });
+    });
+  }
+
   async updateStatus(id: number, status: string, userId: number, notes?: string) {
     const incoming = await incomingDocumentsRepository.findById(id);
 
@@ -1246,6 +1740,149 @@ export class IncomingDocumentsService {
       entityType: 'IncomingDocument',
       entityId: id,
       details: notes || `Status set to ${status}`,
+    });
+
+    return this.getById(id);
+  }
+
+  /**
+   * Submit a DRAFT incoming document for processing.
+   *
+   * This is the canonical replacement for the older "PATCH /:id/status
+   * { PENDING }" flow used by the create/edit page. It also materialises
+   * the workflow + participations that the DRAFT deliberately skipped, so
+   * the document can be picked up by the head/specialist after submission.
+   *
+   * Behaviour:
+   *   - Document must currently be in DRAFT status.
+   *   - Caller must be the original creator (the clerk).
+   *   - DocumentProcessor rows must already exist (the clerk picked them
+   *     during draft editing).
+   *   - Workflow rows for steps 1/2/3 are created if they don't yet exist;
+   *     otherwise they are reset to PENDING.
+   *   - Step 1 (CLERK) is immediately completed by the actor; participations
+   *     for step 2 (HEAD) and processors are created in PENDING with no
+   *     viewedAt — the user must open the document to flip to IN_PROGRESS.
+   *   - Document.status flips to PENDING.
+   */
+  async submitDraft(
+    id: number,
+    userId: number
+  ) {
+    const incoming = await incomingDocumentsRepository.findById(id);
+    if (incoming.document.status !== DocumentStatus.DRAFT) {
+      throw new BadRequestError(
+        'Chỉ có thể gửi văn bản đang ở trạng thái Bản nháp'
+      );
+    }
+    if (incoming.document.createdBy !== userId) {
+      throw new ForbiddenError(
+        'Chỉ văn thư đã tạo bản nháp này mới có thể gửi'
+      );
+    }
+    const processors = incoming.document.processors ?? [];
+    if (processors.length === 0) {
+      throw new BadRequestError(
+        'Bản nháp chưa có người xử lý — vui lòng chọn ít nhất một người xử lý trước khi gửi'
+      );
+    }
+    const hasPrimary = processors.some((p) => p.processorType === 'XLC');
+    if (!hasPrimary) {
+      throw new BadRequestError('Phải chọn đúng 1 Người xử lý chính (XLC)');
+    }
+
+    const documentId = incoming.documentId;
+    await prisma.$transaction(async (tx) => {
+      // Ensure workflow rows exist for steps 1/2/3.
+      const workflowSteps = await tx.workflowStep.findMany({
+        orderBy: { stepOrder: 'asc' },
+      });
+      for (const step of workflowSteps) {
+        if (step.stepOrder === 4) continue; // archive step is system-only
+        const existing = await tx.documentWorkflow.findFirst({
+          where: { documentId, workflowStepId: step.id },
+        });
+        if (!existing) {
+          await tx.documentWorkflow.create({
+            data: {
+              documentId,
+              workflowStepId: step.id,
+              status: WorkflowStatus.PENDING,
+            },
+          });
+        } else {
+          await tx.documentWorkflow.update({
+            where: { id: existing.id },
+            data: {
+              status: WorkflowStatus.PENDING,
+              completedAt: null,
+              userId: null,
+              notes: null,
+            },
+          });
+        }
+      }
+
+      // Complete step 1 (CLERK).
+      await tx.documentWorkflow.updateMany({
+        where: {
+          documentId,
+          workflowStep: { stepOrder: 1, roleName: 'DOCUMENT_CLERK' },
+        },
+        data: {
+          status: WorkflowStatus.COMPLETED,
+          userId,
+          completedAt: new Date(),
+          notes: 'Văn thư đã tiếp nhận và chuyển xử lý',
+        },
+      });
+
+      // Per-user participation rows.
+      const clerkStep = workflowSteps.find((s) => s.stepOrder === 1);
+      if (clerkStep) {
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'CLERK',
+          workflowStepId: clerkStep.id,
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+      }
+      const headStep = workflowSteps.find((s) => s.stepOrder === 2);
+      const xlcEntries = processors.filter((p) => p.processorType === 'XLC');
+      for (const xlc of xlcEntries) {
+        await upsertParticipation(tx, {
+          documentId,
+          userId: xlc.user.id,
+          participationRole: 'XLC',
+          workflowStepId: headStep?.id ?? null,
+          status: 'PENDING',
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId: xlc.user.id,
+          participationRole: 'DEPARTMENT_HEAD',
+          workflowStepId: headStep?.id ?? null,
+          status: 'PENDING',
+        });
+      }
+      for (const s of processors.filter(
+        (p) => p.processorType === 'PHXL' || p.processorType === 'XDB'
+      )) {
+        await upsertParticipation(tx, {
+          documentId,
+          userId: s.user.id,
+          participationRole: s.processorType,
+          status: 'PENDING',
+        });
+      }
+
+      await tx.document.update({
+        where: { id: documentId },
+        data: { status: DocumentStatus.PENDING },
+      });
     });
 
     return this.getById(id);
@@ -1533,6 +2170,49 @@ export class IncomingDocumentsService {
           where: { id: documentId },
           data: { status: DocumentStatus.IN_PROGRESS },
         });
+
+        // Per-user participations for specialist FORWARD.
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'SPECIALIST',
+          workflowStepId: specialistStep.id,
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'XLC',
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+        for (const xlc of processorIds.filter((p) => p.processorType === 'XLC')) {
+          await upsertParticipation(tx, {
+            documentId,
+            userId: xlc.userId,
+            participationRole: 'XLC',
+            status: 'PENDING',
+          });
+          await upsertParticipation(tx, {
+            documentId,
+            userId: xlc.userId,
+            participationRole: 'DEPARTMENT_HEAD',
+            status: 'PENDING',
+          });
+        }
+        for (const s of processorIds.filter(
+          (p) => p.processorType === 'PHXL' || p.processorType === 'XDB'
+        )) {
+          await upsertParticipation(tx, {
+            documentId,
+            userId: s.userId,
+            participationRole: s.processorType,
+            status: 'PENDING',
+          });
+        }
       });
 
       await emitNotificationToUsers(
@@ -1585,6 +2265,38 @@ export class IncomingDocumentsService {
         await tx.document.update({
           where: { id: documentId },
           data: { status: DocumentStatus.COMPLETED },
+        });
+
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'SPECIALIST',
+          workflowStepId: specialistStep.id,
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'XLC',
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
+        });
+        // A user who acts as both DEPARTMENT_HEAD and SPECIALIST on the same
+        // document (e.g. the head also serves as specialist) will have both a
+        // DEPARTMENT_HEAD and a SPECIALIST participation row. The FINISH path
+        // above only updated the SPECIALIST row. Without this additional call
+        // the stale DEPARTMENT_HEAD row (PENDING) would win in the resolver
+        // sort, making the badge show "Đang xử lý" instead of "Hoàn thành".
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'DEPARTMENT_HEAD',
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          forceUpdate: true,
         });
       });
       await logSystemAction({
@@ -1640,6 +2352,54 @@ export class IncomingDocumentsService {
         await tx.document.update({
           where: { id: documentId },
           data: { status: DocumentStatus.PENDING },
+        });
+
+        // Per-user participations for specialist RETURN.
+        // The actor's SPECIALIST + XLC rows → RETURNED (NOT COMPLETED).
+        // This is the key difference from the old behaviour: the specialist
+        // sees "Trả lại", not "Hoàn thành", after returning.
+        const nowReturnSpec = new Date();
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'SPECIALIST',
+          workflowStepId: specialistStep.id,
+          status: 'RETURNED',
+          returnedAt: nowReturnSpec,
+          returnReason: payload.reason ?? null,
+          forceUpdate: true,
+        });
+        await upsertParticipation(tx, {
+          documentId,
+          userId,
+          participationRole: 'XLC',
+          status: 'RETURNED',
+          returnedAt: nowReturnSpec,
+          returnReason: payload.reason ?? null,
+          forceUpdate: true,
+        });
+        // Any DEPARTMENT_HEAD participation row for the previously-assigned
+        // head is reset to PENDING so they can re-pick up the document.
+        // We reset for *all* users that have a DEPARTMENT_HEAD row but
+        // are not the current actor.
+        await tx.documentWorkflowParticipation.updateMany({
+          where: {
+            documentId,
+            userId: { not: userId },
+            participationRole: 'DEPARTMENT_HEAD',
+            status: { in: ['RETURNED', 'COMPLETED', 'CANCELLED'] },
+          },
+          data: { status: 'PENDING', returnedAt: null, completedAt: null },
+        });
+        // Cancel any leftover PHXL/XDB rows for users that are no longer
+        // assigned to the document.
+        await tx.documentWorkflowParticipation.updateMany({
+          where: {
+            documentId,
+            userId: { not: userId },
+            participationRole: { in: ['PHXL', 'XDB'] },
+          },
+          data: { status: 'CANCELLED' },
         });
       });
 
@@ -1862,3 +2622,86 @@ function cleanupUploadedFiles(files: Express.Multer.File[]): void {
 }
 
 export const incomingDocumentsService = new IncomingDocumentsService();
+
+// ─── Module-level helpers (moved below for clarity) ───────────────────────────
+
+/**
+ * Map a workflow-step role name to a participation role used by
+ * `DocumentWorkflowParticipation.participationRole`.
+ */
+function roleNameToParticipationRole(roleName: string | null | undefined):
+  | 'CLERK'
+  | 'DEPARTMENT_HEAD'
+  | 'SPECIALIST'
+  | null {
+  if (roleName === 'DOCUMENT_CLERK') return 'CLERK';
+  if (roleName === 'DEPARTMENT_HEAD') return 'DEPARTMENT_HEAD';
+  if (roleName === 'SPECIALIST') return 'SPECIALIST';
+  return null;
+}
+
+/**
+ * Upsert a `DocumentWorkflowParticipation` row for the given
+ * (documentId, userId, role) tuple. Used by the service to maintain the
+ * per-user state machine alongside the existing `DocumentProcessor` and
+ * `DocumentWorkflow` tables.
+ *
+ * `viewerFor` is a no-op when the row already exists; we never overwrite a
+ * user's first-view timestamp or a completed/returned status unless
+ * `forceUpdate` is true.
+ */
+async function upsertParticipation(
+  tx: Prisma.TransactionClient,
+  params: {
+    documentId: number;
+    userId: number;
+    participationRole: string;
+    workflowStepId?: number | null;
+    status?: string;
+    completedAt?: Date | null;
+    returnedAt?: Date | null;
+    returnReason?: string | null;
+    forceUpdate?: boolean;
+  }
+): Promise<void> {
+  const { forceUpdate, ...data } = params;
+
+  const existing = await tx.documentWorkflowParticipation.findUnique({
+    where: {
+      documentId_userId_participationRole: {
+        documentId: data.documentId,
+        userId: data.userId,
+        participationRole: data.participationRole,
+      },
+    },
+  });
+
+  if (!existing) {
+    await tx.documentWorkflowParticipation.create({
+      data: {
+        documentId: data.documentId,
+        userId: data.userId,
+        participationRole: data.participationRole,
+        workflowStepId: data.workflowStepId ?? null,
+        status: data.status ?? 'PENDING',
+        completedAt: data.completedAt ?? null,
+        returnedAt: data.returnedAt ?? null,
+        returnReason: data.returnReason ?? null,
+      },
+    });
+    return;
+  }
+
+  if (forceUpdate) {
+    await tx.documentWorkflowParticipation.update({
+      where: { id: existing.id },
+      data: {
+        status: data.status ?? existing.status,
+        workflowStepId: data.workflowStepId ?? existing.workflowStepId,
+        completedAt: data.completedAt ?? existing.completedAt,
+        returnedAt: data.returnedAt ?? existing.returnedAt,
+        returnReason: data.returnReason ?? existing.returnReason,
+      },
+    });
+  }
+}
