@@ -97,9 +97,14 @@ export interface CreateIncomingDocumentRequest {
 }
 
 export type HeadAction = 'FINISH' | 'FORWARD' | 'RETURN';
-/** Same set as HeadAction — kept as a separate alias for callers that
- * historically distinguished specialist actions. */
-export type SpecialistAction = HeadAction;
+/**
+ * Per the new flow design, the assigned specialist (XLC at step 3) has
+ * exactly ONE action available: FINISH. The FORWARD / RETURN branches
+ * that used to live on the specialist endpoint have been removed from
+ * both the backend service and the route validation, so the frontend
+ * type is narrowed here as well to keep the call sites honest.
+ */
+export type SpecialistAction = 'FINISH';
 
 export interface ProcessIncomingDocumentRequest {
   action: HeadAction;

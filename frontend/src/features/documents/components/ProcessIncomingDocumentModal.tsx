@@ -193,17 +193,13 @@ export default function ProcessIncomingDocumentModal({
 
     try {
       if (isSpecialist) {
+        // Specialist flow only allows FINISH (per the backend contract).
+        // FORWARD/RETURN branches were removed — no need to build payloads
+        // for actions the server rejects anyway.
         const payload: ProcessSpecialistDocumentRequest = {
-          action: action!,
+          action: 'FINISH',
+          processingInstructions: processingInstructions.trim() || undefined,
         };
-        if (action === 'FORWARD') {
-          payload.processorIds = processorIds;
-          payload.processingInstructions = processingInstructions.trim() || undefined;
-        } else if (action === 'RETURN') {
-          payload.reason = reason.trim();
-        } else if (action === 'FINISH') {
-          payload.processingInstructions = processingInstructions.trim() || undefined;
-        }
         await incomingDocumentsApi.processBySpecialist(doc.id, payload);
       } else {
         const payload: ProcessIncomingDocumentRequest = {
