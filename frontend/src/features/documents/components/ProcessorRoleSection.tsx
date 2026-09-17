@@ -31,6 +31,13 @@ interface ProcessorRoleSectionProps {
   onChange: (next: number[]) => void;
   /** Show the search box (default true). */
   showSearch?: boolean;
+  /**
+   * When provided, the tree is restricted to this department and all of its
+   * descendants. Used by Department Heads who can only assign work inside
+   * their own organisation subtree. When omitted, the entire department
+   * tree is rendered (the default clerk / admin behaviour).
+   */
+  rootDepartmentId?: number | null;
 }
 
 interface DepartmentMembership {
@@ -117,6 +124,34 @@ function buildRoleTree(
   }
 
   return sortTree(roots);
+}
+
+/**
+ * Returns the set of department ids that belong to the subtree rooted at
+ * `rootId` (the root itself plus every descendant). Used by the
+ * "Department Head forwarding" flow so we only show the head's own org
+ * branch instead of the whole company tree.
+ */
+function collectDescendantDepartmentIds(
+  departments: Department[],
+  rootId: number
+): Set<number> {
+  const ids = new Set<number>([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const department of departments) {
+      if (
+        department.parentId !== null &&
+        ids.has(department.parentId) &&
+        !ids.has(department.id)
+      ) {
+        ids.add(department.id);
+        changed = true;
+      }
+    }
+  }
+  return ids;
 }
 
 function nodeMatchesSearch(node: RoleTreeNode, normalizedQuery: string): boolean {
@@ -324,6 +359,7 @@ export default function ProcessorRoleSection({
   max,
   showSearch = true,
   onChange,
+  rootDepartmentId = null,
 }: ProcessorRoleSectionProps) {
   const { departments, loading: loadingDepartments, error: departmentsError } = useDepartments();
   const [memberships, setMemberships] = useState<DepartmentMembership[]>([]);
@@ -340,11 +376,22 @@ export default function ProcessorRoleSection({
     [users, allowedRoles]
   );
 
+  // When a rootDepartmentId is supplied, restrict the tree to that
+  // department and its descendants. Otherwise the entire organisation is
+  // shown.
+  const scopedDepartments = useMemo(() => {
+    if (rootDepartmentId === null || rootDepartmentId === undefined) {
+      return departments;
+    }
+    const allowed = collectDescendantDepartmentIds(departments, rootDepartmentId);
+    return departments.filter((department) => allowed.has(department.id));
+  }, [departments, rootDepartmentId]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadMemberships() {
-      if (departments.length === 0) {
+      if (scopedDepartments.length === 0) {
         setMemberships([]);
         setLoadingMemberships(false);
         return;
@@ -355,8 +402,8 @@ export default function ProcessorRoleSection({
       const loadedMemberships: DepartmentMembership[] = [];
       let failedRequests = 0;
 
-      for (let index = 0; index < departments.length; index += MEMBERSHIP_REQUEST_BATCH_SIZE) {
-        const batch = departments.slice(index, index + MEMBERSHIP_REQUEST_BATCH_SIZE);
+      for (let index = 0; index < scopedDepartments.length; index += MEMBERSHIP_REQUEST_BATCH_SIZE) {
+        const batch = scopedDepartments.slice(index, index + MEMBERSHIP_REQUEST_BATCH_SIZE);
         const results = await Promise.allSettled(
           batch.map(async (department) => {
             const { data } = await departmentsApi.getMembers(department.id);
@@ -391,11 +438,11 @@ export default function ProcessorRoleSection({
     return () => {
       cancelled = true;
     };
-  }, [departments, allowedUsers]);
+  }, [scopedDepartments, allowedUsers]);
 
   const tree = useMemo(
-    () => buildRoleTree(departments, allowedUsers, memberships),
-    [departments, allowedUsers, memberships]
+    () => buildRoleTree(scopedDepartments, allowedUsers, memberships),
+    [scopedDepartments, allowedUsers, memberships]
   );
 
   useEffect(() => {

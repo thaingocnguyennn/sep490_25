@@ -260,22 +260,13 @@ export class DocumentsService {
       throw new BadRequestError('Document is already archived');
     }
 
-    // Begin transaction for update and logging
+    // Begin transaction for update.
     await prisma.$transaction([
       prisma.document.update({
         where: { id },
         data: {
           isArchived: true,
           updatedBy,
-        },
-      }),
-      prisma.systemLog.create({
-        data: {
-          userId: updatedBy,
-          action: 'ARCHIVE_DOCUMENT',
-          entityType: 'Document',
-          entityId: id,
-          details: 'Document archived',
         },
       }),
     ]);
@@ -294,7 +285,7 @@ export class DocumentsService {
       throw new BadRequestError('Document is not archived');
     }
 
-    // Begin transaction for update and logging
+    // Begin transaction for update.
     await prisma.$transaction([
       prisma.document.update({
         where: { id },
@@ -302,15 +293,6 @@ export class DocumentsService {
           isArchived: false,
           status: 'IN_PROGRESS', // Cập nhật lại status để mở khóa thao tác
           updatedBy,
-        },
-      }),
-      prisma.systemLog.create({
-        data: {
-          userId: updatedBy,
-          action: 'REOPEN_DOCUMENT',
-          entityType: 'Document',
-          entityId: id,
-          details: `Document reopened. Reason: ${reason}`,
         },
       }),
     ]);
@@ -340,15 +322,6 @@ export class DocumentsService {
         data: {
           status: status as any,
           updatedBy,
-        },
-      }),
-      prisma.systemLog.create({
-        data: {
-          userId: updatedBy,
-          action: 'UPDATE_DOCUMENT_STATUS',
-          entityType: 'Document',
-          entityId: id,
-          details: `Document status changed from ${existing.status} to ${status}`,
         },
       }),
     ]);

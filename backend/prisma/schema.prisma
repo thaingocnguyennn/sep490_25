@@ -151,7 +151,6 @@ model User {
   updatedByUser User?      @relation("UpdatedBy", fields: [updatedBy], references: [id])
   updatedUsers  User[]     @relation("UpdatedBy")
 
-  notifications      Notification[]
   documentWorkflows  DocumentWorkflow[]
   createdDocuments   Document[]          @relation("CreatedBy")
   updatedDocuments   Document[]          @relation("UpdatedBy")
@@ -485,35 +484,6 @@ model DocumentWorkflowParticipation {
   @@index([documentId, status])
   @@index([userId, status])
   @@index([documentId, userId])
-}
-
-model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  title     String
-  message   String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, isRead])
-}
-
-model SystemLog {
-  id         Int      @id @default(autoincrement())
-  userId     Int?
-  action     String
-  entityType String?
-  entityId   Int?
-  details    String?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
-
-  @@index([userId])
-  @@index([entityType, entityId])
-  @@index([createdAt])
 }
 
 // ─── Document Book Models ──────────────────────────────────────────────────────

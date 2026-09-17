@@ -21,11 +21,6 @@ import {
   resolveStageFromRoleName,
   resolveDocumentId,
 } from "../../shared/access/document-access";
-import {
-  emitNotificationToUser,
-  emitNotificationToUsers,
-} from "../../shared/services/notification.service";
-import { logSystemAction } from "../../shared/services/system-log.service";
 import fs from "fs";
 import path from "path";
 import { config } from "../../config";
@@ -278,7 +273,6 @@ export class IncomingDocumentsService {
         );
       }
 
-      const forwardedUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
         await tx.documentProcessor.deleteMany({ where: { documentId } });
         await tx.documentProcessor.createMany({
@@ -288,8 +282,6 @@ export class IncomingDocumentsService {
             processorType: p.processorType,
           })),
         });
-        forwardedUserIds.push(...processorIds.map((p) => p.userId));
-
         await tx.documentWorkflow.update({
           where: { id: headStep.id },
           data: {
@@ -380,19 +372,6 @@ export class IncomingDocumentsService {
           });
         }
       });
-
-      await emitNotificationToUsers(
-        forwardedUserIds,
-        "Văn bản đến được chuyển xử lý",
-        `Trưởng phòng đã chuyển văn bản ${incoming.document.documentNumber} cho bạn`,
-      );
-      await logSystemAction({
-        userId,
-        action: "INCOMING_FORWARDED",
-        entityType: "IncomingDocument",
-        entityId: id,
-        details: `Forwarded to ${processorIds.length} processor(s)`,
-      });
     } else if (action === "FINISH") {
       await prisma.$transaction(async (tx) => {
         await tx.documentWorkflow.update({
@@ -447,12 +426,6 @@ export class IncomingDocumentsService {
           completedAt: new Date(),
           forceUpdate: true,
         });
-      });
-      await logSystemAction({
-        userId,
-        action: "INCOMING_FINISHED_BY_HEAD",
-        entityType: "IncomingDocument",
-        entityId: id,
       });
     } else if (action === "RETURN") {
       if (!payload.reason?.trim()) {
@@ -523,21 +496,6 @@ export class IncomingDocumentsService {
           },
           data: { status: "CANCELLED" },
         });
-      });
-      // Notify the clerk who created the document so they can act.
-      if (incoming.document.createdBy && incoming.document.createdByUser) {
-        await emitNotificationToUser(
-          incoming.document.createdBy,
-          "Văn bản đến bị trả lại",
-          `Trưởng phòng trả lại văn bản ${incoming.document.documentNumber}: ${payload.reason}`,
-        );
-      }
-      await logSystemAction({
-        userId,
-        action: "INCOMING_RETURNED",
-        entityType: "IncomingDocument",
-        entityId: id,
-        details: payload.reason,
       });
     } else {
       throw new BadRequestError("Hành động không hợp lệ");
@@ -1837,14 +1795,6 @@ export class IncomingDocumentsService {
       data: { status: status as DocumentStatus },
     });
 
-    await logSystemAction({
-      userId,
-      action: "INCOMING_DOCUMENT_STATUS_OVERRIDE",
-      entityType: "IncomingDocument",
-      entityId: id,
-      details: notes || `Status set to ${status}`,
-    });
-
     return this.getById(id);
   }
 
@@ -2076,22 +2026,6 @@ export class IncomingDocumentsService {
       }
     });
 
-    await logSystemAction({
-      userId,
-      action: `INCOMING_WORKFLOW_STEP_${stepStatusEnum}`,
-      entityType: "DocumentWorkflow",
-      entityId: workflowId,
-      details: `${stage} step updated to ${stepStatusEnum}`,
-    });
-
-    if (stepStatusEnum === "APPROVED" || stepStatusEnum === "REJECTED") {
-      await emitNotificationToUser(
-        incoming.document.createdBy ?? 0,
-        `Bước xử lý ${stepStatusEnum === "APPROVED" ? "đã duyệt" : "bị từ chối"}`,
-        `Văn bản ${incoming.document.documentNumber} — bước đã được cập nhật`,
-      ).catch(() => undefined);
-    }
-
     return this.getById(id);
   }
 
@@ -2162,14 +2096,6 @@ export class IncomingDocumentsService {
         completedAt,
         forceUpdate: true,
       });
-    });
-
-    await logSystemAction({
-      userId: actorId,
-      action: "INCOMING_PROCESSOR_COMPLETED",
-      entityType: "IncomingDocument",
-      entityId: incomingId,
-      details: `PHXL processor ${processorUserId} marked complete`,
     });
 
     return this.getById(incomingId);
@@ -2342,17 +2268,6 @@ export class IncomingDocumentsService {
         forceUpdate: true,
       });
     });
-    await logSystemAction({
-      userId,
-      action: "INCOMING_FINISHED_BY_SPECIALIST",
-      entityType: "IncomingDocument",
-      entityId: id,
-    });
-    await emitNotificationToUser(
-      incoming.document.createdBy ?? 0,
-      "Văn bản được chuyên viên hoàn thành",
-      `Văn bản ${incoming.document.documentNumber} đã hoàn thành xử lý`,
-    ).catch(() => undefined);
     return this.getById(id);
   }
 

@@ -8,6 +8,7 @@ import {
   type ProcessSpecialistDocumentRequest,
 } from '../../../api';
 import { useProcessors } from '../../../shared/hooks';
+import ProcessorRoleSection from './ProcessorRoleSection';
 
 /**
  * Mode controls which role's action set is exposed and how RETURN behaves.
@@ -25,6 +26,19 @@ interface ProcessIncomingDocumentModalProps {
   mode?: ProcessMode;
   onClose: () => void;
   onSuccess: () => void;
+  /**
+   * When set, the FORWARD step in head mode scopes the org tree to this
+   * department (the acting user's home department and all of its
+   * descendants). The Department Head forwarding flow uses this so they
+   * can only delegate inside their own subtree. Ignored in specialist
+   * mode (specialists only FINISH).
+   */
+  headUserDepartmentId?: number | null;
+  /**
+   * Display name of the head's department — surfaced in the FORWARD
+   * section header so the user understands the scope of the picker.
+   */
+  headUserDepartmentName?: string | null;
 }
 
 interface LocalAttachment {
@@ -91,6 +105,8 @@ export default function ProcessIncomingDocumentModal({
   mode = 'head',
   onClose,
   onSuccess,
+  headUserDepartmentId = null,
+  headUserDepartmentName = null,
 }: ProcessIncomingDocumentModalProps) {
   const isSpecialist = mode === 'specialist';
   const actionOptions = isSpecialist ? SPECIALIST_ACTION_OPTIONS : HEAD_ACTION_OPTIONS;
@@ -233,7 +249,11 @@ export default function ProcessIncomingDocumentModal({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720, width: '95%' }}>
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: isSpecialist ? 720 : 880, width: '95%' }}
+      >
         <div className="modal-header">
           <h2>{modalTitle}</h2>
           <button className="modal-close" onClick={onClose} disabled={submitting}>&times;</button>
@@ -279,51 +299,120 @@ export default function ProcessIncomingDocumentModal({
 
           {action === 'FORWARD' && (
             <div>
-              <div style={{ marginBottom: 8, fontWeight: 600 }}>
-                Chọn người xử lý <span style={{ color: '#e74c3c' }}>*</span>
-              </div>
-              <div style={{ fontSize: 12, color: '#636e72', marginBottom: 10 }}>
-                Phải chọn ít nhất 1 XLC (Người xử lý chính). Có thể chọn thêm PHXL và XDB.
-              </div>
-              {loadingProcessors ? (
-                <div className="loading-spinner"><div className="spinner" /></div>
+              {isSpecialist ? (
+                // Specialist path: keep the legacy flat picker (rarely used
+                // because specialists effectively only FINISH, but kept for
+                // backwards compatibility with the older mode).
+                <>
+                  <div style={{ marginBottom: 8, fontWeight: 600 }}>
+                    Chọn người xử lý <span style={{ color: '#e74c3c' }}>*</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#636e72', marginBottom: 10 }}>
+                    Phải chọn ít nhất 1 XLC (Người xử lý chính). Có thể chọn thêm PHXL và XDB.
+                  </div>
+                  {loadingProcessors ? (
+                    <div className="loading-spinner"><div className="spinner" /></div>
+                  ) : (
+                    <div className="processor-grid" style={{ maxHeight: 240, overflowY: 'auto', padding: 4 }}>
+                      {processors.map((processor) => {
+                        const currentType = getProcessorType(processor.id);
+                        return (
+                          <div key={processor.id} className={`processor-card ${currentType ? 'selected' : ''}`}>
+                            <div className="processor-card-header">
+                              <div className="processor-avatar">
+                                {processor.fullName
+                                  .split(' ')
+                                  .map((n) => n[0])
+                                  .join('')
+                                  .toUpperCase()
+                                  .slice(0, 2)}
+                              </div>
+                              <div className="processor-info">
+                                <div className="processor-name">{processor.fullName}</div>
+                                <div className="processor-roles">{processor.roles.join(', ')}</div>
+                              </div>
+                            </div>
+                            <div className="processor-type-buttons">
+                              {(['XLC', 'PHXL', 'XDB'] as ProcessorType[]).map((type) => (
+                                <button
+                                  key={type}
+                                  type="button"
+                                  className={`processor-type-btn ${currentType === type ? 'active' : ''} type-${type.toLowerCase()}`}
+                                  onClick={() => handleProcessorToggle(processor.id, type)}
+                                  title={type}
+                                >
+                                  {type}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="processor-grid" style={{ maxHeight: 240, overflowY: 'auto', padding: 4 }}>
-                  {processors.map((processor) => {
-                    const currentType = getProcessorType(processor.id);
-                    return (
-                      <div key={processor.id} className={`processor-card ${currentType ? 'selected' : ''}`}>
-                        <div className="processor-card-header">
-                          <div className="processor-avatar">
-                            {processor.fullName
-                              .split(' ')
-                              .map((n) => n[0])
-                              .join('')
-                              .toUpperCase()
-                              .slice(0, 2)}
-                          </div>
-                          <div className="processor-info">
-                            <div className="processor-name">{processor.fullName}</div>
-                            <div className="processor-roles">{processor.roles.join(', ')}</div>
-                          </div>
-                        </div>
-                        <div className="processor-type-buttons">
-                          {(['XLC', 'PHXL', 'XDB'] as ProcessorType[]).map((type) => (
-                            <button
-                              key={type}
-                              type="button"
-                              className={`processor-type-btn ${currentType === type ? 'active' : ''} type-${type.toLowerCase()}`}
-                              onClick={() => handleProcessorToggle(processor.id, type)}
-                              title={type}
-                            >
-                              {type}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                // Head path: use the org-tree picker. Scope to the head's
+                // own department subtree and only show Specialist-role users.
+                // Department Heads can only delegate inside their own
+                // organisation branch, and the forwarded handler is the
+                // XLC (single-select).
+                <>
+                  <div style={{ fontSize: 12, color: '#636e72', marginBottom: 10 }}>
+                    Chọn <strong>1 chuyên viên</strong> trong{' '}
+                    {headUserDepartmentName ? (
+                      <strong>phòng ban {headUserDepartmentName}</strong>
+                    ) : (
+                      <strong>phòng ban của bạn</strong>
+                    )}{' '}
+                    (và các phòng ban con) làm Người xử lý chính (XLC).
+                  </div>
+                  <ProcessorRoleSection
+                    title="Người xử lý chính (XLC)"
+                    description={
+                      headUserDepartmentName
+                        ? `Danh sách chuyên viên thuộc phòng ban ${headUserDepartmentName} và các phòng ban con.`
+                        : 'Danh sách chuyên viên thuộc phòng ban của bạn và các phòng ban con.'
+                    }
+                    variant="xlc"
+                    users={processors}
+                    blockedUserIds={[]}
+                    allowedRoles={['SPECIALIST']}
+                    selectedIds={
+                      // The current picker only ever stores one XLC at a
+                      // time (the head forwards to a single primary
+                      // handler). Surface the current selection so the
+                      // tree highlights the right node.
+                      (() => {
+                        const current = processorIds.find((p) => p.processorType === 'XLC');
+                        return current ? [current.userId] : [];
+                      })()
+                    }
+                    mode="single"
+                    max={1}
+                    onChange={(next) => {
+                      // Replace the XLC selection in the unified
+                      // processorIds array so the submit payload stays
+                      // consistent.
+                      const previousXlc = processorIds.find((p) => p.processorType === 'XLC');
+                      const filtered = processorIds.filter((p) => p.processorType !== 'XLC');
+                      if (next.length === 0 || !next[0]) {
+                        setProcessorIds(filtered);
+                        return;
+                      }
+                      setProcessorIds([
+                        ...filtered,
+                        { userId: next[0], processorType: 'XLC' },
+                      ]);
+                      // We intentionally drop any "previousXlc" replacement
+                      // warnings — the single-select UI doesn't expose
+                      // them. This keeps the change handler a pure
+                      // idempotent transform.
+                      void previousXlc;
+                    }}
+                    rootDepartmentId={headUserDepartmentId}
+                  />
+                </>
               )}
 
               <div className="form-grid" style={{ marginTop: 16 }}>

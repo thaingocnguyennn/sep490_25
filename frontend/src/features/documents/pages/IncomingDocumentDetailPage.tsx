@@ -12,6 +12,7 @@ import { formatUrgency } from '../../../shared/constants/urgency';
 import { formatConfidentiality } from '../../../shared/constants/confidentiality';
 import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
 import QuickProcessHeadModal, { type QuickHeadAction } from '../components/QuickProcessHeadModal';
+import QuickFinishModal from '../components/QuickFinishModal';
 import PdfPreview from '../components/PdfPreview';
 
 import RegisterDocumentModal from '../components/RegisterDocumentModal';
@@ -47,6 +48,16 @@ export default function IncomingDocumentDetailPage() {
   const [quickAction, setQuickAction] = useState<QuickHeadAction | null>(null);
   const [quickSubmitting, setQuickSubmitting] = useState(false);
   const [quickError, setQuickError] = useState('');
+
+  // Specialist FINISH modal. The specialist path used to share the
+  // full ProcessIncomingDocumentModal, but per the new flow design the
+  // specialist XLC only has one action (FINISH), so we surface a single
+  // confirmation button on the page and route through this lightweight
+  // modal instead of the multi-action picker.
+  const [specialistFinishOpen, setSpecialistFinishOpen] = useState(false);
+  const [specialistFinishSubmitting, setSpecialistFinishSubmitting] =
+    useState(false);
+  const [specialistFinishError, setSpecialistFinishError] = useState('');
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -112,6 +123,33 @@ export default function IncomingDocumentDetailPage() {
       setPhxlError(apiError.response?.data?.message || 'Could not complete the task.');
     } finally {
       setPhxlCompleting(false);
+    }
+  };
+
+  // Specialist FINISH handler. Routes through `processBySpecialist` with
+  // the only legal action (`FINISH`). The backend closes the workflow
+  // step, cancels remaining PENDING/IN_PROGRESS steps, and flips the
+  // document to COMPLETED — i.e. the entire workflow ends here.
+  const handleSpecialistFinishConfirm = async (payload: {
+    processingInstructions?: string;
+  }) => {
+    if (!doc) return;
+    setSpecialistFinishSubmitting(true);
+    setSpecialistFinishError('');
+    try {
+      await incomingDocumentsApi.processBySpecialist(doc.id, {
+        action: 'FINISH',
+        processingInstructions: payload.processingInstructions,
+      });
+      setSpecialistFinishOpen(false);
+      fetchDoc();
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { message?: string } } };
+      setSpecialistFinishError(
+        apiError.response?.data?.message || 'Hoàn thành thất bại. Vui lòng thử lại.'
+      );
+    } finally {
+      setSpecialistFinishSubmitting(false);
     }
   };
 
@@ -374,12 +412,24 @@ export default function IncomingDocumentDetailPage() {
                   </button>
                 </>
               ) : (
+                // Specialist XLC path: a single FINISH button. The
+                // previous design opened the full ProcessIncomingDocumentModal
+                // here so the specialist could pick FORWARD/FINISH/RETURN,
+                // but per the new flow design the only action specialists
+                // can take is FINISH. Returning to the head has been
+                // removed from the specialist workflow, and forwarding
+                // to another specialist was never supported. Surfacing
+                // a single "Hoàn thành" button keeps the UX focused and
+                // matches the backend `SpecialistAction = 'FINISH'` type.
                 <button
-                  className="btn btn-primary"
-                  onClick={() => openProcessModal('specialist')}
-                  title="Xử lý văn bản này"
+                  className="btn btn-success"
+                  onClick={() => {
+                    setSpecialistFinishError('');
+                    setSpecialistFinishOpen(true);
+                  }}
+                  title="Đánh dấu văn bản đã hoàn thành xử lý và kết thúc luồng"
                 >
-                  Xử lý
+                  Hoàn thành
                 </button>
               )}
             </>
@@ -596,6 +646,76 @@ export default function IncomingDocumentDetailPage() {
             </div>
           )}
 
+          {/* Audit trail for the current viewer. Shows every participation
+              row the caller owns on this document so they can see what
+              happened on their branch of the workflow — e.g. "I acted as
+              DEPARTMENT_HEAD and completed it on 18/09/2026". This is
+              what keeps a Department Head from "losing" a document after
+              they FORWARD it to a Specialist: even though they're no
+              longer in the live `DocumentProcessor` set, their historical
+              participation rows are still here. */}
+          {d.participations && d.participations.length > 0 && (
+            <div className="card" style={{ marginBottom: 24, border: '1px solid #dfe6e9' }}>
+              <div className="card-header">
+                <h2>Lịch sử xử lý của bạn</h2>
+                <div style={{ fontSize: 13, color: '#636e72' }}>
+                  Theo dõi các vai trò bạn đã đảm nhận trên văn bản này
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="workflow-steps-list">
+                  {d.participations.map((p) => {
+                    const roleLabel: Record<string, string> = {
+                      CLERK: 'Văn thư',
+                      DEPARTMENT_HEAD: 'Trưởng phòng',
+                      SPECIALIST: 'Chuyên viên',
+                      XLC: 'Người xử lý chính',
+                      PHXL: 'Người phối hợp',
+                      XDB: 'Để biết',
+                    };
+                    const pStatus = String(p.status).toUpperCase();
+                    const statusLabel = WORKFLOW_STATUS_LABELS[pStatus] ?? pStatus;
+                    const statusClass = pStatus.toLowerCase().replace('_', '-');
+                    return (
+                      <div key={p.id} className="workflow-step-row">
+                        <div className="workflow-step-info">
+                          <div style={{ fontWeight: 600 }}>
+                            {roleLabel[p.participationRole] ?? p.participationRole}
+                          </div>
+                          {p.completedAt && (
+                            <div style={{ fontSize: 13, color: '#27ae60' }}>
+                              Hoàn thành lúc: {new Date(p.completedAt).toLocaleString('vi-VN')}
+                            </div>
+                          )}
+                          {p.returnedAt && (
+                            <div style={{ fontSize: 13, color: '#c0392b' }}>
+                              Đã trả lại lúc: {new Date(p.returnedAt).toLocaleString('vi-VN')}
+                            </div>
+                          )}
+                          {p.returnReason && (
+                            <div style={{ fontSize: 13, color: '#636e72' }}>
+                              Lý do: {p.returnReason}
+                            </div>
+                          )}
+                          {p.viewedAt && !p.completedAt && !p.returnedAt && (
+                            <div style={{ fontSize: 13, color: '#636e72' }}>
+                              Đã xem lúc: {new Date(p.viewedAt).toLocaleString('vi-VN')}
+                            </div>
+                          )}
+                        </div>
+                        <div className="workflow-step-status">
+                          <span className={`workflow-status-tag ${statusClass}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {currentUserIsXdb && (
             <div className="card" style={{ marginBottom: 24, border: '1px solid #dfe6e9' }}>
               <div className="card-header">
@@ -710,6 +830,23 @@ export default function IncomingDocumentDetailPage() {
           open={processOpen}
           doc={doc}
           mode={processMode}
+          // For the Department Head "Chuyển xử lý" flow, scope the
+          // org-tree picker to the head's home department (and its
+          // descendants). We prefer `departmentMemberships[0]` so users
+          // who sit in multiple branches still get a deterministic root;
+          // fall back to the legacy `department` field if memberships
+          // aren't loaded. Admin (no department) gets no scope and sees
+          // the full tree.
+          headUserDepartmentId={
+            processMode === 'head'
+              ? (user?.departmentMemberships?.[0]?.departmentId ?? user?.department?.id ?? null)
+              : null
+          }
+          headUserDepartmentName={
+            processMode === 'head'
+              ? (user?.departmentMemberships?.[0]?.name ?? user?.department?.name ?? null)
+              : null
+          }
           onClose={handleProcessClose}
           onSuccess={() => {
             handleProcessClose();
@@ -732,6 +869,23 @@ export default function IncomingDocumentDetailPage() {
             }
           }}
           onConfirm={handleQuickHeadConfirm}
+        />
+      )}
+
+      {doc && (
+        <QuickFinishModal
+          open={specialistFinishOpen}
+          actor="specialist"
+          docTitle={doc.document.subject || 'Văn bản đến'}
+          submitting={specialistFinishSubmitting}
+          error={specialistFinishError}
+          onClose={() => {
+            if (!specialistFinishSubmitting) {
+              setSpecialistFinishOpen(false);
+              setSpecialistFinishError('');
+            }
+          }}
+          onConfirm={handleSpecialistFinishConfirm}
         />
       )}
 

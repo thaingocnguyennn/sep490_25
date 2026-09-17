@@ -281,12 +281,52 @@ export class IncomingDocumentsRepository {
     }
 
     if (assignedToUserId !== undefined && assignedProcessorTypes && assignedProcessorTypes.length > 0) {
-      documentWhere.processors = {
-        some: {
-          userId: assignedToUserId,
-          processorType: { in: assignedProcessorTypes as any },
+      // Audit trail: a user keeps the document visible in their list even
+      // after a FORWARD/RETURN re-assigns the processor set. We OR the
+      // `participations` filter (covers any historical row — DEPT_HEAD /
+      // XLC / PHXL / XDB / CLERK) with the live `processors` filter so a
+      // Head who already forwarded the document still sees it under
+      // "Hoàn thành" instead of having it silently disappear.
+      const visibilityOr: Prisma.DocumentWhereInput[] = [
+        {
+          processors: {
+            some: {
+              userId: assignedToUserId,
+              processorType: { in: assignedProcessorTypes as any },
+            },
+          },
         },
-      };
+        {
+          participations: {
+            some: {
+              userId: assignedToUserId,
+              participationRole: {
+                in: ['DEPARTMENT_HEAD', 'SPECIALIST', 'XLC', 'PHXL', 'XDB', 'CLERK'],
+              },
+            },
+          },
+        },
+      ];
+      // Splice the existing predicates (documentTypeId, urgency, search, …)
+      // into the AND branch so they still apply alongside the visibility OR.
+      // We move every non-AND key out of documentWhere and re-attach it
+      // under the new AND clause.
+      const existingKeys = Object.keys(documentWhere).filter((k) => k !== 'AND');
+      if (existingKeys.length === 0) {
+        documentWhere.OR = visibilityOr;
+      } else {
+        const lifted: Prisma.DocumentWhereInput = {};
+        for (const k of existingKeys) {
+          (lifted as Record<string, unknown>)[k] = (documentWhere as Record<string, unknown>)[k];
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete (documentWhere as Record<string, unknown>)[k];
+        }
+        documentWhere.AND = [
+          ...(Array.isArray(documentWhere.AND) ? documentWhere.AND : []),
+          lifted,
+          { OR: visibilityOr },
+        ];
+      }
     }
 
     // Per-viewer status filter. The caller passes the literal enum value as
@@ -294,9 +334,22 @@ export class IncomingDocumentsRepository {
     if (status && viewerFor) {
       const upperStatus = status.toUpperCase() as ViewerStatus;
       const viewerWhere = this.buildViewerStatusWhere(viewerFor.userId, upperStatus);
-      // Merge with any existing filters. `AND` semantics when combined
-      // with the search and documentTypeId filters above.
-      Object.assign(documentWhere, viewerWhere);
+      // Merge with any existing filters. We must avoid clobbering the
+      // visibility OR set up above when both filters are present (e.g. a
+      // user filtered by COMPLETED — the visibility OR must remain
+      // intact or the audit-trail fix stops working). Wrap viewerWhere
+      // under AND when needed.
+      if (documentWhere.OR) {
+        const liftedOr = documentWhere.OR;
+        delete documentWhere.OR;
+        documentWhere.AND = [
+          ...(Array.isArray(documentWhere.AND) ? documentWhere.AND : []),
+          { OR: Array.isArray(liftedOr) ? liftedOr : [liftedOr] },
+          viewerWhere,
+        ];
+      } else {
+        Object.assign(documentWhere, viewerWhere);
+      }
     }
 
     if (Object.keys(documentWhere).length > 0) {
