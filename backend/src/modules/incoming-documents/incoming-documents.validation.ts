@@ -1,80 +1,116 @@
-import { body, param } from 'express-validator';
+import { body, param } from "express-validator";
 
 export const registerIncomingDocumentValidation = [
-  param('id').isInt({ min: 1 }).withMessage('ID văn bản không hợp lệ'),
-  body('documentBookId').isInt({ min: 1 }).withMessage('ID sổ văn bản là bắt buộc'),
-  body('customArrivalDate').optional({ nullable: true }).isISO8601().withMessage('Ngày đến không hợp lệ'),
+  param("id").isInt({ min: 1 }).withMessage("ID văn bản không hợp lệ"),
+  body("documentBookId")
+    .isInt({ min: 1 })
+    .withMessage("ID sổ văn bản là bắt buộc"),
+  body("customArrivalDate")
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage("Ngày đến không hợp lệ"),
 ];
 export const createIncomingDocumentValidation = [
-  body('issuer').optional().trim(),
-  body('documentTypeId').optional().isInt().withMessage('documentTypeId phải là số nguyên'),
-  body('documentNumber').optional().trim(),
-  body('arrivalNumber').optional().isInt({ min: 1 }).withMessage('Số đến phải là số nguyên dương'),
-  body('signerName').optional().trim(),
-  body('signerTitle').optional().trim(),
-  body('dateLetter')
-    .optional({ values: 'falsy' })
+  body("issuer").optional().trim(),
+  body("documentTypeId")
+    .optional()
+    .isInt()
+    .withMessage("documentTypeId phải là số nguyên"),
+  body("documentNumber").optional().trim(),
+  body("arrivalNumber")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Số đến phải là số nguyên dương"),
+  body("signerName").optional().trim(),
+  body("signerTitle").optional().trim(),
+  body("dateLetter")
+    .optional({ values: "falsy" })
     .isString()
-    .withMessage('Ngày ban hành phải là chuỗi ngày hợp lệ'),
-  body('dateReceived').notEmpty().withMessage('Ngày đến là bắt buộc'),
-  body('summary').notEmpty().withMessage('Trích yếu là bắt buộc').trim(),
-  body('pageCount').optional().isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
-  body('urgency')
+    .withMessage("Ngày ban hành phải là chuỗi ngày hợp lệ"),
+  body("dateReceived").notEmpty().withMessage("Ngày đến là bắt buộc"),
+  body("summary").notEmpty().withMessage("Trích yếu là bắt buộc").trim(),
+  body("pageCount")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Số trang phải là số nguyên dương"),
+  body("urgency")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      const allowed = [
+        "THUONG",
+        "KHAN",
+        "THUONG_KHAN",
+        "THUONG_KHAU",
+        "HOA_TOC",
+      ];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAN, HOA_TOC');
+        throw new Error(
+          "Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAN, HOA_TOC",
+        );
       }
       return true;
     }),
-  body('urgencyId')
+  body("urgencyId")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      const allowed = [
+        "THUONG",
+        "KHAN",
+        "THUONG_KHAN",
+        "THUONG_KHAU",
+        "HOA_TOC",
+      ];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ khẩn không hợp lệ');
+        throw new Error("Độ khẩn không hợp lệ");
       }
       return true;
     }),
-  body('confidentialityLevel')
+  body("confidentialityLevel")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      const allowed = ["THUONG", "MAT", "TOI_MAT", "TUYET_MAT"];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ mật không hợp lệ. Các giá trị hợp lệ: THUONG, MAT, TOI_MAT, TUYET_MAT');
+        throw new Error(
+          "Độ mật không hợp lệ. Các giá trị hợp lệ: THUONG, MAT, TOI_MAT, TUYET_MAT",
+        );
       }
       return true;
     }),
-  body('confidentialityId')
+  body("confidentialityId")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      const allowed = ["THUONG", "MAT", "TOI_MAT", "TUYET_MAT"];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ mật không hợp lệ');
+        throw new Error("Độ mật không hợp lệ");
       }
       return true;
     }),
-  body('processingInstructions').optional().trim(),
-  body('processorIds').isArray({ min: 1 }).withMessage('Phải chọn ít nhất một người xử lý'),
-  body('processorIds.*.userId').isInt({ min: 1 }).withMessage('ID người dùng không hợp lệ'),
-  body('processorIds.*.processorType')
-    .isIn(['XLC', 'PHXL', 'XDB'])
-    .withMessage('Loại xử lý không hợp lệ'),
-  body('processorIds')
+  body("processingInstructions").optional().trim(),
+  body("processorIds")
+    .isArray({ min: 1 })
+    .withMessage("Phải chọn ít nhất một người xử lý"),
+  body("processorIds.*.userId")
+    .isInt({ min: 1 })
+    .withMessage("ID người dùng không hợp lệ"),
+  body("processorIds.*.processorType")
+    .isIn(["XLC", "PHXL", "XDB"])
+    .withMessage("Loại xử lý không hợp lệ"),
+  body("processorIds")
     .custom((value) => {
       // Exactly one XLC. PHXL and XDB can be empty, but XLC must be present
       // exactly once (defense in depth — the service also enforces this).
       if (!Array.isArray(value)) return true;
-      const xlcCount = value.filter((p) => p && p.processorType === 'XLC').length;
+      const xlcCount = value.filter(
+        (p) => p && p.processorType === "XLC",
+      ).length;
       return xlcCount === 1;
     })
-    .withMessage('Phải chọn đúng 1 Người xử lý chính (XLC)'),
-  body('processorIds')
+    .withMessage("Phải chọn đúng 1 Người xử lý chính (XLC)"),
+  body("processorIds")
     .custom((value) => {
       // No user can appear in more than one section (priority invariant).
       if (!Array.isArray(value)) return true;
@@ -83,9 +119,15 @@ export const createIncomingDocumentValidation = [
         .filter((id) => id !== null && id !== undefined);
       return new Set(ids).size === ids.length;
     })
-    .withMessage('Một người không thể nằm ở nhiều vai trò xử lý'),
-  body('attachments').optional().isArray().withMessage('Tệp đính kèm phải là một mảng'),
-  body('documentBookId').optional().isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
+    .withMessage("Một người không thể nằm ở nhiều vai trò xử lý"),
+  body("attachments")
+    .optional()
+    .isArray()
+    .withMessage("Tệp đính kèm phải là một mảng"),
+  body("documentBookId")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("ID sổ văn bản phải là số nguyên dương"),
 ];
 
 /**
@@ -95,73 +137,104 @@ export const createIncomingDocumentValidation = [
  * File validation is done by multer middleware, not express-validator.
  */
 export const createIncomingDocumentWithFileValidation = [
-  body('issuer').optional().trim(),
-  body('documentTypeId').optional().isInt().withMessage('documentTypeId phải là số nguyên'),
-  body('documentNumber').optional().trim(),
-  body('arrivalNumber').optional().isInt({ min: 1 }).withMessage('Số đến phải là số nguyên dương'),
-  body('signerName').optional().trim(),
-  body('signerTitle').optional().trim(),
-  body('dateLetter')
-    .optional({ values: 'falsy' })
+  body("issuer").optional().trim(),
+  body("documentTypeId")
+    .optional()
+    .isInt()
+    .withMessage("documentTypeId phải là số nguyên"),
+  body("documentNumber").optional().trim(),
+  body("arrivalNumber")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Số đến phải là số nguyên dương"),
+  body("signerName").optional().trim(),
+  body("signerTitle").optional().trim(),
+  body("dateLetter")
+    .optional({ values: "falsy" })
     .isString()
-    .withMessage('Ngày ban hành phải là chuỗi ngày hợp lệ'),
-  body('dateReceived').notEmpty().withMessage('Ngày đến là bắt buộc'),
-  body('summary').notEmpty().withMessage('Trích yếu là bắt buộc').trim(),
-  body('pageCount').optional().isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
-  body('urgency')
+    .withMessage("Ngày ban hành phải là chuỗi ngày hợp lệ"),
+  body("dateReceived").notEmpty().withMessage("Ngày đến là bắt buộc"),
+  body("summary").notEmpty().withMessage("Trích yếu là bắt buộc").trim(),
+  body("pageCount")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Số trang phải là số nguyên dương"),
+  body("urgency")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      const allowed = [
+        "THUONG",
+        "KHAN",
+        "THUONG_KHAN",
+        "THUONG_KHAU",
+        "HOA_TOC",
+      ];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAN, HOA_TOC');
+        throw new Error(
+          "Độ khẩn không hợp lệ. Các giá trị hợp lệ: THUONG, KHAN, THUONG_KHAN, HOA_TOC",
+        );
       }
       return true;
     }),
-  body('urgencyId')
+  body("urgencyId")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
+      const allowed = [
+        "THUONG",
+        "KHAN",
+        "THUONG_KHAN",
+        "THUONG_KHAU",
+        "HOA_TOC",
+      ];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ khẩn không hợp lệ');
+        throw new Error("Độ khẩn không hợp lệ");
       }
       return true;
     }),
-  body('confidentialityLevel')
+  body("confidentialityLevel")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      const allowed = ["THUONG", "MAT", "TOI_MAT", "TUYET_MAT"];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ mật không hợp lệ. Các giá trị hợp lệ: THUONG, MAT, TOI_MAT, TUYET_MAT');
+        throw new Error(
+          "Độ mật không hợp lệ. Các giá trị hợp lệ: THUONG, MAT, TOI_MAT, TUYET_MAT",
+        );
       }
       return true;
     }),
-  body('confidentialityId')
+  body("confidentialityId")
     .optional()
     .custom((value) => {
       const v = String(value).trim().toUpperCase();
-      const allowed = ['THUONG', 'MAT', 'TOI_MAT', 'TUYET_MAT'];
+      const allowed = ["THUONG", "MAT", "TOI_MAT", "TUYET_MAT"];
       if (!allowed.includes(v) && !/^\d+$/.test(v)) {
-        throw new Error('Độ mật không hợp lệ');
+        throw new Error("Độ mật không hợp lệ");
       }
       return true;
     }),
-  body('processingInstructions').optional().trim(),
-  body('processorIds').isArray({ min: 1 }).withMessage('Phải chọn ít nhất một người xử lý'),
-  body('processorIds.*.userId').isInt({ min: 1 }).withMessage('ID người dùng không hợp lệ'),
-  body('processorIds.*.processorType')
-    .isIn(['XLC', 'PHXL', 'XDB'])
-    .withMessage('Loại xử lý không hợp lệ'),
-  body('processorIds')
+  body("processingInstructions").optional().trim(),
+  body("processorIds")
+    .isArray({ min: 1 })
+    .withMessage("Phải chọn ít nhất một người xử lý"),
+  body("processorIds.*.userId")
+    .isInt({ min: 1 })
+    .withMessage("ID người dùng không hợp lệ"),
+  body("processorIds.*.processorType")
+    .isIn(["XLC", "PHXL", "XDB"])
+    .withMessage("Loại xử lý không hợp lệ"),
+  body("processorIds")
     .custom((value) => {
       if (!Array.isArray(value)) return true;
-      const xlcCount = value.filter((p) => p && p.processorType === 'XLC').length;
+      const xlcCount = value.filter(
+        (p) => p && p.processorType === "XLC",
+      ).length;
       return xlcCount === 1;
     })
-    .withMessage('Phải chọn đúng 1 Người xử lý chính (XLC)'),
-  body('processorIds')
+    .withMessage("Phải chọn đúng 1 Người xử lý chính (XLC)"),
+  body("processorIds")
     .custom((value) => {
       if (!Array.isArray(value)) return true;
       const ids = value
@@ -169,88 +242,81 @@ export const createIncomingDocumentWithFileValidation = [
         .filter((id) => id !== null && id !== undefined);
       return new Set(ids).size === ids.length;
     })
-    .withMessage('Một người không thể nằm ở nhiều vai trò xử lý'),
-  body('attachments').optional().isArray().withMessage('Tệp đính kèm phải là một mảng'),
-  body('documentBookId').optional().isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
+    .withMessage("Một người không thể nằm ở nhiều vai trò xử lý"),
+  body("attachments")
+    .optional()
+    .isArray()
+    .withMessage("Tệp đính kèm phải là một mảng"),
+  body("documentBookId")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("ID sổ văn bản phải là số nguyên dương"),
 ];
 
 export const processIncomingDocumentValidation = [
-  body('action')
+  body("action")
     .notEmpty()
-    .withMessage('Hành động là bắt buộc')
-    .isIn(['FINISH', 'FORWARD', 'RETURN'])
-    .withMessage('Hành động không hợp lệ'),
-  body('processorIds')
-    .if(body('action').equals('FORWARD'))
+    .withMessage("Hành động là bắt buộc")
+    .isIn(["FINISH", "FORWARD", "RETURN"])
+    .withMessage("Hành động không hợp lệ"),
+  body("processorIds")
+    .if(body("action").equals("FORWARD"))
     .isArray({ min: 1 })
-    .withMessage('Phải chọn ít nhất một người xử lý'),
-  body('processorIds.*.userId')
-    .if(body('action').equals('FORWARD'))
+    .withMessage("Phải chọn ít nhất một người xử lý"),
+  body("processorIds.*.userId")
+    .if(body("action").equals("FORWARD"))
     .isInt({ min: 1 })
-    .withMessage('ID người dùng không hợp lệ'),
-  body('processorIds.*.processorType')
-    .if(body('action').equals('FORWARD'))
-    .isIn(['XLC', 'PHXL', 'XDB'])
-    .withMessage('Loại xử lý không hợp lệ'),
-  body('processorIds')
-    .if(body('action').equals('FORWARD'))
+    .withMessage("ID người dùng không hợp lệ"),
+  body("processorIds.*.processorType")
+    .if(body("action").equals("FORWARD"))
+    .isIn(["XLC", "PHXL", "XDB"])
+    .withMessage("Loại xử lý không hợp lệ"),
+  body("processorIds")
+    .if(body("action").equals("FORWARD"))
     .custom((value) => {
       if (!Array.isArray(value)) return true;
-      return value.some((p) => p && p.processorType === 'XLC');
+      return value.some((p) => p && p.processorType === "XLC");
     })
-    .withMessage('Phải chọn ít nhất một Người xử lý chính (XLC)'),
-  body('processingInstructions')
-    .optional({ values: 'falsy' })
+    .withMessage("Phải chọn ít nhất một Người xử lý chính (XLC)"),
+  body("processingInstructions")
+    .optional({ values: "falsy" })
     .isString()
     .isLength({ max: 2000 })
-    .withMessage('Hướng dẫn xử lý tối đa 2000 ký tự'),
-  body('reason')
-    .optional({ values: 'falsy' })
+    .withMessage("Hướng dẫn xử lý tối đa 2000 ký tự"),
+  body("reason")
+    .optional({ values: "falsy" })
     .isString()
     .isLength({ max: 1000 })
-    .withMessage('Lý do trả lại tối đa 1000 ký tự'),
-  body('attachments')
+    .withMessage("Lý do trả lại tối đa 1000 ký tự"),
+  body("attachments")
     .optional()
     .isArray()
-    .withMessage('Tệp đính kèm phải là một mảng'),
+    .withMessage("Tệp đính kèm phải là một mảng"),
 ];
 
+/**
+ * Validation for POST /incoming-documents/:id/process-specialist
+ *
+ * Per the new flow design, the assigned specialist (XLC at step 3) has
+ * exactly ONE action available: FINISH. FORWARD and RETURN have been
+ * removed from the union type at the service layer. Validation here
+ * matches that contract and refuses any other action.
+ *
+ * The route still accepts an arbitrary body so the controller can pass
+ * through `{ action }` without breaking; the `processingInstructions`
+ * field is optional and used as a note on the FINISH completion.
+ */
 export const processSpecialistDocumentValidation = [
-  body('action')
+  body("action")
     .notEmpty()
-    .withMessage('Hành động là bắt buộc')
-    .isIn(['FINISH', 'FORWARD', 'RETURN'])
-    .withMessage('Hành động không hợp lệ. Các giá trị hợp lệ: FINISH, FORWARD, RETURN'),
-  body('processorIds')
-    .if(body('action').equals('FORWARD'))
-    .isArray({ min: 1 })
-    .withMessage('Phải chọn ít nhất một người xử lý'),
-  body('processorIds.*.userId')
-    .if(body('action').equals('FORWARD'))
-    .isInt({ min: 1 })
-    .withMessage('ID người dùng không hợp lệ'),
-  body('processorIds.*.processorType')
-    .if(body('action').equals('FORWARD'))
-    .isIn(['XLC', 'PHXL', 'XDB'])
-    .withMessage('Loại xử lý không hợp lệ'),
-  // Enforce ≥1 XLC for FORWARD at the validation layer (defense in depth).
-  body('processorIds')
-    .if(body('action').equals('FORWARD'))
-    .custom((value) => {
-      if (!Array.isArray(value)) return true;
-      return value.some((p) => p && p.processorType === 'XLC');
-    })
-    .withMessage('Phải chọn ít nhất một Người xử lý chính (XLC)'),
-  body('processingInstructions')
-    .optional({ values: 'falsy' })
+    .withMessage("Hành động là bắt buộc")
+    .equals("FINISH")
+    .withMessage(
+      "Chuyên viên chỉ có thể Hoàn thành văn bản — không được chuyển xử lý hay trả lại",
+    ),
+  body("processingInstructions")
+    .optional({ values: "falsy" })
     .isString()
     .isLength({ max: 2000 })
-    .withMessage('Hướng dẫn xử lý tối đa 2000 ký tự'),
-  body('reason')
-    .if(body('action').equals('RETURN'))
-    .notEmpty()
-    .withMessage('Lý do trả lại là bắt buộc')
-    .isString()
-    .isLength({ max: 1000 })
-    .withMessage('Lý do trả lại tối đa 1000 ký tự'),
+    .withMessage("Hướng dẫn xử lý tối đa 2000 ký tự"),
 ];

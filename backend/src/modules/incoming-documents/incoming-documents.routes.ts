@@ -1,26 +1,26 @@
-import { Router } from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { incomingDocumentsController } from './incoming-documents.controller';
-import { validateRequest } from '../../shared/middlewares/validate.middleware';
-import { authenticate } from '../../shared/middlewares/auth.middleware';
-import { requireRole } from '../../shared/middlewares/require-role.middleware';
-import { ROLES } from '../../shared/constants/roles';
+import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { incomingDocumentsController } from "./incoming-documents.controller";
+import { validateRequest } from "../../shared/middlewares/validate.middleware";
+import { authenticate } from "../../shared/middlewares/auth.middleware";
+import { requireRole } from "../../shared/middlewares/require-role.middleware";
+import { ROLES } from "../../shared/constants/roles";
 import {
   createIncomingDocumentValidation,
   createIncomingDocumentWithFileValidation,
   processIncomingDocumentValidation,
   processSpecialistDocumentValidation,
   registerIncomingDocumentValidation,
-} from './incoming-documents.validation';
+} from "./incoming-documents.validation";
 
 const router = Router();
 
 // ─── Disk storage for incoming-document file uploads ─────────────────────────
 // Matches the upload directory and filename pattern used by the shared upload
 // middleware so that uploaded files can be served by the same static routes.
-const uploadDir = path.resolve(__dirname, '../../../../uploads');
+const uploadDir = path.resolve(__dirname, "../../../../uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -35,50 +35,61 @@ const incomingStorage = multer.diskStorage({
 const incomingUpload = multer({
   storage: incomingStorage,
   fileFilter: (_req, file, cb) => {
-    const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/tiff', 'image/bmp'];
+    const allowed = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/tiff",
+      "image/bmp",
+    ];
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type'));
+      cb(new Error("Invalid file type"));
     }
   },
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB — same as general upload limit
 });
 
 router.post(
-  '/',
+  "/",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   createIncomingDocumentValidation,
   validateRequest,
-  incomingDocumentsController.create.bind(incomingDocumentsController)
+  incomingDocumentsController.create.bind(incomingDocumentsController),
 );
 
 router.get(
-  '/pending-for-head',
+  "/pending-for-head",
   authenticate,
   requireRole(ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
-  incomingDocumentsController.listPendingForHead.bind(incomingDocumentsController)
+  incomingDocumentsController.listPendingForHead.bind(
+    incomingDocumentsController,
+  ),
 );
 
 router.get(
-  '/pending-for-specialist',
+  "/pending-for-specialist",
   authenticate,
   requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
-  incomingDocumentsController.listPendingForSpecialist.bind(incomingDocumentsController)
+  incomingDocumentsController.listPendingForSpecialist.bind(
+    incomingDocumentsController,
+  ),
 );
 
 router.get(
-  '/',
+  "/",
   authenticate,
-  incomingDocumentsController.list.bind(incomingDocumentsController)
+  incomingDocumentsController.list.bind(incomingDocumentsController),
 );
 
 // Thống kê Văn bản đến (thêm mới, phải đặt trước /:id)
 router.get(
-  '/statistics',
+  "/statistics",
   authenticate,
-  incomingDocumentsController.getStatistics.bind(incomingDocumentsController)
+  incomingDocumentsController.getStatistics.bind(incomingDocumentsController),
 );
 
 /**
@@ -89,11 +100,15 @@ router.get(
  */
 function parseJsonFields(
   fields: string[],
-): (req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => void {
+): (
+  req: import("express").Request,
+  _res: import("express").Response,
+  next: import("express").NextFunction,
+) => void {
   return (req, _res, next) => {
     for (const field of fields) {
       const raw = req.body[field];
-      if (typeof raw === 'string' && raw.trimStart().startsWith('[')) {
+      if (typeof raw === "string" && raw.trimStart().startsWith("[")) {
         try {
           req.body[field] = JSON.parse(raw);
         } catch {
@@ -102,9 +117,9 @@ function parseJsonFields(
       }
     }
     // Parse integer fields that arrive as strings from multipart/form-data
-    for (const field of ['pageCount', 'arrivalNumber']) {
+    for (const field of ["pageCount", "arrivalNumber"]) {
       const raw = req.body[field];
-      if (typeof raw === 'string' && raw.trim() !== '') {
+      if (typeof raw === "string" && raw.trim() !== "") {
         const parsed = Number(raw);
         if (!Number.isNaN(parsed) && Number.isInteger(parsed)) {
           req.body[field] = parsed;
@@ -122,26 +137,26 @@ function parseJsonFields(
 //   • file         — the main PDF/image used for OCR (maxCount: 1)
 //   • attachments  — additional "Tệp đính kèm" files (maxCount: 20)
 router.post(
-  '/with-file',
+  "/with-file",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   incomingUpload.fields([
-    { name: 'file', maxCount: 1 },
-    { name: 'attachments', maxCount: 20 },
+    { name: "file", maxCount: 1 },
+    { name: "attachments", maxCount: 20 },
   ]),
-  parseJsonFields(['processorIds', 'attachments']),
+  parseJsonFields(["processorIds", "attachments"]),
   createIncomingDocumentWithFileValidation,
   validateRequest,
-  incomingDocumentsController.createWithFile.bind(incomingDocumentsController)
+  incomingDocumentsController.createWithFile.bind(incomingDocumentsController),
 );
 
 // POST /incoming-documents/draft — Save a draft document (no processors required)
 // Must be defined before /:id to avoid Express treating "draft" as an id
 router.post(
-  '/draft',
+  "/draft",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingDocumentsController.saveDraft.bind(incomingDocumentsController)
+  incomingDocumentsController.saveDraft.bind(incomingDocumentsController),
 );
 
 // POST /incoming-documents/draft/with-file — Save a draft document with file attachment
@@ -151,29 +166,31 @@ router.post(
 //   • file         — the main PDF/image used for OCR (maxCount: 1)
 //   • attachments  — additional "Tệp đính kèm" files (maxCount: 20)
 router.post(
-  '/draft/with-file',
+  "/draft/with-file",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   incomingUpload.fields([
-    { name: 'file', maxCount: 1 },
-    { name: 'attachments', maxCount: 20 },
+    { name: "file", maxCount: 1 },
+    { name: "attachments", maxCount: 20 },
   ]),
-  parseJsonFields(['attachments']),
-  incomingDocumentsController.saveDraftWithFile.bind(incomingDocumentsController)
+  parseJsonFields(["attachments"]),
+  incomingDocumentsController.saveDraftWithFile.bind(
+    incomingDocumentsController,
+  ),
 );
 
 router.get(
-  '/:id',
+  "/:id",
   authenticate,
-  incomingDocumentsController.getById.bind(incomingDocumentsController)
+  incomingDocumentsController.getById.bind(incomingDocumentsController),
 );
 
 // PUT /incoming-documents/:id/draft — Update an existing draft document
 router.put(
-  '/:id/draft',
+  "/:id/draft",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingDocumentsController.updateDraft.bind(incomingDocumentsController)
+  incomingDocumentsController.updateDraft.bind(incomingDocumentsController),
 );
 
 // PUT /incoming-documents/:id/draft/with-file — Update draft with new file
@@ -182,82 +199,98 @@ router.put(
 //   • file         — the main PDF/image used for OCR (maxCount: 1)
 //   • attachments  — additional "Tệp đính kèm" files (maxCount: 20)
 router.put(
-  '/:id/draft/with-file',
+  "/:id/draft/with-file",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   incomingUpload.fields([
-    { name: 'file', maxCount: 1 },
-    { name: 'attachments', maxCount: 20 },
+    { name: "file", maxCount: 1 },
+    { name: "attachments", maxCount: 20 },
   ]),
-  parseJsonFields(['attachments']),
-  incomingDocumentsController.updateDraftWithFile.bind(incomingDocumentsController)
+  parseJsonFields(["attachments"]),
+  incomingDocumentsController.updateDraftWithFile.bind(
+    incomingDocumentsController,
+  ),
 );
 
 router.patch(
-  '/:id/status',
+  "/:id/status",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingDocumentsController.updateStatus.bind(incomingDocumentsController)
+  incomingDocumentsController.updateStatus.bind(incomingDocumentsController),
 );
 
 router.post(
-  '/:id/register',
+  "/:id/register",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
   registerIncomingDocumentValidation,
   validateRequest,
-  incomingDocumentsController.register.bind(incomingDocumentsController)
+  incomingDocumentsController.register.bind(incomingDocumentsController),
 );
 
 router.post(
-  '/:id/view',
+  "/:id/view",
   authenticate,
-  incomingDocumentsController.markViewed.bind(incomingDocumentsController)
+  incomingDocumentsController.markViewed.bind(incomingDocumentsController),
 );
 
 router.post(
-  '/:id/resubmit',
-  authenticate,
-  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingDocumentsController.resubmit.bind(incomingDocumentsController)
-);
-
-router.post(
-  '/:id/submit-draft',
+  "/:id/resubmit",
   authenticate,
   requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
-  incomingDocumentsController.submitDraft.bind(incomingDocumentsController)
+  incomingDocumentsController.resubmit.bind(incomingDocumentsController),
+);
+
+router.post(
+  "/:id/submit-draft",
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  incomingDocumentsController.submitDraft.bind(incomingDocumentsController),
 );
 
 router.patch(
-  '/:id/workflow/:workflowId',
+  "/:id/workflow/:workflowId",
   authenticate,
-  incomingDocumentsController.updateWorkflowStep.bind(incomingDocumentsController)
+  incomingDocumentsController.updateWorkflowStep.bind(
+    incomingDocumentsController,
+  ),
 );
 
 router.post(
-  '/:id/processors/:userId/complete',
+  "/:id/processors/:userId/complete",
   authenticate,
-  requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
-  incomingDocumentsController.completeProcessorTask.bind(incomingDocumentsController)
+  // Authorization is performed inside `completeProcessorTask` based on
+  // per-document processor membership: only the user assigned as PHXL on
+  // this specific document (or ADMIN) may close their own participation.
+  // Hard-coding `requireRole(SPECIALIST, ADMIN)` here was wrong — per the
+  // new flow design PHXL can be assigned to users with role
+  // DEPARTMENT_HEAD or SPECIALIST (see `validateProcessorRoles`), and
+  // DEPARTMENT_HEAD users were getting 403 Forbidden when trying to
+  // record their supporting note. The service-layer guard correctly
+  // rejects non-self calls and admin bypasses both still apply.
+  incomingDocumentsController.completeProcessorTask.bind(
+    incomingDocumentsController,
+  ),
 );
 
 router.post(
-  '/:id/process',
+  "/:id/process",
   authenticate,
   requireRole(ROLES.DEPARTMENT_HEAD, ROLES.ADMIN),
   processIncomingDocumentValidation,
   validateRequest,
-  incomingDocumentsController.processByHead.bind(incomingDocumentsController)
+  incomingDocumentsController.processByHead.bind(incomingDocumentsController),
 );
 
 router.post(
-  '/:id/process-specialist',
+  "/:id/process-specialist",
   authenticate,
   requireRole(ROLES.SPECIALIST, ROLES.ADMIN),
   processSpecialistDocumentValidation,
   validateRequest,
-  incomingDocumentsController.processBySpecialist.bind(incomingDocumentsController)
+  incomingDocumentsController.processBySpecialist.bind(
+    incomingDocumentsController,
+  ),
 );
 
 export default router;
