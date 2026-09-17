@@ -76,16 +76,7 @@ export default function IncomingDocumentsPage() {
     <>
       <div className="top-bar">
         <h1>Văn bản đến</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {canViewPending && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => navigate('/incoming-documents/pending')}
-              title="Danh sách văn bản chờ Trưởng phòng xử lý"
-            >
-              Văn bản chờ xử lý
-            </button>
-          )}
+        <div style={{ display: 'flex', gap: 8 }}>        
           {canCreate && (
             <button className="btn btn-primary" onClick={() => navigate('/incoming-documents/new')}>
               + Thêm Văn bản đến mới
