@@ -209,6 +209,26 @@ router.post(
   incomingDocumentsController.register.bind(incomingDocumentsController)
 );
 
+router.post(
+  '/:id/view',
+  authenticate,
+  incomingDocumentsController.markViewed.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/resubmit',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  incomingDocumentsController.resubmit.bind(incomingDocumentsController)
+);
+
+router.post(
+  '/:id/submit-draft',
+  authenticate,
+  requireRole(ROLES.DOCUMENT_CLERK, ROLES.ADMIN),
+  incomingDocumentsController.submitDraft.bind(incomingDocumentsController)
+);
+
 router.patch(
   '/:id/workflow/:workflowId',
   authenticate,

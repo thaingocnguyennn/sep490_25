@@ -180,7 +180,7 @@ export default function PendingIncomingDocumentsPage() {
                           ? formatUrgency(item.document.urgency)
                           : '—'}
                       </td>
-                      <td><DocumentStatusBadge status={item.document.status} /></td>
+                      <td><DocumentStatusBadge status={item.document.viewerStatus ?? item.document.status} /></td>
                       <td>{item.document.createdByUser?.fullName || '—'}</td>
                       <td>
                         <button

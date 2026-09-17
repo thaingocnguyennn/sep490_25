@@ -156,6 +156,7 @@ model User {
   createdDocuments   Document[]          @relation("CreatedBy")
   updatedDocuments   Document[]          @relation("UpdatedBy")
   documentProcessors DocumentProcessor[]
+  workflowParticipations DocumentWorkflowParticipation[]
 
   // Outgoing document workflow relations
   outgoingSubmitted OutgoingDocument[] @relation("OutgoingSubmittedBy")
@@ -254,7 +255,6 @@ model Document {
   ocrText        String?
   ocrStatus      OcrStatus         @default(PENDING)
   status         DocumentStatus    @default(DRAFT)
-
   // --- Level 2 fields: basic document management ---
   issuer            String? // Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency)
   signerName        String? // Họ tên người ký
@@ -296,6 +296,7 @@ model Document {
   workflows         DocumentWorkflow[]
   processors        DocumentProcessor[]
   attachments       DocumentAttachment[]
+  participations    DocumentWorkflowParticipation[]
 
   @@index([documentStatus])
   @@index([type])
@@ -439,7 +440,8 @@ model WorkflowStep {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workflows DocumentWorkflow[]
+  workflows     DocumentWorkflow[]
+  participations DocumentWorkflowParticipation[]
 }
 
 model DocumentWorkflow {
@@ -459,6 +461,30 @@ model DocumentWorkflow {
 
   @@index([userId, status])
   @@index([documentId, createdAt])
+}
+
+model DocumentWorkflowParticipation {
+  id                 Int          @id @default(autoincrement())
+  documentId         Int
+  userId             Int
+  status             String       @default("PENDING")
+  participationRole  String
+  workflowStepId     Int?
+  viewedAt           DateTime?
+  completedAt        DateTime?
+  returnedAt         DateTime?
+  returnReason       String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  document     Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id])
+  workflowStep WorkflowStep? @relation(fields: [workflowStepId], references: [id])
+
+  @@unique([documentId, userId, participationRole])
+  @@index([documentId, status])
+  @@index([userId, status])
+  @@index([documentId, userId])
 }
 
 model Notification {

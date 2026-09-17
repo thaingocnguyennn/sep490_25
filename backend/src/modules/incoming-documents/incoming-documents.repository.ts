@@ -1,18 +1,29 @@
 import { default as prisma } from '../../config/database';
 import { NotFoundError } from '../../shared/exceptions/app-error';
-import { Prisma, DocumentStatus, WorkflowStatus } from '@prisma/client';
+import { Prisma, DocumentStatus } from '@prisma/client';
 import { resolveUrgencyId } from '../../shared/utils/urgency';
 import {
   resolveViewerStatus,
   type ViewerStatus,
   type ViewerStatusDocument,
+  type ViewerParticipation,
 } from '../../shared/access/viewer-status';
+
+/**
+ * Per-actor participation row shape after Prisma projection. The resolver
+ * only reads these fields.
+ */
+type ParticipationProjection = ViewerParticipation;
 
 /**
  * Augment the underlying Prisma Document with the per-actor `viewerStatus`
  * field used by the frontend to render the status badge.
  */
-type DocumentWithViewerStatus = ViewerStatusDocument & { viewerStatus?: ViewerStatus };
+type DocumentWithViewerStatus = ViewerStatusDocument & {
+  viewerStatus?: ViewerStatus;
+  /** Viewer-scoped participations (only for the prism-augmented document). */
+  participations?: ParticipationProjection[];
+};
 
 /**
  * Row shape returned by the list endpoints. The frontend only needs the
@@ -108,10 +119,125 @@ export interface IncomingDocumentWithRelations {
     /** Per-actor status. Populated when the caller supplied `viewerFor`,
      *  otherwise undefined. The frontend falls back to `status` in that case. */
     viewerStatus?: ViewerStatus;
+    /** Per-actor participations (only populated for the viewer). */
+    participations?: ParticipationProjection[];
   };
 }
 
+/**
+ * Prisma include shape used by both list and detail queries.
+ */
+const documentInclude = {
+  createdByUser: { select: { id: true, fullName: true } },
+  updatedByUser: { select: { id: true, fullName: true } },
+  urgency: { select: { id: true, name: true, description: true } },
+  confidentiality: { select: { id: true, code: true, name: true, description: true } },
+  documentTypeRef: { select: { id: true, name: true } },
+  category: { select: { id: true, name: true } },
+  processors: {
+    select: {
+      id: true,
+      processorType: true,
+      completedAt: true,
+      notes: true,
+      user: { select: { id: true, fullName: true, email: true } },
+    },
+  },
+  workflows: {
+    include: {
+      workflowStep: { select: { id: true, name: true, stepOrder: true, roleName: true } },
+      user: { select: { id: true, fullName: true } },
+    },
+    orderBy: { workflowStep: { stepOrder: 'asc' } },
+  },
+  attachments: true,
+} as const;
+
 export class IncomingDocumentsRepository {
+  /**
+   * Build the where clause that filters documents by the caller's viewer
+   * status. Each viewer status corresponds to a specific participation-row
+   * shape, which we encode as a Prisma filter against `participations`.
+   *
+   * Mapping (matches `mapParticipationStatus`):
+   *   DRAFT       → Document.status = DRAFT  AND  user has CLERK participation
+   *   PENDING     → at least one participation status='PENDING' AND viewedAt IS NULL
+   *   IN_PROGRESS → at least one participation status='IN_PROGRESS'
+   *                  OR (status='PENDING' AND viewedAt IS NOT NULL)
+   *   COMPLETED   → at least one participation status='COMPLETED'
+   *                  (for clerks this also implies the clerk step is done;
+   *                   Document.status will usually be a non-PENDING value)
+   *   RETURNED    → at least one participation status in ('RETURNED','REJECTED','CANCELLED')
+   *   REJECTED    → Document.status = REJECTED  (terminal global state)
+   */
+  private buildViewerStatusWhere(
+    userId: number,
+    status: ViewerStatus
+  ): Prisma.DocumentWhereInput {
+    switch (status) {
+      case 'DRAFT':
+        return {
+          status: DocumentStatus.DRAFT,
+          participations: {
+            some: { userId, participationRole: 'CLERK' },
+          },
+        };
+      case 'PENDING':
+        return {
+          participations: {
+            some: {
+              userId,
+              status: 'PENDING',
+              viewedAt: null,
+            },
+          },
+        };
+      case 'IN_PROGRESS':
+        return {
+          participations: {
+            some: {
+              userId,
+              OR: [
+                { status: 'IN_PROGRESS' },
+                { status: 'PENDING', viewedAt: { not: null } },
+              ],
+            },
+          },
+        };
+      case 'COMPLETED':
+        return {
+          participations: {
+            some: {
+              userId,
+              status: 'COMPLETED',
+            },
+          },
+        };
+      case 'RETURNED':
+        return {
+          participations: {
+            some: {
+              userId,
+              status: { in: ['RETURNED', 'REJECTED'] },
+            },
+          },
+        };
+      case 'REJECTED':
+        return {
+          status: DocumentStatus.REJECTED,
+        };
+      case 'CANCELLED':
+        return {
+          participations: {
+            some: {
+              userId,
+              status: 'CANCELLED',
+            },
+          },
+        };
+    }
+  }
+
   async findAll(params: {
     page: number;
     limit: number;
@@ -142,7 +268,6 @@ export class IncomingDocumentsRepository {
         { signerName: { contains: search, mode: 'insensitive' } },
       ];
     }
-    if (status) documentWhere.status = status as any;
     if (documentTypeId !== undefined) {
       documentWhere.documentTypeId = documentTypeId;
     }
@@ -164,6 +289,16 @@ export class IncomingDocumentsRepository {
       };
     }
 
+    // Per-viewer status filter. The caller passes the literal enum value as
+    // a query string; we translate it to the participation-row shape.
+    if (status && viewerFor) {
+      const upperStatus = status.toUpperCase() as ViewerStatus;
+      const viewerWhere = this.buildViewerStatusWhere(viewerFor.userId, upperStatus);
+      // Merge with any existing filters. `AND` semantics when combined
+      // with the search and documentTypeId filters above.
+      Object.assign(documentWhere, viewerWhere);
+    }
+
     if (Object.keys(documentWhere).length > 0) {
       where.document = documentWhere;
     }
@@ -174,38 +309,50 @@ export class IncomingDocumentsRepository {
         skip,
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
-        include: {
-          document: {
-            include: {
-              createdByUser: { select: { id: true, fullName: true } },
-              urgency: { select: { id: true, name: true, description: true } },
-              confidentiality: { select: { id: true, code: true, name: true, description: true } },
-              documentTypeRef: { select: { id: true, name: true } },
-              category: { select: { id: true, name: true } },
-              processors: {
-                select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
-              },
-              workflows: {
-                include: {
-                  workflowStep: { select: { id: true, name: true, stepOrder: true, roleName: true } },
-                  user: { select: { id: true, fullName: true } },
-                },
-                orderBy: { workflowStep: { stepOrder: 'asc' } },
-              },
-              attachments: true,
-            },
-          },
-        },
+        include: { document: { include: documentInclude } },
       }),
       prisma.incomingDocument.count({ where }),
     ]);
 
     if (viewerFor) {
+      // Fetch the viewer-specific participations for the page. We do this
+      // in a single query and bucket the rows per document id so we don't
+      // N+1 across the page.
+      const documentIds = items.map((i) => i.documentId);
+      const myParticipations =
+        documentIds.length === 0
+          ? []
+          : await prisma.documentWorkflowParticipation.findMany({
+              where: {
+                documentId: { in: documentIds },
+                userId: viewerFor.userId,
+              },
+            });
+
+      const participationsByDocumentId = new Map<number, ParticipationProjection[]>();
+      for (const p of myParticipations) {
+        const list = participationsByDocumentId.get(p.documentId) ?? [];
+        list.push({
+          id: p.id,
+          status: p.status,
+          participationRole: p.participationRole,
+          viewedAt: p.viewedAt,
+          completedAt: p.completedAt,
+          returnedAt: p.returnedAt,
+        });
+        participationsByDocumentId.set(p.documentId, list);
+      }
+
       const decorated = items.map((item) => {
+        const participations = participationsByDocumentId.get(item.documentId) ?? [];
         const docWithStatus = {
           ...item.document,
+          participations,
           viewerStatus: resolveViewerStatus(
-            item.document as unknown as ViewerStatusDocument,
+            {
+              ...item.document,
+              participations,
+            } as unknown as ViewerStatusDocument,
             viewerFor.userId,
             viewerFor.userRoles
           ),
@@ -229,36 +376,34 @@ export class IncomingDocumentsRepository {
       where: { id },
       include: {
         documentBook: { select: { id: true, name: true, code: true } },
-        document: {
-          include: {
-            createdByUser: { select: { id: true, fullName: true } },
-            updatedByUser: { select: { id: true, fullName: true } },
-            urgency: { select: { id: true, name: true, description: true } },
-            confidentiality: { select: { id: true, code: true, name: true, description: true } },
-            documentTypeRef: { select: { id: true, name: true } },
-            category: { select: { id: true, name: true } },
-            processors: {
-              select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
-            },
-            workflows: {
-              include: {
-                workflowStep: { select: { id: true, name: true, stepOrder: true, roleName: true } },
-                user: { select: { id: true, fullName: true } },
-              },
-              orderBy: { workflowStep: { stepOrder: 'asc' } },
-            },
-            attachments: true,
-          },
-        },
+        document: { include: documentInclude },
       },
     });
     if (!incoming) throw new NotFoundError('Không tìm thấy văn bản đến');
 
     const incomingWithStatus = incoming as unknown as IncomingDocumentWithRelations;
     if (viewerFor) {
+      const participations = await prisma.documentWorkflowParticipation.findMany({
+        where: {
+          documentId: incoming.documentId,
+          userId: viewerFor.userId,
+        },
+      });
+      const projected: ParticipationProjection[] = participations.map((p) => ({
+        id: p.id,
+        status: p.status,
+        participationRole: p.participationRole,
+        viewedAt: p.viewedAt,
+        completedAt: p.completedAt,
+        returnedAt: p.returnedAt,
+      }));
+      (incomingWithStatus.document as DocumentWithViewerStatus).participations = projected;
       (incomingWithStatus.document as DocumentWithViewerStatus).viewerStatus =
         resolveViewerStatus(
-          incomingWithStatus.document as unknown as ViewerStatusDocument,
+          {
+            ...incomingWithStatus.document,
+            participations: projected,
+          } as unknown as ViewerStatusDocument,
           viewerFor.userId,
           viewerFor.userRoles
         );
@@ -272,12 +417,17 @@ export class IncomingDocumentsRepository {
     const { page, limit, search, viewerFor } = params;
     const skip = (page - 1) * limit;
 
+    // For heads: "pending" means "the document has at least one PENDING /
+    // unopened DEPARTMENT_HEAD or XLC participation for this viewer".
+    // We additionally constrain to documents that are still active in
+    // the workflow (not in a terminal global state).
     const documentWhere: Prisma.DocumentWhereInput = {
-      status: DocumentStatus.PENDING,
-      workflows: {
+      status: { notIn: [DocumentStatus.RETURNED, DocumentStatus.REJECTED, DocumentStatus.CANCELLED] },
+      participations: {
         some: {
-          status: WorkflowStatus.PENDING,
-          workflowStep: { stepOrder: 2, roleName: 'DEPARTMENT_HEAD' },
+          userId: viewerFor?.userId ?? -1,
+          participationRole: { in: ['DEPARTMENT_HEAD', 'XLC'] },
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
         },
       },
     };
@@ -300,37 +450,45 @@ export class IncomingDocumentsRepository {
         skip,
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
-        include: {
-          document: {
-            include: {
-              createdByUser: { select: { id: true, fullName: true } },
-              urgency: { select: { id: true, name: true, description: true } },
-              confidentiality: { select: { id: true, code: true, name: true, description: true } },
-              documentTypeRef: { select: { id: true, name: true } },
-              processors: {
-                select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
-              },
-              workflows: {
-                include: {
-                  workflowStep: { select: { id: true, name: true, stepOrder: true, roleName: true } },
-                  user: { select: { id: true, fullName: true } },
-                },
-                orderBy: { workflowStep: { stepOrder: 'asc' } },
-              },
-              attachments: true,
-            },
-          },
-        },
+        include: { document: { include: documentInclude } },
       }),
       prisma.incomingDocument.count({ where }),
     ]);
 
     if (viewerFor) {
+      const documentIds = items.map((i) => i.documentId);
+      const myParticipations =
+        documentIds.length === 0
+          ? []
+          : await prisma.documentWorkflowParticipation.findMany({
+              where: {
+                documentId: { in: documentIds },
+                userId: viewerFor.userId,
+              },
+            });
+      const participationsByDocumentId = new Map<number, ParticipationProjection[]>();
+      for (const p of myParticipations) {
+        const list = participationsByDocumentId.get(p.documentId) ?? [];
+        list.push({
+          id: p.id,
+          status: p.status,
+          participationRole: p.participationRole,
+          viewedAt: p.viewedAt,
+          completedAt: p.completedAt,
+          returnedAt: p.returnedAt,
+        });
+        participationsByDocumentId.set(p.documentId, list);
+      }
       const decorated = items.map((item) => {
+        const participations = participationsByDocumentId.get(item.documentId) ?? [];
         const docWithStatus = {
           ...item.document,
+          participations,
           viewerStatus: resolveViewerStatus(
-            item.document as unknown as ViewerStatusDocument,
+            {
+              ...item.document,
+              participations,
+            } as unknown as ViewerStatusDocument,
             viewerFor.userId,
             viewerFor.userRoles
           ),
@@ -356,12 +514,14 @@ export class IncomingDocumentsRepository {
     const { page, limit, search, userId, viewerFor } = params;
     const skip = (page - 1) * limit;
 
+    // For specialists: only documents where this specialist is an XLC
+    // participant with a still-active participation row.
     const documentWhere: Prisma.DocumentWhereInput = {
-      status: DocumentStatus.IN_PROGRESS,
-      processors: {
+      participations: {
         some: {
           userId,
-          processorType: 'XLC',
+          participationRole: 'XLC',
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
         },
       },
     };
@@ -384,37 +544,45 @@ export class IncomingDocumentsRepository {
         skip,
         take: limit,
         orderBy: { document: { createdAt: 'desc' } },
-        include: {
-          document: {
-            include: {
-              createdByUser: { select: { id: true, fullName: true } },
-              urgency: { select: { id: true, name: true, description: true } },
-              confidentiality: { select: { id: true, code: true, name: true, description: true } },
-              documentTypeRef: { select: { id: true, name: true } },
-              processors: {
-                select: { id: true, processorType: true, completedAt: true, notes: true, user: { select: { id: true, fullName: true, email: true } } },
-              },
-              workflows: {
-                include: {
-                  workflowStep: { select: { id: true, name: true, stepOrder: true, roleName: true } },
-                  user: { select: { id: true, fullName: true } },
-                },
-                orderBy: { workflowStep: { stepOrder: 'asc' } },
-              },
-              attachments: true,
-            },
-          },
-        },
+        include: { document: { include: documentInclude } },
       }),
       prisma.incomingDocument.count({ where }),
     ]);
 
     if (viewerFor) {
+      const documentIds = items.map((i) => i.documentId);
+      const myParticipations =
+        documentIds.length === 0
+          ? []
+          : await prisma.documentWorkflowParticipation.findMany({
+              where: {
+                documentId: { in: documentIds },
+                userId: viewerFor.userId,
+              },
+            });
+      const participationsByDocumentId = new Map<number, ParticipationProjection[]>();
+      for (const p of myParticipations) {
+        const list = participationsByDocumentId.get(p.documentId) ?? [];
+        list.push({
+          id: p.id,
+          status: p.status,
+          participationRole: p.participationRole,
+          viewedAt: p.viewedAt,
+          completedAt: p.completedAt,
+          returnedAt: p.returnedAt,
+        });
+        participationsByDocumentId.set(p.documentId, list);
+      }
       const decorated = items.map((item) => {
+        const participations = participationsByDocumentId.get(item.documentId) ?? [];
         const docWithStatus = {
           ...item.document,
+          participations,
           viewerStatus: resolveViewerStatus(
-            item.document as unknown as ViewerStatusDocument,
+            {
+              ...item.document,
+              participations,
+            } as unknown as ViewerStatusDocument,
             viewerFor.userId,
             viewerFor.userRoles
           ),

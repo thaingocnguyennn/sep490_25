@@ -245,6 +245,71 @@ export class IncomingDocumentsController {
     }
   }
 
+  /**
+   * POST /incoming-documents/:id/view
+   * Mark the calling user as having opened this document for the first
+   * time. Idempotent.
+   */
+  async markViewed(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      await incomingDocumentsService.markViewed(
+        idParam,
+        req.user!.userId,
+        req.user!.roles ?? []
+      );
+      res
+        .status(200)
+        .json(successResponse({ id: idParam }, 'Đã ghi nhận lượt xem'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /incoming-documents/:id/resubmit
+   * Used by the original clerk to re-open a returned document. The clerk
+   * picks a new primary handler (XLC) and submits again.
+   */
+  async resubmit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const incoming = await incomingDocumentsService.resubmitReturned(
+        idParam,
+        {
+          processorIds: req.body.processorIds ?? [],
+          processingInstructions: req.body.processingInstructions,
+        },
+        req.user!.userId
+      );
+      res
+        .status(200)
+        .json(successResponse(incoming, 'Đã gửi lại văn bản sau khi trả lại'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /incoming-documents/:id/submit-draft
+   * Used by the original clerk to submit a DRAFT for processing. Replaces
+   * the older "PATCH /:id/status { PENDING }" flow.
+   */
+  async submitDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const incoming = await incomingDocumentsService.submitDraft(
+        idParam,
+        req.user!.userId
+      );
+      res
+        .status(200)
+        .json(successResponse(incoming, 'Đã gửi văn bản đến'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async updateWorkflowStep(req: Request, res: Response, next: NextFunction) {
     try {
       const idParam = req.params.id as string;

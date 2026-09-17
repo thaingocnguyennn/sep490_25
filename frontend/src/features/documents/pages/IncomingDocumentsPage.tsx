@@ -7,14 +7,18 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
 import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 
-type StatusTab = '' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT';
+type StatusTab = '' | 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'RETURNED';
 
+// Tabs are keyed off the per-viewer status. The `''` tab is "Tất cả" and
+// does not pass a status filter to the backend; the others map 1:1 onto
+// the `viewerStatus` enum values.
 const TABS: { value: StatusTab; label: string }[] = [
   { value: '', label: 'Tất cả' },
   { value: 'DRAFT', label: 'Bản nháp' },
   { value: 'PENDING', label: 'Chờ xử lý' },
   { value: 'IN_PROGRESS', label: 'Đang xử lý' },
-  { value: 'COMPLETED', label: 'Đã xử lý' },
+  { value: 'COMPLETED', label: 'Hoàn thành' },
+  { value: 'RETURNED', label: 'Trả lại' },
 ];
 
 export default function IncomingDocumentsPage() {
@@ -208,23 +212,49 @@ export default function IncomingDocumentsPage() {
                       </td>
                       <td><DocumentStatusBadge status={item.document.viewerStatus ?? item.document.status} /></td>
                       <td>
-                        {item.document.status === 'DRAFT' ? (
-                          <button
-                            className="action-btn edit"
-                            title="Sửa bản nháp"
-                            onClick={() => navigate(`/incoming-documents/${item.id}/edit`)}
-                          >
-                            &#9998;
-                          </button>
-                        ) : (
-                          <button
-                            className="action-btn view"
-                            title="Xem chi tiết"
-                            onClick={() => navigate(`/incoming-documents/${item.id}`)}
-                          >
-                            &#128065;
-                          </button>
-                        )}
+                        {(() => {
+                          const status = item.document.viewerStatus ?? item.document.status;
+                          // Clerk who has the document in their DRAFT
+                          // (still editing) — edit button.
+                          if (status === 'DRAFT') {
+                            return (
+                              <button
+                                className="action-btn edit"
+                                title="Sửa bản nháp"
+                                onClick={() => navigate(`/incoming-documents/${item.id}/edit`)}
+                              >
+                                &#9998;
+                              </button>
+                            );
+                          }
+                          // Clerk who received a return — they need to re-open the document
+                          // and pick a new XLC. The edit page handles this
+                          // same flow. (The backend resolver guarantees
+                          // `RETURNED` only shows up for the original
+                          // creator when they had a CLERK participation,
+                          // so we don't need a separate creator check.)
+                          if (status === 'RETURNED' && isDocumentClerk) {
+                            return (
+                              <button
+                                className="action-btn edit"
+                                title="Văn bản bị trả lại — chọn lại người xử lý chính"
+                                onClick={() => navigate(`/incoming-documents/${item.id}/edit?returned=1`)}
+                              >
+                                &#9998;
+                              </button>
+                            );
+                          }
+                          // Everyone else — view button.
+                          return (
+                            <button
+                              className="action-btn view"
+                              title="Xem chi tiết"
+                              onClick={() => navigate(`/incoming-documents/${item.id}`)}
+                            >
+                              &#128065;
+                            </button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}

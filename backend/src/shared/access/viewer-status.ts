@@ -1,22 +1,46 @@
 /**
  * Per-actor (per-viewer) status resolver for incoming documents.
  *
- * The global `Document.status` reflects the workflow's overall progress, so
- * two viewers looking at the same incoming document can reasonably see
- * different things:
- *   - The Document Clerk who created the document considers their work
- *     complete as soon as the document is filed and forwarded.
- *   - The Department Head / Specialist / assigned processor only sees
- *     "done" once their own step is finished.
+ * This resolver reads `DocumentWorkflowParticipation` rows — a per-user
+ * join table that records every actor's workflow state, first-view
+ * timestamp, and completion/return markers. The global `Document.status`
+ * is **not** used directly: the same document can present different
+ * statuses to different users.
  *
- * `resolveViewerStatus` computes a per-viewer status badge by walking the
- * document's `workflows[]` and `processors[]` arrays together with the
- * caller's identity. The global `Document.status` is left untouched; this
- * helper only projects a viewer-specific label.
+ * UI mapping (Vietnamese):
+ *   PENDING       → Chờ xử lý
+ *   IN_PROGRESS   → Đang xử lý
+ *   COMPLETED     → Hoàn thành
+ *   RETURNED      → Trả lại
+ *   CANCELLED     → Trả lại (a participation that was force-cancelled is
+ *                       treated as RETURNED from the actor's POV — they
+ *                       never completed their workflow)
+ *   REJECTED      → Trả lại
+ *   DRAFT         → Bản nháp (only the clerk sees this when the document
+ *                       is still in DRAFT status and they have not
+ *                       submitted it)
  *
- * The helper never throws. For shapes it cannot classify it returns
- * `'IN_PROGRESS'`, which is the safe "still moving" default for an
- * in-flight incoming document.
+ * Edge cases:
+ *   - ADMIN sees the global Document.status verbatim (the "source of
+ *     truth" view) so admins can audit the workflow.
+ *   - A user with multiple participations (e.g. a clerk who is also
+ *     assigned as XLC) gets the most-specific role's status. Specificity
+ *     order: CLERK < XDB < XLC/PHXL < DEPARTMENT_HEAD/SPECIALIST.
+ *     Department-head and specialist participations win over processor
+ *     participations because they map directly to workflow steps. XDB is
+ *     ranked between CLERK and XLC because it is read-only and never
+ *     overlaps with active workflow steps.
+ *   - XDB ("Xem để biết") participations are passive observers. They have
+ *     no workflow actions, so the row is mapped to:
+ *       - PENDING     when the observer has not opened the document yet
+ *                     (Chờ xử lý)
+ *       - COMPLETED   once the observer has opened the document. Reading the
+ *                     document is the observer's only action, so the row is
+ *                     marked Hoàn thành ("completed") on first view. Any
+ *                     earlier terminal status on the XDB row (e.g. a backfill
+ *                     that inherited the global Document.status) is treated
+ *                     the same way and demoted to COMPLETED as long as a
+ *                     viewedAt timestamp exists.
  */
 
 export type ViewerStatus =
@@ -28,39 +52,39 @@ export type ViewerStatus =
   | 'RETURNED'
   | 'CANCELLED';
 
-interface ViewerWorkflowStep {
-  id: number;
-  stepOrder: number;
-  roleName: string | null;
-}
+export type ParticipationRole =
+  | 'CLERK'
+  | 'DEPARTMENT_HEAD'
+  | 'SPECIALIST'
+  | 'XLC'
+  | 'PHXL'
+  | 'XDB';
 
-interface ViewerWorkflow {
+export interface ViewerParticipation {
   id: number;
   status: string;
-  notes: string | null;
+  participationRole: string;
+  viewedAt: string | Date | null;
   completedAt: string | Date | null;
-  workflowStep: ViewerWorkflowStep;
-  user: { id: number } | null;
-}
-
-interface ViewerProcessor {
-  id: number;
-  processorType: string;
-  completedAt: string | Date | null;
-  user: { id: number };
+  returnedAt: string | Date | null;
 }
 
 export interface ViewerStatusDocument {
-  /** Global document status. Used as the default and for terminal overrides. */
+  /** Global document status. Used as a default for ADMIN and for
+   *  clerk-on-DRAFT inference. */
   status: string;
   /** Original creator (the Document Clerk who filed the document). */
   createdBy?: number | null;
-  workflows?: ViewerWorkflow[] | null;
-  processors?: ViewerProcessor[] | null;
+  /** Per-actor participation rows for this viewer. */
+  participations?: ViewerParticipation[] | null;
 }
 
 /**
  * Resolve the status badge the supplied viewer should see for this document.
+ *
+ * Reads exclusively from `participations`. Returns 'IN_PROGRESS' as a safe
+ * default if the caller has no participation rows (which should not happen
+ * for any user with access, but the default is defensive).
  */
 export function resolveViewerStatus(
   doc: ViewerStatusDocument,
@@ -70,170 +94,125 @@ export function resolveViewerStatus(
   const globalStatus = String(doc.status ?? 'PENDING').toUpperCase() as ViewerStatus;
   const roles = userRoles ?? [];
   const isAdmin = roles.includes('ADMIN');
-  const isDeptHead = roles.includes('DEPARTMENT_HEAD');
-  const isSpecialist = roles.includes('SPECIALIST');
-  const isClerk = roles.includes('DOCUMENT_CLERK');
 
   // Admins always see the truth.
   if (isAdmin) {
     return globalStatus;
   }
 
-  // Drafts are visible only to the creator and admins; everyone else would
-  // not have access to them anyway because of `checkIncomingDocumentAccess`.
-  // We still classify them so the badge is consistent.
+  // Clerk in DRAFT — the document has not been submitted yet, so the
+  // creator's status is Bản nháp.
   if (globalStatus === 'DRAFT') {
-    return 'DRAFT';
+    if (doc.createdBy === userId || roles.includes('DOCUMENT_CLERK')) {
+      return 'DRAFT';
+    }
+    // Other roles should not normally see drafts (access-checked), but
+    // if they do, fall through to participation-based resolution.
   }
 
-  // Terminal states are universal — everyone agrees the document is dead.
-  if (
-    globalStatus === 'REJECTED' ||
-    globalStatus === 'CANCELLED' ||
-    globalStatus === 'RETURNED'
-  ) {
-    return globalStatus;
+  const participations = (doc.participations ?? []).filter(
+    (p) => p && (p as ViewerParticipation).participationRole
+  ) as ViewerParticipation[];
+
+  // No participations — defensive default.
+  if (participations.length === 0) {
+    return globalStatus === 'RETURNED' ? 'RETURNED' : 'IN_PROGRESS';
   }
 
-  const workflows = (doc.workflows ?? []).slice().sort(
-    (a, b) => a.workflowStep.stepOrder - b.workflowStep.stepOrder
+  // Pick the "winning" participation for this user. Specificity:
+  //   1) Department Head / Specialist (workflow-step roles) win over
+  //      processor sub-roles (XLC/PHXL/XDB).
+  //   2) Clerk is the most generic role — fall through to it only if
+  //      no other participation exists.
+  const sorted = [...participations].sort(
+    (a, b) => specificityRank(b.participationRole) - specificityRank(a.participationRole)
   );
-  const processors = doc.processors ?? [];
+  const winner = sorted[0];
 
-  const clerkStep = workflows.find(
-    (w) => w.workflowStep.stepOrder === 1 && w.workflowStep.roleName === 'DOCUMENT_CLERK'
+  return mapParticipationStatus(
+    winner.status,
+    winner.viewedAt,
+    winner.returnedAt,
+    winner.participationRole
   );
-  const headStep = workflows.find(
-    (w) => w.workflowStep.stepOrder === 2 && w.workflowStep.roleName === 'DEPARTMENT_HEAD'
-  );
-  const specialistStep = workflows.find(
-    (w) => w.workflowStep.stepOrder === 3 && w.workflowStep.roleName === 'SPECIALIST'
-  );
-
-  // ── Document Clerk ────────────────────────────────────────────────────────
-  // The clerk's own step (Tiếp nhận văn bản) is finished the moment the
-  // document is filed and forwarded. Any user with the DOCUMENT_CLERK role
-  // — not only the original creator — should see that step as "done"
-  // because the work has been handed off regardless of which specific
-  // clerk performed it. This is the per-actor behaviour requested by
-  // UC-spec: a clerk scanning "All Incoming Documents" sees their pipeline
-  // item as Hoàn thành while downstream actors keep seeing it as
-  // Đang xử lý until their respective steps close.
-  //
-  // Falls through to the Department Head / Specialist branches if the
-  // caller also holds those roles, so a multi-role user (e.g. a clerk who
-  // is also a department head) gets the most-specific (downstream) view.
-  if (isClerk && !isDeptHead && !isSpecialist && !isProcessorForDocument(processors, userId)) {
-    if (clerkStep && isTerminalSuccess(clerkStep.status)) {
-      return 'COMPLETED';
-    }
-    if (clerkStep && clerkStep.status === 'REJECTED') {
-      return 'REJECTED';
-    }
-    // The step row exists but is still PENDING, or doesn't exist yet.
-    // Either way the clerk's work has been handed off — show COMPLETED
-    // when the document has progressed past the clerk stage (i.e. a
-    // department-head workflow row exists and is no longer PENDING), and
-    // show IN_PROGRESS only when the document is still sitting at the
-    // clerk stage (head step still PENDING).
-    if (headStep && headStep.status !== 'PENDING') {
-      return 'COMPLETED';
-    }
-    return 'IN_PROGRESS';
-  }
-
-  // ── Department Head ─────────────────────────────────────────────────────
-  if (isDeptHead && !isClerk && !isProcessorForDocument(processors, userId)) {
-    if (!headStep) {
-      return 'IN_PROGRESS';
-    }
-    if (headStep.status === 'COMPLETED') {
-      // The head may have FORWARDED to a specialist; from the head's POV
-      // their own step is done.
-      return 'COMPLETED';
-    }
-    if (headStep.status === 'REJECTED') {
-      // RETURN back to the clerk.
-      return 'RETURNED';
-    }
-    if (headStep.status === 'CANCELLED') {
-      return 'CANCELLED';
-    }
-    return 'IN_PROGRESS';
-  }
-
-  // ── Specialist / XLC / PHXL / XDB (assigned processors) ─────────────────
-  const myProcessorRecord = processors.find((p) => p.user.id === userId);
-  if (myProcessorRecord) {
-    const myType = myProcessorRecord.processorType;
-
-    // XLC carries the document through the specialist step.
-    if (myType === 'XLC' && specialistStep) {
-      if (specialistStep.status === 'COMPLETED') {
-        return 'COMPLETED';
-      }
-      if (specialistStep.status === 'CANCELLED') {
-        // RETURN from specialist to head.
-        return 'RETURNED';
-      }
-      if (specialistStep.status === 'REJECTED') {
-        return 'REJECTED';
-      }
-      // Their own processor row may have been completed even if the
-      // specialist workflow row is still PENDING (e.g. they FINISHed and
-      // the head is about to close out the workflow).
-      if (myProcessorRecord.completedAt) {
-        return 'COMPLETED';
-      }
-      return 'IN_PROGRESS';
-    }
-
-    // PHXL supports the XLC; once their processor row is closed out they
-    // see their work as done even if the specialist row is still open.
-    if (myType === 'PHXL') {
-      if (myProcessorRecord.completedAt) {
-        return 'COMPLETED';
-      }
-      return 'IN_PROGRESS';
-    }
-
-    // XDB is read-only — they only see the document as "done" once the
-    // specialist closes it out.
-    if (myType === 'XDB') {
-      if (specialistStep && isTerminalSuccess(specialistStep.status)) {
-        return 'COMPLETED';
-      }
-      if (specialistStep && specialistStep.status === 'CANCELLED') {
-        return 'RETURNED';
-      }
-      return 'IN_PROGRESS';
-    }
-  }
-
-  // ── Former processors (they acted on the workflow but were dropped from
-  //    the processor set by a FORWARD) ─────────────────────────────────────
-  const hasActedOnWorkflow = workflows.some((w) => w.user?.id === userId);
-  if (hasActedOnWorkflow) {
-    // If every workflow row they engaged with is in a terminal state,
-    // show them COMPLETED. Otherwise show IN_PROGRESS.
-    const mySteps = workflows.filter((w) => w.user?.id === userId);
-    const allDone = mySteps.every((w) => isTerminalSuccess(w.status));
-    if (allDone) return 'COMPLETED';
-    return 'IN_PROGRESS';
-  }
-
-  // Default: stay neutral and surface "still moving" rather than the global
-  // state, so unexpected shapes don't flash a misleading badge.
-  return 'IN_PROGRESS';
 }
 
-function isProcessorForDocument(
-  processors: ViewerProcessor[],
-  userId: number
-): boolean {
-  return processors.some((p) => p.user.id === userId);
+/**
+ * Map a participation row's raw status into the viewer-visible enum.
+ *
+ * - 'PENDING'   + viewedAt == null  → PENDING (Chờ xử lý)
+ * - 'PENDING'   + viewedAt != null  → IN_PROGRESS (Đang xử lý)
+ * - 'IN_PROGRESS'                   → IN_PROGRESS
+ * - 'COMPLETED'                     → COMPLETED (Hoàn thành)
+ * - 'RETURNED'                      → RETURNED (Trả lại)
+ * - 'REJECTED'                      → RETURNED (Trả lại) — preserved as
+ *                                       separate enum value for callers
+ *                                       that want to distinguish, but the
+ *                                       UI label is Trả lại.
+ * - 'CANCELLED'                     → RETURNED (Trả lại) — from the
+ *                                       actor's POV, a cancelled
+ *                                       participation is indistinguishable
+ *                                       from a return.
+ *
+ * @param participationRole The role this participation row represents.
+ *   XDB ("Xem để biết" / read-only observer) participations are special:
+ *   XDB users have no workflow action to perform, but reading the document
+ *   IS their only action. Once they have opened the document (viewedAt set)
+ *   the row resolves to COMPLETED (Hoàn thành). If the row has not yet been
+ *   opened it resolves to PENDING (Chờ xử lý). The terminal-status
+ *   defensive guard is preserved: any pre-existing COMPLETED/RETURNED/…
+ *   value on an XDB row collapses to COMPLETED once viewedAt is non-null,
+ *   and to PENDING if viewedAt is still null.
+ */
+export function mapParticipationStatus(
+  rawStatus: string,
+  viewedAt: string | Date | null,
+  _returnedAt: string | Date | null,
+  participationRole?: string
+): ViewerStatus {
+  const normalized = String(rawStatus ?? 'PENDING').toUpperCase() as ViewerStatus;
+
+  // XDB participations are read-only observers. Their only meaningful
+  // event is the first view:
+  //   - not viewed yet   → PENDING (Chờ xử lý)
+  //   - viewed at least once → COMPLETED (Hoàn thành)
+  // The original status on the row (whether PENDING, IN_PROGRESS,
+  // COMPLETED, RETURNED, etc.) does not change this — for an XDB user the
+  // badge is driven solely by viewedAt.
+  if (String(participationRole ?? '').toUpperCase() === 'XDB') {
+    return viewedAt ? 'COMPLETED' : 'PENDING';
+  }
+
+  if (normalized === 'COMPLETED') return 'COMPLETED';
+  if (normalized === 'RETURNED') return 'RETURNED';
+  if (normalized === 'REJECTED') return 'REJECTED';
+  if (normalized === 'CANCELLED') return 'RETURNED';
+  if (normalized === 'IN_PROGRESS') return 'IN_PROGRESS';
+  // PENDING — only stays PENDING if the user has not opened yet.
+  if (viewedAt) return 'IN_PROGRESS';
+  return 'PENDING';
 }
 
-function isTerminalSuccess(status: string): boolean {
-  return status === 'COMPLETED';
+/**
+ * Lower number = more generic role. Used to pick the "winning" participation
+ * for a multi-role user. XDB is intentionally ranked between CLERK and
+ * XLC/PHXL so that an active-processor user who is also added as an XDB
+ * observer on the same document still resolves to their active-processor
+ * row (the row that drives a real workflow action).
+ */
+function specificityRank(role: string): number {
+  switch (role) {
+    case 'DEPARTMENT_HEAD':
+    case 'SPECIALIST':
+      return 30;
+    case 'XLC':
+    case 'PHXL':
+      return 20;
+    case 'XDB':
+      return 15;
+    case 'CLERK':
+      return 10;
+    default:
+      return 0;
+  }
 }
