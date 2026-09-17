@@ -11,6 +11,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
 import { formatConfidentiality } from '../../../shared/constants/confidentiality';
 import ProcessIncomingDocumentModal from '../components/ProcessIncomingDocumentModal';
+import QuickProcessHeadModal, { type QuickHeadAction } from '../components/QuickProcessHeadModal';
 import PdfPreview from '../components/PdfPreview';
 
 import RegisterDocumentModal from '../components/RegisterDocumentModal';
@@ -40,6 +41,12 @@ export default function IncomingDocumentDetailPage() {
   const [updatingStep, setUpdatingStep] = useState<number | null>(null);
   const [processOpen, setProcessOpen] = useState(false);
   const [processMode, setProcessMode] = useState<'head' | 'specialist'>('head');
+
+  // Quick head-action modal (FINISH / RETURN). FORWARD still reuses
+  // `ProcessIncomingDocumentModal` because it needs the processor picker.
+  const [quickAction, setQuickAction] = useState<QuickHeadAction | null>(null);
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+  const [quickError, setQuickError] = useState('');
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -105,6 +112,35 @@ export default function IncomingDocumentDetailPage() {
       setPhxlError(apiError.response?.data?.message || 'Could not complete the task.');
     } finally {
       setPhxlCompleting(false);
+    }
+  };
+
+  // Direct head-action handler used by the three inline buttons on the
+  // detail page (Hoàn thành / Chuyển trả / Chuyển xử lý). The FINISH and
+  // RETURN cases go through a lightweight modal; FORWARD reuses the full
+  // ProcessIncomingDocumentModal in `head` mode.
+  const handleQuickHeadConfirm = async (payload: { processingInstructions?: string; reason?: string }) => {
+    if (!doc || !quickAction) return;
+    setQuickSubmitting(true);
+    setQuickError('');
+    try {
+      const data: { action: QuickHeadAction; processingInstructions?: string; reason?: string } = {
+        action: quickAction,
+      };
+      if (quickAction === 'FINISH' && payload.processingInstructions) {
+        data.processingInstructions = payload.processingInstructions;
+      }
+      if (quickAction === 'RETURN' && payload.reason) {
+        data.reason = payload.reason;
+      }
+      await incomingDocumentsApi.processByHead(doc.id, data);
+      setQuickAction(null);
+      fetchDoc();
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { message?: string } } };
+      setQuickError(apiError.response?.data?.message || 'Xử lý thất bại. Vui lòng thử lại.');
+    } finally {
+      setQuickSubmitting(false);
     }
   };
 
@@ -202,11 +238,17 @@ export default function IncomingDocumentDetailPage() {
   const headStep = d.workflows?.find((w) => w.workflowStep.stepOrder === 2);
   const specialistStep = d.workflows?.find((w) => w.workflowStep.stepOrder === 3);
 
+  // Department Head processing only applies when the user is the assigned
+  // primary processor (XLC). Heads who are listed as PHXL or XDB on this
+  // document are participants in their supporting roles and must not see
+  // the FORWARD/FINISH/RETURN trio — the head actions are reserved for
+  // the user who actually owns the document at stepOrder=2.
   const canProcessAsHead =
     (isDepartmentHead || isAdmin) &&
     d.status === 'PENDING' &&
     !!headStep &&
-    headStep.status === 'PENDING';
+    headStep.status === 'PENDING' &&
+    isCurrentUserXlc(doc);
 
   // Specialist acts at the IN_PROGRESS stage on the stepOrder=3 row. The
   // caller must be the assigned XLC processor (mirrors the backend gating).
@@ -306,13 +348,41 @@ export default function IncomingDocumentDetailPage() {
             </button>
           )}
           {canProcess && (
-            <button
-              className="btn btn-primary"
-              onClick={() => openProcessModal(canProcessAsHead ? 'head' : 'specialist')}
-              title="Xử lý văn bản này"
-            >
-              Xử lý
-            </button>
+            <>
+              {canProcessAsHead ? (
+                <>
+                  <button
+                    className="btn btn-success"
+                    onClick={() => setQuickAction('FINISH')}
+                    title="Đánh dấu văn bản đã hoàn thành"
+                  >
+                    Hoàn thành
+                  </button>
+                  <button
+                    className="btn btn-warning"
+                    onClick={() => setQuickAction('RETURN')}
+                    title="Trả lại văn bản cho văn thư"
+                  >
+                    Chuyển trả
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => openProcessModal('head')}
+                    title="Chuyển xử lý cho chuyên viên / phối hợp / để biết"
+                  >
+                    Chuyển xử lý
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => openProcessModal('specialist')}
+                  title="Xử lý văn bản này"
+                >
+                  Xử lý
+                </button>
+              )}
+            </>
           )}
           <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại danh sách</button>
         </div>
@@ -645,6 +715,23 @@ export default function IncomingDocumentDetailPage() {
             handleProcessClose();
             fetchDoc();
           }}
+        />
+      )}
+
+      {doc && (
+        <QuickProcessHeadModal
+          open={quickAction !== null}
+          action={quickAction}
+          docTitle={doc.document.subject || 'Văn bản đến'}
+          submitting={quickSubmitting}
+          error={quickError}
+          onClose={() => {
+            if (!quickSubmitting) {
+              setQuickAction(null);
+              setQuickError('');
+            }
+          }}
+          onConfirm={handleQuickHeadConfirm}
         />
       )}
 
