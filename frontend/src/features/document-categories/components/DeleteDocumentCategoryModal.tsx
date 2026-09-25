@@ -17,6 +17,8 @@ export const DeleteDocumentCategoryModal: React.FC<DeleteDocumentCategoryModalPr
   const [apiError, setApiError] = useState<string | null>(null);
 
   const hasUsage = category.usageCount > 0;
+  const title = hasUsage ? 'Vô hiệu hóa lĩnh vực văn bản' : 'Xóa lĩnh vực văn bản';
+  const actionText = hasUsage ? 'Vô hiệu hóa' : 'Xóa';
 
   const handleConfirm = async () => {
     setApiError(null);
@@ -31,49 +33,60 @@ export const DeleteDocumentCategoryModal: React.FC<DeleteDocumentCategoryModalPr
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={{ maxWidth: 460 }}>
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal" style={{ maxWidth: 480 }}>
         {/* Header */}
         <div className="modal-header">
-          <h2 style={{ fontSize: 18 }}>
-            {hasUsage ? 'Vô hiệu hóa lĩnh vực văn bản' : 'Xóa lĩnh vực văn bản'}
-          </h2>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{title}</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Đóng">
+            &times;
+          </button>
         </div>
 
         {/* Body */}
         <div className="modal-body">
           {/* Thông tin category */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', background: '#f8f9fa', borderRadius: 8, marginBottom: 16 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-              background: hasUsage ? '#fff3cd' : '#ffeaea', flexShrink: 0,
-            }}>
-              {hasUsage ? '⚠️' : '🗑️'}
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>{category.name}</div>
-              <div style={{ fontSize: 13, color: '#636e72', marginTop: 2 }}>Mã: {category.code}</div>
+          <div
+            style={{
+              padding: '12px 16px',
+              background: '#f8f9fa',
+              borderRadius: 8,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 15, color: '#2d3436' }}>{category.name}</div>
+            <div style={{ fontSize: 13, color: '#636e72', marginTop: 2 }}>
+              Mã lĩnh vực: <span style={{ fontFamily: 'monospace' }}>{category.code}</span>
             </div>
           </div>
 
           {/* Mô tả hành động */}
           {hasUsage ? (
-            <div className="alert" style={{ background: '#fff3cd', border: '1px solid #ffc107', color: '#856404', marginBottom: 0 }}>
+            <div
+              className="alert"
+              style={{
+                background: '#fff3cd',
+                border: '1px solid #ffeeba',
+                color: '#856404',
+                marginBottom: 0,
+              }}
+            >
               <strong>Lĩnh vực đang được sử dụng</strong>
               <p style={{ marginTop: 6, marginBottom: 0 }}>
-                Lĩnh vực này đang được sử dụng bởi <strong>{category.usageCount} văn bản</strong>.
-                Hệ thống sẽ chuyển sang trạng thái <strong>Ngừng hoạt động</strong> thay vì xóa.
-                Văn bản cũ vẫn giữ lĩnh vực này.
+                Lĩnh vực này đang liên kết với <strong>{category.usageCount} văn bản</strong>. Hệ thống
+                sẽ chuyển sang trạng thái <strong>Ngừng hoạt động</strong> thay vì xóa để bảo toàn dữ liệu.
               </p>
             </div>
           ) : (
             <div className="alert alert-error" style={{ marginBottom: 0 }}>
-              <strong>Xác nhận xóa</strong>
+              <strong>Xác nhận xóa hoàn toàn</strong>
               <p style={{ marginTop: 6, marginBottom: 0 }}>
-                Lĩnh vực này chưa được sử dụng và sẽ bị <strong>xóa khỏi hệ thống</strong>.
-                Hành động này không thể hoàn tác.
+                Lĩnh vực này chưa được sử dụng và sẽ bị xóa khỏi hệ thống.
               </p>
             </div>
           )}
@@ -88,19 +101,21 @@ export const DeleteDocumentCategoryModal: React.FC<DeleteDocumentCategoryModalPr
 
         {/* Footer */}
         <div className="modal-footer">
-          <button type="button" className="btn btn-cancel" onClick={onClose} disabled={loading}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={loading}
+          >
             Hủy
           </button>
           <button
             type="button"
-            className={`btn ${hasUsage ? 'btn-warning' : 'btn-danger'}`}
+            className={`btn ${hasUsage ? 'btn-primary' : 'btn-danger'}`}
             onClick={handleConfirm}
             disabled={loading}
-            style={{ width: 'auto' }}
           >
-            {loading
-              ? 'Đang xử lý...'
-              : (hasUsage ? 'Vô hiệu hóa' : 'Xóa')}
+            {loading ? 'Đang xử lý...' : `Xác nhận ${actionText.toLowerCase()}`}
           </button>
         </div>
       </div>

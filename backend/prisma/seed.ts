@@ -30,6 +30,19 @@ function resolveSeedPassword(overridden: string, label: string): string {
   return 'Password@123';
 }
 
+/**
+ * Add a user to a department via the DepartmentMember join table.
+ * Idempotent: safe to call multiple times for the same (userId, departmentId).
+ * Admin user is excluded (caller should not invoke this for admin).
+ */
+async function addUserToDepartment(userId: number, departmentId: number) {
+  await prisma.departmentMember.upsert({
+    where: { userId_departmentId: { userId, departmentId } },
+    update: {},
+    create: { userId, departmentId },
+  });
+}
+
 async function main() {
   console.log('Starting database seed...');
 
@@ -222,6 +235,8 @@ async function main() {
       },
     },
   });
+  const depthead01 = await prisma.user.findUnique({ where: { username: 'depthead01' } });
+  if (depthead01) await addUserToDepartment(depthead01.id, rootDept.id);
   console.log('Department Head (root) seeded');
 
   await prisma.user.upsert({
@@ -243,6 +258,8 @@ async function main() {
       },
     },
   });
+  const specialist01 = await prisma.user.findUnique({ where: { username: 'specialist01' } });
+  if (specialist01) await addUserToDepartment(specialist01.id, rootDept.id);
   console.log('Specialist (root) seeded');
 
   await prisma.user.upsert({
@@ -264,6 +281,8 @@ async function main() {
       },
     },
   });
+  const clerk01 = await prisma.user.findUnique({ where: { username: 'clerk01' } });
+  if (clerk01) await addUserToDepartment(clerk01.id, rootDept.id);
   console.log('Document Clerk (root) seeded');
 
   // Seed 5 Document Clerks
@@ -294,6 +313,8 @@ async function main() {
         },
       },
     });
+    const newUser = await prisma.user.findUnique({ where: { username: clerk.username } });
+    if (newUser) await addUserToDepartment(newUser.id, clerk.departmentId);
   }
   console.log('5 Document Clerks seeded');
 
@@ -326,6 +347,8 @@ async function main() {
         },
       },
     });
+    const newUser = await prisma.user.findUnique({ where: { username: specialist.username } });
+    if (newUser) await addUserToDepartment(newUser.id, specialist.departmentId);
   }
   console.log('5 Specialists seeded');
 
@@ -358,8 +381,12 @@ async function main() {
         },
       },
     });
+    const newUser = await prisma.user.findUnique({ where: { username: deptHead.username } });
+    if (newUser) await addUserToDepartment(newUser.id, deptHead.departmentId);
   }
   console.log('5 Department Heads seeded');
+
+  console.log('All non-admin users added to their departments via DepartmentMember');
 
   // Seed default workflow steps for incoming documents
   const defaultSteps = [
@@ -377,61 +404,57 @@ async function main() {
   }
   console.log('Workflow steps seeded');
 
-  // Seed default DocumentBooks for each department
-  // Creates one INCOMING and one OUTGOING book per department for the current year
+  // Seed default DocumentBooks (Theo chuẩn Nghị định 30/2020/NĐ-CP: Sổ văn bản đi/đến dùng chung toàn cơ quan)
   const currentYear = new Date().getFullYear();
-  const departments = await prisma.department.findMany({ select: { id: true, name: true } });
   const clerkUser = await prisma.user.findUnique({ where: { username: 'clerk01' } });
 
-  if (clerkUser && departments.length > 0) {
-    for (const dept of departments) {
-      // Incoming book
-      await prisma.documentBook.upsert({
-        where: {
-          departmentId_bookType_year_name: {
-            departmentId: dept.id,
-            bookType: 'INCOMING',
-            year: currentYear,
-            name: `Sổ văn bản đến ${currentYear} - ${dept.name}`,
-          },
-        },
-        update: {},
-        create: {
-          name: `Sổ văn bản đến ${currentYear} - ${dept.name}`,
+  if (clerkUser && rootDept) {
+    // Sổ văn bản đến cấp cơ quan
+    await prisma.documentBook.upsert({
+      where: {
+        departmentId_bookType_year_name: {
+          departmentId: rootDept.id,
           bookType: 'INCOMING',
           year: currentYear,
-          isDefault: true,
-          status: 'ACTIVE',
-          departmentId: dept.id,
-          createdById: clerkUser.id,
+          name: `Sổ văn bản đến ${currentYear}`,
         },
-      });
+      },
+      update: { isDefault: true, status: 'ACTIVE' },
+      create: {
+        name: `Sổ văn bản đến ${currentYear}`,
+        bookType: 'INCOMING',
+        year: currentYear,
+        isDefault: true,
+        status: 'ACTIVE',
+        departmentId: rootDept.id,
+        createdById: clerkUser.id,
+      },
+    });
 
-      // Outgoing book
-      await prisma.documentBook.upsert({
-        where: {
-          departmentId_bookType_year_name: {
-            departmentId: dept.id,
-            bookType: 'OUTGOING',
-            year: currentYear,
-            name: `Sổ văn bản đi ${currentYear} - ${dept.name}`,
-          },
-        },
-        update: {},
-        create: {
-          name: `Sổ văn bản đi ${currentYear} - ${dept.name}`,
+    // Sổ văn bản đi cấp cơ quan (Số đi thống nhất toàn cơ quan, không bị trùng lặp)
+    await prisma.documentBook.upsert({
+      where: {
+        departmentId_bookType_year_name: {
+          departmentId: rootDept.id,
           bookType: 'OUTGOING',
           year: currentYear,
-          isDefault: true,
-          status: 'ACTIVE',
-          departmentId: dept.id,
-          createdById: clerkUser.id,
+          name: `Sổ văn bản đi ${currentYear}`,
         },
-      });
-    }
-    console.log(`Default document books seeded for ${departments.length} departments (year ${currentYear})`);
+      },
+      update: { isDefault: true, status: 'ACTIVE' },
+      create: {
+        name: `Sổ văn bản đi ${currentYear}`,
+        bookType: 'OUTGOING',
+        year: currentYear,
+        isDefault: true,
+        status: 'ACTIVE',
+        departmentId: rootDept.id,
+        createdById: clerkUser.id,
+      },
+    });
+    console.log(`Default unified document books seeded (year ${currentYear})`);
   } else {
-    console.log('Skipping document book seed: no departments or clerk user found');
+    console.log('Skipping document book seed: no root dept or clerk user found');
   }
 
   // Seed Document Categories (tên tiếng Việt)
@@ -446,150 +469,118 @@ async function main() {
   ];
 
   for (const category of categories) {
-    await prisma.documentCategory.upsert({
-      where: { code: category.code },
-      // Cập nhật tên tiếng Việt nếu record đã tồn tại với tên cũ tiếng Anh
-      update: { name: category.name, normalizedName: category.normalizedName },
-      create: {
-        ...category,
-        createdById: adminUser.id,
+    // Avoid P2002 on `normalizedName` when reseeding: dedupe by either key.
+    const existing = await prisma.documentCategory.findFirst({
+      where: {
+        OR: [{ code: category.code }, { normalizedName: category.normalizedName }],
       },
     });
+
+    if (existing) {
+      await prisma.documentCategory.update({
+        where: { id: existing.id },
+        data: {
+          code: category.code,
+          name: category.name,
+          normalizedName: category.normalizedName,
+        },
+      });
+    } else {
+      await prisma.documentCategory.create({
+        data: {
+          ...category,
+          createdById: adminUser.id,
+        },
+      });
+    }
   }
   console.log('Document Categories seeded (tên tiếng Việt)');
 
-  // Backfill existing documents
+  // Backfill existing documents with default category (Document-side)
   const otherCategory = await prisma.documentCategory.findUnique({
     where: { code: 'OTHER' }
   });
 
   if (otherCategory) {
-    const incomingBackfill = await prisma.incomingDocument.updateMany({
+    const backfill = await prisma.document.updateMany({
       where: { categoryId: null },
       data: { categoryId: otherCategory.id }
     });
-    const outgoingBackfill = await prisma.outgoingDocument.updateMany({
-      where: { categoryId: null },
-      data: { categoryId: otherCategory.id }
-    });
-    console.log(`Backfilled category for ${incomingBackfill.count} incoming and ${outgoingBackfill.count} outgoing documents`);
+    console.log(`Backfilled category for ${backfill.count} documents`);
   }
 
-  // Seed Document Kinds (Thể loại văn bản – UC-71 to UC-74)
+  // Seed Document Types (Thể loại văn bản – UC-71 to UC-74)
   // isSystem = false so Document Clerk can manage these entries
-  const documentKinds = [
-    { code: 'CV',    name: 'CÔNG VĂN',          normalizedName: 'cong van',          description: 'Công văn hành chính' },
-    { code: 'QĐ',    name: 'QUYẾT ĐỊNH',        normalizedName: 'quyet dinh',        description: 'Văn bản quyết định của cơ quan' },
-    { code: 'NQ',    name: 'NGHỊ QUYẾT',        normalizedName: 'nghi quyet',        description: 'Văn bản nghị quyết của cơ quan' },
-    { code: 'TB',    name: 'THÔNG BÁO',         normalizedName: 'thong bao',         description: 'Thông báo nội bộ và đối ngoại' },
-    { code: 'BC',    name: 'BÁO CÁO',           normalizedName: 'bao cao',           description: 'Báo cáo định kỳ và đột xuất' },
-    { code: 'KH',    name: 'KẾ HOẠCH',          normalizedName: 'ke hoach',          description: 'Kế hoạch công tác' },
-    { code: 'TTr',   name: 'TỜ TRÌNH',          normalizedName: 'to trinh',          description: 'Tờ trình lên cấp trên' },
-    { code: 'BB',    name: 'BIÊN BẢN',          normalizedName: 'bien ban',          description: 'Biên bản họp, kiểm tra' },
-    { code: 'HD',    name: 'HƯỚNG DẪN',         normalizedName: 'huong dan',         description: 'Văn bản hướng dẫn nghiệp vụ' },
+  const documentTypes = [
+    { code: 'NQ',   name: 'NGHỊ QUYẾT',           normalizedName: 'nghi quyet',           description: 'Nghị quyết' },
+    { code: 'QĐ',   name: 'QUYẾT ĐỊNH',           normalizedName: 'quyet dinh',           description: 'Quyết định' },
+    { code: 'CT',   name: 'CHỈ THỊ',              normalizedName: 'chi thi',              description: 'Văn bản chỉ thị' },
+    { code: 'QC',   name: 'QUY CHẾ',              normalizedName: 'quy che',              description: 'Quy chế' },
+    { code: 'QyĐ',  name: 'QUY ĐỊNH',             normalizedName: 'quy dinh',             description: 'Quy định' },
+    { code: 'TC',   name: 'THÔNG CÁO',            normalizedName: 'thong cao',            description: 'Thông cáo' },
+    { code: 'TB',   name: 'THÔNG BÁO',            normalizedName: 'thong bao',            description: 'Thông báo' },
+    { code: 'HD',   name: 'HƯỚNG DẪN',            normalizedName: 'huong dan',            description: 'Văn bản hướng dẫn' },
+    { code: 'CTr',  name: 'CHƯƠNG TRÌNH',         normalizedName: 'chuong trinh',         description: 'Chương trình' },
+    { code: 'KH',   name: 'KẾ HOẠCH',             normalizedName: 'ke hoach',             description: 'Kế hoạch' },
+    { code: 'PA',   name: 'PHƯƠNG ÁN',            normalizedName: 'phuong an',            description: 'Phương án' },
+    { code: 'ĐA',   name: 'ĐỀ ÁN',                normalizedName: 'de an',                description: 'Đề án' },
+    { code: 'DA',   name: 'DỰ ÁN',                normalizedName: 'du an',                description: 'Dự án' },
+    { code: 'BC',   name: 'BÁO CÁO',              normalizedName: 'bao cao',              description: 'Báo cáo' },
+    { code: 'BB',   name: 'BIÊN BẢN',             normalizedName: 'bien ban',             description: 'Biên bản' },
+    { code: 'TTr',  name: 'TỜ TRÌNH',             normalizedName: 'to trinh',             description: 'Tờ trình' },
+    { code: 'HĐ',   name: 'HỢP ĐỒNG',             normalizedName: 'hop dong',             description: 'Hợp đồng' },
+    { code: 'CĐ',   name: 'CÔNG ĐIỆN',            normalizedName: 'cong dien',            description: 'Công điện' },
+    { code: 'BGN',  name: 'BẢN GHI NHỚ',          normalizedName: 'ban ghi nho',          description: 'Bản ghi nhớ' },
+    { code: 'BTT',  name: 'BẢN THỎA THUẬN',       normalizedName: 'ban thoa thuan',       description: 'Bản thỏa thuận' },
+    { code: 'GUQ',  name: 'GIẤY UỶ QUYỀN',        normalizedName: 'giay uy quyen',        description: 'Giấy uỷ quyền' },
+    { code: 'GM',   name: 'GIẤY MỜI',             normalizedName: 'giay moi',             description: 'Giấy mời' },
+    { code: 'GGT',  name: 'GIẤY GIỚI THIỆU',      normalizedName: 'giay gioi thieu',      description: 'Giấy giới thiệu' },
+    { code: 'GNP',  name: 'GIẤY NGHỈ PHÉP',       normalizedName: 'giay nghi phep',       description: 'Giấy nghỉ phép' },
+    { code: 'PG',   name: 'PHIẾU GỬI',            normalizedName: 'phieu gui',            description: 'Phiếu gửi' },
+    { code: 'PC',   name: 'PHIẾU CHUYỂN',         normalizedName: 'phieu chuyen',         description: 'Phiếu chuyển' },
+    { code: 'PB',   name: 'PHIẾU BÁO',            normalizedName: 'phieu bao',            description: 'Phiếu báo' },
   
-    // Bổ sung
-    { code: 'CT',    name: 'CHỈ THỊ',           normalizedName: 'chi thi',           description: 'Văn bản chỉ thị' },
-    { code: 'QC',    name: 'QUY CHẾ',           normalizedName: 'quy che',           description: 'Quy chế của cơ quan' },
-    { code: 'QYĐ',   name: 'QUY ĐỊNH',          normalizedName: 'quy dinh',          description: 'Quy định của cơ quan' },
-    { code: 'TC',    name: 'THÔNG CÁO',         normalizedName: 'thong cao',         description: 'Thông cáo' },
-    { code: 'CTr',   name: 'CHƯƠNG TRÌNH',      normalizedName: 'chuong trinh',      description: 'Chương trình công tác' },
-    { code: 'PA',    name: 'PHƯƠNG ÁN',         normalizedName: 'phuong an',         description: 'Phương án thực hiện' },
-    { code: 'ĐA',    name: 'ĐỀ ÁN',             normalizedName: 'de an',             description: 'Đề án' },
-    { code: 'DA',    name: 'DỰ ÁN',             normalizedName: 'du an',             description: 'Dự án' },
-    { code: 'HĐ',    name: 'HỢP ĐỒNG',          normalizedName: 'hop dong',          description: 'Hợp đồng' },
-    { code: 'CĐ',    name: 'CÔNG ĐIỆN',         normalizedName: 'cong dien',         description: 'Công điện' },
-    { code: 'BGN',   name: 'BẢN GHI NHỚ',       normalizedName: 'ban ghi nho',       description: 'Biên bản ghi nhớ' },
-    { code: 'BTT',   name: 'BẢN THỎA THUẬN',    normalizedName: 'ban thoa thuan',    description: 'Bản thỏa thuận' },
-    { code: 'GUQ',   name: 'GIẤY ỦY QUYỀN',     normalizedName: 'giay uy quyen',     description: 'Giấy ủy quyền' },
-    { code: 'GM',    name: 'GIẤY MỜI',          normalizedName: 'giay moi',          description: 'Giấy mời' },
-    { code: 'GGT',   name: 'GIẤY GIỚI THIỆU',   normalizedName: 'giay gioi thieu',   description: 'Giấy giới thiệu' },
-    { code: 'GNP',   name: 'GIẤY NGHỈ PHÉP',    normalizedName: 'giay nghi phep',    description: 'Giấy nghỉ phép' },
-    { code: 'PG',    name: 'PHIẾU GỬI',         normalizedName: 'phieu gui',         description: 'Phiếu gửi' },
-    { code: 'PC',    name: 'PHIẾU CHUYỂN',      normalizedName: 'phieu chuyen',      description: 'Phiếu chuyển' },
-    { code: 'PB',    name: 'PHIẾU BÁO',         normalizedName: 'phieu bao',         description: 'Phiếu báo' },
-    { code: 'TCG',   name: 'THƯ CÔNG',          normalizedName: 'thu cong',          description: 'Thư công' },
-  
-    { code: 'OTHER', name: 'KHÁC',              normalizedName: 'khac',              description: 'Các loại văn bản khác', isSystem: true },
+    // Loại mặc định cho các văn bản không thuộc danh mục trên
+    {
+      code: 'OTHER',
+      name: 'KHÁC',
+      normalizedName: 'khac',
+      description: 'Các loại văn bản khác',
+      isSystem: true,
+    },
   ];
 
-  for (const kind of documentKinds) {
-    await prisma.documentKind.upsert({
-      where: { code: kind.code },
-      update: {},
-      create: {
-        ...kind,
-        isSystem: kind.isSystem ?? false,
-        createdById: adminUser.id,
+  for (const type of documentTypes) {
+    // Look up by `code` first; if not found, fall back to `normalizedName`
+    // (handles reseeding after manual inserts that used a different unique key).
+    const existing = await prisma.documentType.findFirst({
+      where: {
+        OR: [{ code: type.code }, { normalizedName: type.normalizedName }],
       },
     });
-  }
-  console.log('Document Kinds seeded');
 
-  // Backfill: map legacy documentType String → documentTypeId
-  const legacyTypeMapping: Record<string, string> = {
-    'cong van': 'CV',
-    'quyet dinh': 'QD',
-    'thong bao': 'TB',
-    'bao cao': 'BC',
-    'ke hoach': 'KH',
-    'to trinh': 'TTR',
-    'bien ban': 'BB',
-    'huong dan': 'HD',
-  };
-
-  function normalizeLegacy(value: string): string {
-    return value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .replace(/Đ/g, 'D')
-      .trim()
-      .replace(/\s+/g, ' ')
-      .toLowerCase();
-  }
-
-  const otherKind = await prisma.documentKind.findUnique({ where: { code: 'OTHER' } });
-
-  if (otherKind) {
-    // Backfill IncomingDocument
-    const incomingDocs = await prisma.incomingDocument.findMany({
-      where: { documentTypeId: null },
-      select: { id: true, documentType: true },
-    });
-
-    for (const doc of incomingDocs) {
-      const normalized = normalizeLegacy(doc.documentType ?? '');
-      const code = legacyTypeMapping[normalized] ?? 'OTHER';
-      const kind = await prisma.documentKind.findUnique({ where: { code } });
-      if (kind) {
-        await prisma.incomingDocument.update({
-          where: { id: doc.id },
-          data: { documentTypeId: kind.id },
-        });
-      }
+    if (existing) {
+      await prisma.documentType.update({
+        where: { id: existing.id },
+        data: {
+          code: type.code,
+          name: type.name,
+          normalizedName: type.normalizedName,
+          description: type.description,
+          isSystem: type.isSystem ?? false,
+        },
+      });
+    } else {
+      await prisma.documentType.create({
+        data: {
+          ...type,
+          isSystem: type.isSystem ?? false,
+          createdById: adminUser.id,
+        },
+      });
     }
-    console.log(`Backfilled documentTypeId for ${incomingDocs.length} incoming documents`);
-
-    // Backfill OutgoingDocument
-    const outgoingDocs = await prisma.outgoingDocument.findMany({
-      where: { documentTypeId: null },
-      select: { id: true, documentType: true },
-    });
-
-    for (const doc of outgoingDocs) {
-      const normalized = normalizeLegacy(doc.documentType ?? '');
-      const code = legacyTypeMapping[normalized] ?? 'OTHER';
-      const kind = await prisma.documentKind.findUnique({ where: { code } });
-      if (kind) {
-        await prisma.outgoingDocument.update({
-          where: { id: doc.id },
-          data: { documentTypeId: kind.id },
-        });
-      }
-    }
-    console.log(`Backfilled documentTypeId for ${outgoingDocs.length} outgoing documents`);
   }
+  console.log('Document Types seeded');
 
   console.log('Database seeding completed!');
 

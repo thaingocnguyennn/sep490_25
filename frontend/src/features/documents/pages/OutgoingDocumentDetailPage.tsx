@@ -4,28 +4,28 @@ import { getOutgoingDocumentById, deleteOutgoingDocument, sendOutgoingEmail, Sen
 import SignaturePanel from '../components/SignaturePanel';
 import { useOutgoingDocumentActions } from '../../../shared/hooks';
 import { DocumentStatusBadge, UrgencyBadge } from '../../../shared/components/DocumentBadges';
+import { formatConfidentiality } from '../../../shared/constants/confidentiality';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import type {
   OutgoingDocument,
   UpdateOutgoingStatusRequest,
-  OcrResult,
   User,
 } from '../../../types';
 import { usersApi } from '../../../api/modules/users';
 import { api } from '../../../api';
 import RegisterDocumentModal from '../components/RegisterDocumentModal';
+import ProcessOutgoingDocumentModal, {
+  OutgoingActionType,
+  ProcessOutgoingDocumentPayload,
+} from '../components/ProcessOutgoingDocumentModal';
 
 async function openAuthenticatedFile(url: string): Promise<void> {
-  // Routes the request through axios so the Bearer token is attached.
-  // Falls back to a direct window.open() only if the upstream call fails
-  // so that an expired token does not silently break the link.
   try {
     const res = await api.get<Blob>(url, { responseType: 'blob' });
     const blob = res.data;
     const objectUrl = URL.createObjectURL(blob);
     window.open(objectUrl, '_blank', 'noopener,noreferrer');
-    // Revoke after a delay so the new tab has time to load the blob.
     setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
   } catch (err) {
     console.error('Authenticated file fetch failed, falling back to direct URL:', err);
@@ -50,13 +50,13 @@ async function downloadAuthenticatedFile(url: string, fileName: string): Promise
   }
 }
 
-// Helper: định dạng ngày giờ tiếng Việt
-const formatDateTime = (dateStr: string | null | undefined): string => {
+// Helper format ngày
+const formatDate = (dateStr?: string | Date | null): string => {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleString('vi-VN');
+  return new Date(dateStr).toLocaleDateString('vi-VN');
 };
 
-const formatDate = (dateStr: string | null | undefined): string => {
+const formatDateTime = (dateStr?: string | Date | null): string => {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('vi-VN');
 };
@@ -81,32 +81,24 @@ export default function OutgoingDocumentDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { loading: actionLoading, uploadProgress, error: actionError, uploadFile, runOcr, updateStatus, clearError } = useOutgoingDocumentActions();
+  const { loading: actionLoading, uploadProgress, error: actionError, uploadFile, updateStatus, clearError } = useOutgoingDocumentActions();
 
   const [doc, setDoc] = useState<OutgoingDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [showOcrResult, setShowOcrResult] = useState(false);
 
-  // State modal trạng thái
+  // State modal trạng thái đồng bộ
   const [statusModal, setStatusModal] = useState<{
     open: boolean;
-    action: 'submit' | 'approve' | 'return' | 'issue' | 'recall' | 'trash' | 'restore' | null;
+    action: OutgoingActionType | null;
   }>({ open: false, action: null });
-  const [returnReason, setReturnReason] = useState('');
-  const [recallReason, setRecallReason] = useState('');
-  
-  const [registerModalOpen, setRegisterModalOpen] = useState(false);
-  const [registering, setRegistering] = useState(false);
-
-  const [sentDate, setSentDate] = useState('');
-  const [issueUrgency, setIssueUrgency] = useState<string>('');
-  const [issueConfidentiality, setIssueConfidentiality] = useState<string>('');
-  const [assignedApproverId, setAssignedApproverId] = useState<string>('');
-  const [assignedClerkId, setAssignedClerkId] = useState<string>('');
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [approvers, setApprovers] = useState<User[]>([]);
   const [clerks, setClerks] = useState<User[]>([]);
+
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [registering, setRegistering] = useState(false);
 
   // Drag & Drop upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -129,15 +121,14 @@ export default function OutgoingDocumentDetailPage() {
 
   const canEdit = (isSpecialist || isClerk) && ['DRAFT', 'RETURNED'].includes(doc?.document.status ?? '');
   const canUpload = (isSpecialist || isClerk) && ['DRAFT', 'RETURNED'].includes(doc?.document.status ?? '');
-  const canOcr = canUpload && !!doc?.document.fileUrl;
-  const canSubmit = isSpecialist && doc?.document.status === 'DRAFT';
-  const canApprove = isDeptHead && doc?.document.status === 'SUBMITTED';
-  const canReturn = isDeptHead && doc?.document.status === 'SUBMITTED';
-  const canRegister = isClerk && doc?.document.status === 'APPROVED' && doc.assignedClerkId === user?.id;
-  const canIssue = isClerk && doc?.document.status === 'WAITING_FOR_ISSUE';
-  const canRecall = isClerk && doc?.document.status === 'ISSUED';
+  const canSubmit = (isSpecialist || isClerk || isAdmin) && doc?.document.status === 'DRAFT';
+  const canApprove = (isDeptHead || isAdmin) && doc?.document.status === 'SUBMITTED';
+  const canReturn = (isDeptHead || isAdmin) && doc?.document.status === 'SUBMITTED';
+  const canRegister = (isClerk || isAdmin) && doc?.document.status === 'APPROVED' && (doc.assignedClerkId === user?.id || doc.document.createdByUser?.id === user?.id || !doc.assignedClerkId || (doc.document.department?.id !== undefined && doc.document.department?.id === user?.department?.id));
+  const canIssue = (isClerk || isAdmin) && doc?.document.status === 'WAITING_FOR_ISSUE';
+  const canRecall = (isClerk || isAdmin) && doc?.document.status === 'ISSUED';
   const canSendEmail = (isSpecialist || isClerk || isDeptHead || isAdmin) && doc?.document.status === 'ISSUED';
-  const canTrash = (isSpecialist || isClerk || isDeptHead) && !['COMPLETED', 'TRASHED', 'CANCELLED'].includes(doc?.document.status ?? '');
+  const canTrash = (isSpecialist || isClerk || isAdmin) && doc?.document.status === 'DRAFT';
   const canRestore = (isClerk || isAdmin) && doc?.document.status === 'TRASHED';
 
   const loadDoc = async () => {
@@ -173,23 +164,12 @@ export default function OutgoingDocumentDetailPage() {
     if (file) handleFileUpload(file);
   };
 
-  // ─── OCR handler ─────────────────────────────────────────────────────────
+  // ─── Process & Status update handler ─────────────────────────────────────
 
-  const handleRunOcr = async () => {
+  const handleProcessConfirm = async (payload: ProcessOutgoingDocumentPayload) => {
     if (!doc) return;
-    const result = await runOcr(doc.id);
-    if (result) {
-      setOcrResult(result);
-      setShowOcrResult(true);
-    }
-  };
 
-  // ─── Status update handler ───────────────────────────────────────────────
-
-  const handleStatusUpdate = async () => {
-    if (!doc || !statusModal.action) return;
-
-    if (statusModal.action === 'trash') {
+    if (payload.action === 'trash') {
       try {
         const result = await deleteOutgoingDocument(doc.id);
         setDoc(result);
@@ -201,37 +181,32 @@ export default function OutgoingDocumentDetailPage() {
       }
     }
 
-    const statusMap: Record<string, string> = {
+    const statusMap: Record<OutgoingActionType, string> = {
       submit: 'SUBMITTED',
       approve: 'APPROVED',
       return: 'RETURNED',
       issue: 'ISSUED',
       recall: 'RECALLED',
+      trash: 'TRASHED',
       restore: 'DRAFT',
     };
 
-    const payload: UpdateOutgoingStatusRequest = {
-      status: statusMap[statusModal.action] as any,
-      returnReason: returnReason || undefined,
-      recallReason: recallReason || undefined,
-      sentDate: sentDate || undefined,
-      urgency: (issueUrgency || undefined) as any,
-      confidentialityLevel: (issueConfidentiality || undefined) as any,
-      assignedApproverId: assignedApproverId ? parseInt(assignedApproverId) : undefined,
-      assignedClerkId: assignedClerkId ? parseInt(assignedClerkId) : undefined,
+    const updatePayload: UpdateOutgoingStatusRequest = {
+      status: statusMap[payload.action] as any,
+      returnReason: payload.returnReason,
+      recallReason: payload.recallReason,
+      sentDate: payload.sentDate,
+      urgency: (payload.issueUrgency || undefined) as any,
+      confidentialityLevel: (payload.issueConfidentiality || undefined) as any,
+      assignedApproverId: payload.assignedApproverId,
+      assignedClerkId: payload.assignedClerkId,
+      note: payload.note,
     };
 
-    const result = await updateStatus(doc.id, payload);
+    const result = await updateStatus(doc.id, updatePayload);
     if (result) {
       setDoc(result);
       setStatusModal({ open: false, action: null });
-      setReturnReason('');
-      setRecallReason('');
-      setSentDate('');
-      setIssueUrgency('');
-      setIssueConfidentiality('');
-      setAssignedApproverId('');
-      setAssignedClerkId('');
     }
   };
 
@@ -254,22 +229,30 @@ export default function OutgoingDocumentDetailPage() {
     }
   };
 
-  const handleOpenStatusModal = async (action: 'submit' | 'approve' | 'return' | 'issue' | 'recall' | 'trash' | 'restore') => {
+  const handleOpenStatusModal = async (action: OutgoingActionType) => {
     setStatusModal({ open: true, action });
     if (action === 'submit') {
+      setLoadingUsers(true);
       try {
-        const res = await usersApi.getApprovers();
+        const deptId = doc?.document.department?.id;
+        const res = await usersApi.getApprovers(deptId ? { departmentId: deptId } : undefined);
         setApprovers(res.data.data || []);
       } catch (err) {
         console.error('Failed to load approvers', err);
+      } finally {
+        setLoadingUsers(false);
       }
     }
     if (action === 'approve') {
+      setLoadingUsers(true);
       try {
-        const res = await usersApi.getClerks();
+        const deptId = doc?.document.department?.id;
+        const res = await usersApi.getClerks(deptId ? { departmentId: deptId } : undefined);
         setClerks(res.data.data || []);
       } catch (err) {
         console.error('Failed to load clerks', err);
+      } finally {
+        setLoadingUsers(false);
       }
     }
   };
@@ -282,9 +265,9 @@ export default function OutgoingDocumentDetailPage() {
       <div className="page-content">
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: 40 }}>
-            <p style={{ color: '#e74c3c' }}>⚠️ {error || 'Không tìm thấy văn bản đi'}</p>
+            <p style={{ color: '#e74c3c' }}>{error || 'Không tìm thấy văn bản đi'}</p>
             <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => navigate('/outgoing-documents')}>
-              ← Quay lại danh sách
+              Quay lại danh sách
             </button>
           </div>
         </div>
@@ -300,7 +283,7 @@ export default function OutgoingDocumentDetailPage() {
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btn btn-secondary" onClick={() => navigate('/outgoing-documents')} style={{ padding: '6px 12px' }}>
-            ← Quay lại
+            Quay lại
           </button>
           <div>
             <h1 style={{ margin: 0 }}>Chi tiết Văn bản đi</h1>
@@ -314,54 +297,54 @@ export default function OutgoingDocumentDetailPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {canEdit && (
             <button id="btn-edit-doc" className="btn btn-secondary" onClick={() => navigate(`/outgoing-documents/${doc.id}/edit`)}>
-              ✏️ Chỉnh sửa
+              Chỉnh sửa
             </button>
           )}
           {canSubmit && (
             <button id="btn-submit-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('submit')}>
-              📤 Trình duyệt
+              Trình duyệt
             </button>
           )}
           {canApprove && (
             <button id="btn-approve-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('approve')}
               style={{ background: '#27ae60' }}>
-              ✅ Phê duyệt
+              Phê duyệt
             </button>
           )}
           {canReturn && (
             <button id="btn-return-doc" className="btn btn-secondary" onClick={() => handleOpenStatusModal('return')}
               style={{ borderColor: '#e67e22', color: '#e67e22' }}>
-              ↩️ Trả lại
+              Trả lại
             </button>
           )}
           {canRegister && (
             <button id="btn-register-doc" className="btn btn-primary" onClick={() => setRegisterModalOpen(true)}
               style={{ background: '#f39c12' }}>
-              📝 Vào sổ
+              Vào sổ văn bản
             </button>
           )}
           {canIssue && (
             <button id="btn-issue-doc" className="btn btn-primary" onClick={() => handleOpenStatusModal('issue')}
               style={{ background: '#8e44ad' }}>
-              🚀 Phát hành
+              Phát hành
             </button>
           )}
           {canRecall && (
             <button id="btn-recall-doc" className="btn btn-secondary" onClick={() => handleOpenStatusModal('recall')}
               style={{ borderColor: '#c0392b', color: '#c0392b' }}>
-              🔙 Thu hồi
+              Thu hồi
             </button>
           )}
           {canRestore && (
             <button id="btn-restore-doc" className="btn btn-secondary" onClick={() => setStatusModal({ open: true, action: 'restore' })}
               style={{ borderColor: '#27ae60', color: '#27ae60' }}>
-              ♻️ Khôi phục
+              Khôi phục
             </button>
           )}
           {canTrash && (
             <button id="btn-trash-doc" className="btn btn-secondary" onClick={() => setStatusModal({ open: true, action: 'trash' })}
               style={{ borderColor: '#e74c3c', color: '#e74c3c' }}>
-              🗑️ Thùng rác
+              Thùng rác
             </button>
           )}
           {canSendEmail && (
@@ -371,7 +354,7 @@ export default function OutgoingDocumentDetailPage() {
               onClick={() => { setEmailModal(true); setEmailResult(null); setEmailList([]); setEmailInput(doc?.recipientEmail || ''); }}
               style={{ background: '#16a085' }}
             >
-              📧 Gửi Email
+              Gửi Email
             </button>
           )}
         </div>
@@ -380,14 +363,14 @@ export default function OutgoingDocumentDetailPage() {
       <div className="page-content">
         {justCreated && (
           <div style={{ background: '#d4edda', border: '1px solid #28a745', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#155724' }}>
-            ✅ Văn bản đi đã được tạo thành công! Bạn có thể upload file và chạy OCR bên dưới.
+            Văn bản đi đã được tạo thành công!
           </div>
         )}
 
         {(actionError) && (
-          <div style={{ background: '#fdf0f0', border: '1px solid #fcc', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#e74c3c' }}>
-            ⚠️ {actionError}
-            <button onClick={clearError} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#e74c3c' }}>✕</button>
+          <div style={{ background: '#fdf0f0', border: '1px solid #fcc', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#e74c3c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{actionError}</span>
+            <button onClick={clearError} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#e74c3c', fontSize: 16, fontWeight: 700 }}>×</button>
           </div>
         )}
 
@@ -406,113 +389,140 @@ export default function OutgoingDocumentDetailPage() {
               </div>
               <div className="card-body">
                 <div className="detail-grid">
-                  {doc.documentNumber && (
+                  {/* 1. Cơ quan ban hành */}
+                  {doc.document.issuer && (
                     <div className="detail-item">
-                      <label>Số ký hiệu</label>
+                      <label>1. Cơ quan ban hành</label>
+                      <span style={{ fontWeight: 600 }}>{doc.document.issuer}</span>
+                    </div>
+                  )}
+
+                  {/* 2. Số ký hiệu */}
+                  {(doc.documentNumber || doc.document.documentNumber) && (
+                    <div className="detail-item">
+                      <label>2. Số ký hiệu</label>
                       <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea' }}>
-                        {doc.documentNumber}
+                        {doc.document.documentNumber || doc.documentNumber}
                       </span>
                     </div>
                   )}
+
+                  {/* Số đi chính thức (khi đã vào sổ/ban hành) */}
                   {doc.dispatchNumber && (
                     <div className="detail-item">
-                      <label>Số phát hành</label>
+                      <label>Số đi chính thức</label>
                       <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#667eea', fontSize: 16 }}>
                         {doc.dispatchNumber}
                       </span>
                     </div>
                   )}
-                  {doc.documentTypeRef ? (
-                    <div className="detail-item">
-                      <label>Loại văn bản</label>
-                      <span>{doc.documentTypeRef.name}</span>
-                    </div>
-                  ) : doc.documentType ? (
-                    <div className="detail-item">
-                      <label>Loại văn bản</label>
-                      <span>{doc.documentType}</span>
-                    </div>
-                  ) : null}
-                  {doc.pageCount && (
-                    <div className="detail-item">
-                      <label>Số trang</label>
-                      <span>{doc.pageCount} trang</span>
-                    </div>
-                  )}
-                  <div className="detail-item full-width">
-                    <label>Tiêu đề văn bản</label>
-                    <span style={{ fontSize: 16, fontWeight: 600 }}>{doc.document.title}</span>
-                  </div>
-                  {doc.document.description && (
-                    <div className="detail-item full-width">
-                      <label>Mô tả</label>
-                      <span>{doc.document.description}</span>
-                    </div>
-                  )}
+
+                  {/* 3. Ngày tháng năm văn bản */}
                   <div className="detail-item">
-                    <label>Độ khẩn</label>
+                    <label>3. Ngày văn bản</label>
+                    <span>{formatDate(doc.document.issuedDate || doc.issuanceDate)}</span>
+                  </div>
+
+                  {/* 4. Loại văn bản */}
+                  <div className="detail-item">
+                    <label>4. Loại văn bản</label>
+                    <span>{doc.document.documentTypeRef?.name || '—'}</span>
+                  </div>
+
+                  {/* 5. Trích yếu */}
+                  <div className="detail-item full-width">
+                    <label>5. Trích yếu văn bản</label>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#2d3748' }}>{doc.document.subject}</span>
+                  </div>
+
+                  {/* 6. Chức vụ & 7. Họ tên người ký */}
+                  <div className="detail-item">
+                    <label>6 & 7. Người ký & Chức vụ</label>
+                    <span style={{ fontWeight: 600 }}>
+                      {doc.document.signerName || '—'}
+                      {doc.document.signerTitle ? ` (${doc.document.signerTitle})` : ''}
+                    </span>
+                  </div>
+
+                  {/* 8. Độ khẩn */}
+                  <div className="detail-item">
+                    <label>8. Độ khẩn</label>
                     <span><UrgencyBadge urgency={doc.document.urgency} /></span>
                   </div>
+
+                  {/* 9. Độ mật */}
                   <div className="detail-item">
-                    <label>Trạng thái</label>
-                    <span><DocumentStatusBadge status={docStatus} /></span>
+                    <label>9. Độ mật</label>
+                    <span style={{ fontWeight: 500 }}>
+                      {formatConfidentiality(doc.document.confidentiality)}
+                    </span>
                   </div>
-                  {doc.signerName && (
-                    <div className="detail-item">
-                      <label>Người ký</label>
-                      <span style={{ fontWeight: 600 }}>
-                        {doc.signerName}{doc.signerTitle ? ` (${doc.signerTitle})` : ''}
-                      </span>
-                    </div>
-                  )}
-                  {doc.issuanceDate && (
-                    <div className="detail-item">
-                      <label>Ngày ban hành</label>
-                      <span>{formatDate(doc.issuanceDate)}</span>
-                    </div>
-                  )}
+
+                  {/* Nơi nhận */}
                   {doc.recipientName && (
                     <div className="detail-item full-width">
-                      <label>Người/Cơ quan nhận</label>
+                      <label>Nơi nhận (Kính gửi)</label>
                       <span style={{ fontWeight: 600 }}>{doc.recipientName}</span>
                     </div>
                   )}
+
                   {doc.recipientAddress && (
                     <div className="detail-item full-width">
                       <label>Địa chỉ người nhận</label>
                       <span>{doc.recipientAddress}</span>
                     </div>
                   )}
+
                   {doc.recipientEmail && (
                     <div className="detail-item">
                       <label>Email người nhận</label>
                       <span>{doc.recipientEmail}</span>
                     </div>
                   )}
+
+                  {/* Số trang */}
+                  {doc.pageCount && (
+                    <div className="detail-item">
+                      <label>Số trang</label>
+                      <span>{doc.pageCount} trang</span>
+                    </div>
+                  )}
+
+                  {/* Phòng ban & Lĩnh vực */}
+                  <div className="detail-item">
+                    <label>Phòng ban soạn thảo</label>
+                    <span>{doc.document.department?.name || '—'}</span>
+                  </div>
+
+                  {doc.document.category && (
+                    <div className="detail-item">
+                      <label>Lĩnh vực văn bản</label>
+                      <span>{doc.document.category.name}</span>
+                    </div>
+                  )}
+
+                  {/* Trạng thái văn bản */}
+                  <div className="detail-item">
+                    <label>Trạng thái</label>
+                    <span><DocumentStatusBadge status={docStatus} /></span>
+                  </div>
+
                   {doc.sentDate && (
                     <div className="detail-item">
                       <label>Ngày gửi</label>
                       <span>{formatDate(doc.sentDate)}</span>
                     </div>
                   )}
-                  <div className="detail-item">
-                    <label>Phòng ban</label>
-                    <span>{doc.document.department?.name || '—'}</span>
-                  </div>
+
                   <div className="detail-item">
                     <label>Người tạo</label>
                     <span>{doc.document.createdByUser?.fullName || '—'}</span>
                   </div>
+
                   <div className="detail-item">
                     <label>Ngày tạo</label>
                     <span>{formatDateTime(doc.createdAt)}</span>
                   </div>
-                  {doc.notes && (
-                    <div className="detail-item full-width">
-                      <label>Ghi chú</label>
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{doc.notes}</span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -521,9 +531,9 @@ export default function OutgoingDocumentDetailPage() {
             {canUpload && (
               <div className="card">
                 <div className="card-header">
-                  <h2>📎 Upload file nháp</h2>
+                  <h2>Upload file nháp</h2>
                   <p style={{ color: '#636e72', fontSize: 13, margin: 0 }}>
-                    Hỗ trợ: PDF, DOCX, JPG, PNG, TIFF, BMP (tối đa 10MB)
+                    Hỗ trợ: PDF, DOCX, JPG, PNG, TIFF, BMP (tối đa 50MB)
                   </p>
                 </div>
                 <div className="card-body">
@@ -542,7 +552,6 @@ export default function OutgoingDocumentDetailPage() {
                       transition: 'all 0.2s',
                     }}
                   >
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>☁️</div>
                     <p style={{ margin: 0, fontWeight: 600, color: '#2d3436' }}>
                       Kéo thả file vào đây hoặc <span style={{ color: '#667eea' }}>chọn file</span>
                     </p>
@@ -572,7 +581,7 @@ export default function OutgoingDocumentDetailPage() {
               </div>
             )}
 
-            {/* File đính kèm + OCR */}
+            {/* File đính kèm */}
             {doc.document.fileUrl && (
               <div className="card">
                 <div className="card-header">
@@ -581,7 +590,6 @@ export default function OutgoingDocumentDetailPage() {
                 <div className="card-body">
                   <div className="attachment-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
                     <div className="attachment-file-card">
-                      <div className="attachment-file-icon">&#128196;</div>
                       <div className="attachment-file-info">
                         <div className="attachment-file-name" title={doc.document.originalFileName || 'File đính kèm'}>
                           {doc.document.originalFileName || 'File đính kèm'}
@@ -599,117 +607,49 @@ export default function OutgoingDocumentDetailPage() {
                           className="btn btn-secondary"
                           style={{ fontSize: 13, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
                         >
-                          👁️ Xem
+                          Xem tệp
                         </button>
-                        {/* <button
-                          type="button"
-                          onClick={() =>
-                            downloadAuthenticatedFile(
-                              `/api/documents/${doc.documentId}/download`,
-                              doc.document.originalFileName || `document-${doc.documentId}`,
-                            )
-                          }
-                          className="btn btn-secondary"
-                          style={{ fontSize: 13, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
-                        >
-                          ⬇️ Tải về
-                        </button> */}
                       </div>
                     </div>
                   </div>
 
-                  {/* Trạng thái OCR */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
-                    <div style={{ fontSize: 13, color: '#636e72' }}>
-                      OCR:{' '}
-                      <strong>
-                        {doc.document.ocrStatus === 'COMPLETED'
-                          ? '✅ Hoàn tất'
-                          : doc.document.ocrStatus === 'PROCESSING'
-                          ? '⏳ Đang xử lý'
-                          : doc.document.ocrStatus === 'FAILED'
-                          ? '❌ Thất bại'
-                          : '⏸️ Chưa chạy'}
-                      </strong>
-                    </div>
-                    {canOcr && (
-                      <button
-                        id="btn-run-ocr"
-                        className="btn btn-secondary"
-                        style={{ fontSize: 13 }}
-                        onClick={handleRunOcr}
-                        disabled={actionLoading}
-                      >
-                        {actionLoading ? '⏳ Đang xử lý...' : '🔍 Chạy OCR'}
-                      </button>
-                    )}
-                    {doc.document.ocrStatus === 'COMPLETED' && doc.document.ocrText && (
+                  {/* Xem kết quả text OCR đã quét từ lúc tạo nếu có */}
+                  {doc.document.ocrText && (
+                    <div style={{ marginTop: 12 }}>
                       <button
                         className="btn btn-secondary"
                         style={{ fontSize: 13 }}
                         onClick={() => setShowOcrResult(!showOcrResult)}
                       >
-                        {showOcrResult ? '🙈 Ẩn kết quả OCR' : '📋 Xem kết quả OCR'}
+                        {showOcrResult ? 'Ẩn nội dung OCR' : 'Xem nội dung OCR'}
                       </button>
-                    )}
-                  </div>
 
-                  {/* Kết quả OCR */}
-                  {showOcrResult && (ocrResult || doc.document.ocrText) && (
-                    <div
-                      style={{
-                        marginTop: 16,
-                        padding: 16,
-                        background: '#f0f2ff',
-                        borderRadius: 8,
-                        border: '1px solid #c7d2fe',
-                      }}
-                    >
-                      <h4 style={{ margin: '0 0 12px', color: '#4c1d95' }}>Kết quả OCR</h4>
-                      {ocrResult?.extractedFields && (
+                      {showOcrResult && (
                         <div
                           style={{
-                            marginBottom: 12,
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr',
-                            gap: 8,
+                            marginTop: 12,
+                            padding: 14,
+                            background: '#f8fafc',
+                            borderRadius: 8,
+                            border: '1px solid #e2e8f0',
                           }}
                         >
-                          {Object.entries(ocrResult.extractedFields).map(([key, val]) =>
-                            val ? (
-                              <div key={key} style={{ fontSize: 13 }}>
-                                <strong>{key}:</strong> {val}
-                              </div>
-                            ) : null,
-                          )}
+                          <div
+                            style={{
+                              fontSize: 12,
+                              maxHeight: 220,
+                              overflow: 'auto',
+                              whiteSpace: 'pre-wrap',
+                              color: '#334155',
+                              background: 'white',
+                              padding: 12,
+                              borderRadius: 6,
+                              border: '1px solid #cbd5e1',
+                            }}
+                          >
+                            {doc.document.ocrText}
+                          </div>
                         </div>
-                      )}
-                      <div
-                        style={{
-                          fontSize: 12,
-                          maxHeight: 200,
-                          overflow: 'auto',
-                          whiteSpace: 'pre-wrap',
-                          color: '#4b5563',
-                          background: 'white',
-                          padding: 12,
-                          borderRadius: 6,
-                        }}
-                      >
-                        {doc.document.ocrText}
-                      </div>
-                      {canEdit && ocrResult && (
-                        <button
-                          className="btn btn-primary"
-                          style={{ marginTop: 12, fontSize: 13 }}
-                          onClick={() =>
-                            navigate(`/outgoing-documents/${doc.id}/edit`, {
-                              state: { ocrFields: ocrResult.extractedFields },
-                            })
-                          }
-                        >
-                          ✍️ Điền vào form từ OCR
-                        </button>
                       )}
                     </div>
                   )}
@@ -726,6 +666,7 @@ export default function OutgoingDocumentDetailPage() {
                 <div className="card-body">
                   <SignaturePanel
                     documentId={doc.id}
+                    fileName={doc.document.originalFileName || doc.document.fileUrl}
                     mimeType={doc.document.mimeType}
                   />
                 </div>
@@ -735,7 +676,7 @@ export default function OutgoingDocumentDetailPage() {
 
           {/* Cột phải: lịch sử workflow */}
           <div className="card">
-            <div className="card-header"><h2>📈 Lịch sử xử lý</h2></div>
+            <div className="card-header"><h2>Lịch sử xử lý</h2></div>
             <div className="card-body">
               <div style={{ position: 'relative' }}>
                 {[
@@ -764,10 +705,10 @@ export default function OutgoingDocumentDetailPage() {
                         {item.date ? (
                           <>
                             <div style={{ fontSize: 12, color: '#636e72' }}>{formatDateTime(item.date)}</div>
-                            {item.user && <div style={{ fontSize: 12, color: '#667eea' }}>👤 {item.user}</div>}
+                            {item.user && <div style={{ fontSize: 12, color: '#667eea' }}>{item.user}</div>}
                             {item.note && (
                               <div style={{ fontSize: 12, color: '#e67e22', marginTop: 2 }}>
-                                💬 {item.note}
+                                {item.note}
                               </div>
                             )}
                           </>
@@ -783,302 +724,255 @@ export default function OutgoingDocumentDetailPage() {
         </div>
       </div>
 
-      {/* Modal xác nhận hành động */}
-      {statusModal.open && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-          }}
-          onClick={() => setStatusModal({ open: false, action: null })}
-        >
+      {/* Modal xử lý quy trình văn bản đi (đồng bộ với văn bản đến) */}
+      {doc && (
+        <ProcessOutgoingDocumentModal
+          open={statusModal.open}
+          action={statusModal.action}
+          doc={doc}
+          approvers={approvers}
+          clerks={clerks}
+          loadingUsers={loadingUsers}
+          submitting={actionLoading}
+          onClose={() => setStatusModal({ open: false, action: null })}
+          onConfirm={handleProcessConfirm}
+        />
+      )}
+
+      {/* ── Modal Gửi Email ──────────────────────────────────────────────── */}
+      {emailModal && doc && (
+        <div className="modal-overlay" onClick={() => setEmailModal(false)}>
           <div
-            style={{ background: 'white', borderRadius: 12, padding: 32, width: 480, maxWidth: '90vw' }}
+            className="modal"
             onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 540, width: '95%' }}
           >
-            <h3 style={{ marginTop: 0 }}>
-              {statusModal.action === 'submit' && '📤 Trình văn bản để duyệt'}
-              {statusModal.action === 'approve' && '✅ Phê duyệt văn bản'}
-              {statusModal.action === 'return' && '↩️ Trả lại văn bản'}
-              {statusModal.action === 'issue' && '🚀 Phát hành văn bản'}
-              {statusModal.action === 'recall' && '🔙 Thu hồi văn bản đã phát hành'}
-              {statusModal.action === 'trash' && '🗑️ Chuyển vào thùng rác'}
-              {statusModal.action === 'restore' && '♻️ Khôi phục từ thùng rác'}
-            </h3>
-
-            {/* Trình duyệt: chọn người duyệt */}
-            {statusModal.action === 'submit' && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Chọn Lãnh đạo phê duyệt <span style={{ color: '#e74c3c' }}>*</span>
-                </label>
-                <select
-                  value={assignedApproverId}
-                  onChange={(e) => setAssignedApproverId(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
-                >
-                  <option value="">— Chọn Lãnh đạo —</option>
-                  {approvers.map(a => (
-                    <option key={a.id} value={a.id}>{a.fullName} ({a.email})</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Phê duyệt: chọn văn thư */}
-            {statusModal.action === 'approve' && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Chọn Văn thư tiếp nhận <span style={{ color: '#e74c3c' }}>*</span>
-                </label>
-                <select
-                  value={assignedClerkId}
-                  onChange={(e) => setAssignedClerkId(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
-                >
-                  <option value="">— Chọn Văn thư —</option>
-                  {clerks.map(c => (
-                    <option key={c.id} value={c.id}>{c.fullName} ({c.email})</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Trả lại: bắt buộc nhập lý do */}
-            {statusModal.action === 'return' && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Lý do trả lại <span style={{ color: '#e74c3c' }}>*</span>
-                </label>
-                <textarea
-                  id="return-reason-input"
-                  value={returnReason}
-                  onChange={(e) => setReturnReason(e.target.value)}
-                  placeholder="Nhập lý do trả lại để tác giả chỉnh sửa..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
-            )}
-
-            {/* Thu hồi: bắt buộc nhập lý do */}
-            {statusModal.action === 'recall' && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Lý do thu hồi <span style={{ color: '#e74c3c' }}>*</span>
-                </label>
-                <textarea
-                  id="recall-reason-input"
-                  value={recallReason}
-                  onChange={(e) => setRecallReason(e.target.value)}
-                  placeholder="Nhập lý do thu hồi văn bản..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
-            )}
-
-            {/* Phát hành: nhập thông tin gửi */}
-            {statusModal.action === 'issue' && (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 12 }}>
-                  <div>
-                    <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ngày gửi</label>
-                    <input
-                      id="sent-date-input"
-                      type="date"
-                      value={sentDate}
-                      onChange={(e) => setSentDate(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                    />
-                  </div>
-                </div>
-                {/* Độ khẩn và Độ mật khi phát hành */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  <div>
-                    <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Độ khẩn</label>
-                    <select
-                      id="issue-urgency-select"
-                      value={issueUrgency}
-                      onChange={(e) => setIssueUrgency(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                    >
-                      <option value="">— Giữ nguyên —</option>
-                      <option value="THUONG">Thường</option>
-                      <option value="KHAN">Khẩn</option>
-                      <option value="THUONG_KHAN">Thượng khẩn</option>
-                      <option value="HOA_TOC">Hỏa tốc</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Độ mật</label>
-                    <select
-                      id="issue-confidentiality-select"
-                      value={issueConfidentiality}
-                      onChange={(e) => setIssueConfidentiality(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-                    >
-                      <option value="">— Giữ nguyên —</option>
-                      <option value="THUONG">Thường</option>
-                      <option value="MAT">Mật</option>
-                      <option value="TOI_MAT">Tối mật</option>
-                      <option value="TUYET_MAT">Tuyệt mật</option>
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Xác nhận chung */}
-            {!['return', 'recall'].includes(statusModal.action || '') && (
-              <p style={{ color: '#636e72', marginBottom: 20 }}>
-                {statusModal.action === 'submit' && 'Xác nhận trình văn bản lên Lãnh đạo để duyệt?'}
-                {statusModal.action === 'approve' && 'Xác nhận phê duyệt văn bản và chuyển cho Văn thư?'}
-                {statusModal.action === 'issue' && 'Xác nhận phát hành văn bản chính thức?'}
-                {statusModal.action === 'trash' && 'Văn bản sẽ được chuyển vào thùng rác. Có thể khôi phục sau.'}
-                {statusModal.action === 'restore' && 'Khôi phục văn bản này từ thùng rác về trạng thái Bản nháp?'}
-              </p>
-            )}
-
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+            <div className="modal-header">
+              <h2>Gửi văn bản qua Email</h2>
               <button
-                className="btn btn-secondary"
-                onClick={() => setStatusModal({ open: false, action: null })}
-                disabled={actionLoading}
+                type="button"
+                className="modal-close"
+                onClick={() => setEmailModal(false)}
+                disabled={emailSending}
               >
-                Hủy
+                &times;
               </button>
-              <button
-                id="btn-confirm-action"
-                className="btn btn-primary"
-                onClick={handleStatusUpdate}
-                disabled={
-                  actionLoading || 
-                  (statusModal.action === 'return' && !returnReason.trim()) || 
-                  (statusModal.action === 'recall' && !recallReason.trim()) ||
-                  (statusModal.action === 'submit' && !assignedApproverId) ||
-                  (statusModal.action === 'approve' && !assignedClerkId)
-                }
+            </div>
+
+            <div className="modal-body">
+              <div
                 style={{
-                  background: statusModal.action === 'trash' ? '#e74c3c' :
-                    statusModal.action === 'recall' ? '#c0392b' :
-                      statusModal.action === 'approve' ? '#27ae60' : undefined,
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  background: '#f8f9fa',
+                  borderRadius: 8,
+                  border: '1px solid #dfe6e9',
                 }}
               >
-                {actionLoading ? '⏳ Đang xử lý...' : 'Xác nhận'}
+                <div style={{ fontSize: 12, color: '#636e72', marginBottom: 2 }}>
+                  Văn bản gửi kèm
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: '#2d3436' }}>
+                  {doc.document.subject}
+                </div>
+                <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>
+                  Số ký hiệu: <strong>{doc.document.documentNumber || '—'}</strong>
+                </div>
+              </div>
+
+              {!emailResult ? (
+                <>
+                  <label
+                    style={{
+                      fontWeight: 600,
+                      display: 'block',
+                      marginBottom: 4,
+                      fontSize: 14,
+                    }}
+                  >
+                    Danh sách Email người nhận <span style={{ color: '#e74c3c' }}>*</span>
+                  </label>
+                  <p style={{ margin: '0 0 12px', color: '#636e72', fontSize: 13 }}>
+                    Nhập địa chỉ email người nhận và nhấn Enter hoặc nút Thêm.
+                  </p>
+
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          const val = emailInput.trim();
+                          if (val && !emailList.includes(val)) {
+                            setEmailList((prev) => [...prev, val]);
+                            setEmailInput('');
+                          }
+                        }
+                      }}
+                      placeholder="example@email.com (Enter để thêm)"
+                      style={{
+                        flex: 1,
+                        padding: '10px 14px',
+                        border: '1px solid #dfe6e9',
+                        borderRadius: 8,
+                        fontSize: 14,
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        const val = emailInput.trim();
+                        if (val && !emailList.includes(val)) {
+                          setEmailList((prev) => [...prev, val]);
+                          setEmailInput('');
+                        }
+                      }}
+                      style={{ padding: '10px 16px' }}
+                    >
+                      Thêm
+                    </button>
+                  </div>
+
+                  {emailList.length > 0 && (
+                    <div
+                      style={{
+                        marginBottom: 16,
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 6,
+                      }}
+                    >
+                      {emailList.map((email) => (
+                        <span
+                          key={email}
+                          style={{
+                            background: '#e8f4fd',
+                            color: '#2980b9',
+                            borderRadius: 20,
+                            padding: '4px 12px',
+                            fontSize: 13,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          {email}
+                          <button
+                            type="button"
+                            onClick={() => setEmailList((prev) => prev.filter((e) => e !== email))}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: '#e74c3c',
+                              fontWeight: 700,
+                              padding: 0,
+                              lineHeight: 1,
+                              fontSize: 14,
+                            }}
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <div
+                    style={{
+                      background: emailResult.failedCount === 0 ? '#d4edda' : '#fff3cd',
+                      borderRadius: 8,
+                      padding: 16,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        fontWeight: 600,
+                        color: emailResult.failedCount === 0 ? '#155724' : '#856404',
+                      }}
+                    >
+                      {emailResult.failedCount === 0
+                        ? 'Gửi email thành công!'
+                        : 'Gửi email hoàn tất (có lỗi)'}
+                    </p>
+                    <p style={{ margin: '4px 0 0', fontSize: 14, color: '#636e72' }}>
+                      Thành công: {emailResult.sentCount} | Thất bại: {emailResult.failedCount}
+                    </p>
+                  </div>
+                  {emailResult.failedEmails.length > 0 && (
+                    <div style={{ marginBottom: 12, textAlign: 'left' }}>
+                      <p
+                        style={{
+                          fontSize: 13,
+                          color: '#e74c3c',
+                          margin: '0 0 4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Email gửi thất bại:
+                      </p>
+                      {emailResult.failedEmails.map((e) => (
+                        <p key={e} style={{ margin: '2px 0', fontSize: 13, color: '#636e72' }}>
+                          • {e}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-cancel"
+                onClick={() => setEmailModal(false)}
+                disabled={emailSending}
+              >
+                {emailResult ? 'Đóng' : 'Hủy'}
               </button>
+              {!emailResult && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={emailSending || emailList.length === 0}
+                  onClick={async () => {
+                    if (!doc) return;
+                    setEmailSending(true);
+                    try {
+                      const result = await sendOutgoingEmail(doc.id, emailList);
+                      setEmailResult(result);
+                    } catch (err: unknown) {
+                      alert(err instanceof Error ? err.message : 'Gửi email thất bại');
+                    } finally {
+                      setEmailSending(false);
+                    }
+                  }}
+                >
+                  {emailSending ? 'Đang gửi...' : `Gửi cho ${emailList.length} người nhận`}
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Modal Gửi Email ──────────────────────────────────────────────── */}
-      {emailModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-            <h2 style={{ margin: '0 0 6px', fontSize: 20 }}>📧 Gửi văn bản qua Email</h2>
-            <p style={{ margin: '0 0 20px', color: '#636e72', fontSize: 14 }}>Nhập địa chỉ email người nhận. Có thể thêm nhiều email.</p>
-
-            {!emailResult ? (
-              <>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <input
-                    type="email"
-                    value={emailInput}
-                    onChange={e => setEmailInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault();
-                        const val = emailInput.trim();
-                        if (val && !emailList.includes(val)) {
-                          setEmailList(prev => [...prev, val]);
-                          setEmailInput('');
-                        }
-                      }
-                    }}
-                    placeholder="example@email.com (Enter để thêm)"
-                    style={{ flex: 1, padding: '8px 12px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
-                  />
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      const val = emailInput.trim();
-                      if (val && !emailList.includes(val)) {
-                        setEmailList(prev => [...prev, val]);
-                        setEmailInput('');
-                      }
-                    }}
-                    style={{ padding: '8px 14px' }}
-                  >
-                    + Thêm
-                  </button>
-                </div>
-
-                {emailList.length > 0 && (
-                  <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {emailList.map(email => (
-                      <span key={email} style={{ background: '#e8f4fd', color: '#2980b9', borderRadius: 20, padding: '4px 10px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        ✉️ {email}
-                        <button onClick={() => setEmailList(prev => prev.filter(e => e !== email))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e74c3c', fontWeight: 700, padding: 0, lineHeight: 1 }}>✕</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-                  <button className="btn btn-secondary" onClick={() => setEmailModal(false)} disabled={emailSending}>Hủy</button>
-                  <button
-                    className="btn btn-primary"
-                    disabled={emailSending || emailList.length === 0}
-                    style={{ background: '#16a085' }}
-                    onClick={async () => {
-                      if (!doc) return;
-                      setEmailSending(true);
-                      try {
-                        const result = await sendOutgoingEmail(doc.id, emailList);
-                        setEmailResult(result);
-                      } catch (err: unknown) {
-                        alert(err instanceof Error ? err.message : 'Gửi email thất bại');
-                      } finally {
-                        setEmailSending(false);
-                      }
-                    }}
-                  >
-                    {emailSending ? '⏳ Đang gửi...' : `📨 Gửi cho ${emailList.length} người nhận`}
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* Hiển thị kết quả gửi */
-              <div>
-                <div style={{ background: emailResult.failedCount === 0 ? '#d4edda' : '#fff3cd', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                  <p style={{ margin: 0, fontWeight: 600, color: emailResult.failedCount === 0 ? '#155724' : '#856404' }}>
-                    {emailResult.failedCount === 0 ? '✅ Gửi email thành công!' : '⚠️ Gửi email hoàn tất (có lỗi)'}
-                  </p>
-                  <p style={{ margin: '4px 0 0', fontSize: 14, color: '#636e72' }}>
-                    Thành công: {emailResult.sentCount} | Thất bại: {emailResult.failedCount}
-                  </p>
-                </div>
-                {emailResult.failedEmails.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <p style={{ fontSize: 13, color: '#e74c3c', margin: '0 0 4px', fontWeight: 600 }}>Email gửi thất bại:</p>
-                    {emailResult.failedEmails.map(e => <p key={e} style={{ margin: '2px 0', fontSize: 13, color: '#636e72' }}>• {e}</p>)}
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button className="btn btn-primary" onClick={() => setEmailModal(false)}>Đóng</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
       {registerModalOpen && (
         <RegisterDocumentModal
           type="OUTGOING"
           loading={registering}
           onClose={() => setRegisterModalOpen(false)}
           onRegister={handleRegister}
+          documentSymbol={doc?.documentNumber || ''}
+          departmentId={doc?.document.department?.id}
         />
       )}
     </>

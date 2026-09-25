@@ -57,27 +57,26 @@ export class DocumentsService {
     file: Express.Multer.File | undefined,
     data: {
       documentNumber?: string;
-      title: string;
-      description?: string;
+      subject: string;
       type: string;
+      issuedDate?: string;
+      /** @deprecated Use issuedDate — kept for legacy API compatibility. */
       issuanceDate?: string;
-      sendingAgency?: string;
+      issuer?: string;
+      signerName?: string;
+      signerTitle?: string;
       /** Canonical urgency: seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
       urgency?: string;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
       confidentialityLevel?: string;
       confidentialityId?: string;
-      category?: string;
+      categoryId?: string;
+      documentTypeId?: string;
       departmentId?: string;
-      processorId?: string;
-      // New incoming fields
-      documentType?: string;
-      signerName?: string;
-      signerTitle?: string;
+      // Incoming-specific fields
       pageCount?: string;
       arrivalNumber?: string;
       dateReceived?: string;
-      notes?: string;
     },
     createdBy: number
   ): Promise<DocumentDetail> {
@@ -95,20 +94,25 @@ export class DocumentsService {
 
     const doc = await documentsRepository.create({
       documentNumber,
-      title: data.title,
-      description: data.description,
+      subject: data.subject,
       type: data.type as any,
       fileUrl,
-      issuanceDate: data.issuanceDate ? new Date(data.issuanceDate) : undefined,
-      sendingAgency: data.sendingAgency,
+      issuedDate: data.issuedDate
+        ? new Date(data.issuedDate)
+        : data.issuanceDate
+          ? new Date(data.issuanceDate)
+          : undefined,
+      issuer: data.issuer,
+      signerName: data.signerName,
+      signerTitle: data.signerTitle,
       urgencyId: data.urgency ?? undefined,
       confidentialityId: data.confidentialityId ?? data.confidentialityLevel,
-      category: data.category,
+      categoryId: data.categoryId ? Number(data.categoryId) : undefined,
+      documentTypeId: data.documentTypeId ? Number(data.documentTypeId) : undefined,
       originalFileName: file?.originalname,
       fileSize: file?.size,
       mimeType: file?.mimetype,
       departmentId: data.departmentId ? Number(data.departmentId) : undefined,
-      processorId: data.processorId ? Number(data.processorId) : undefined,
       createdBy,
     });
 
@@ -118,14 +122,8 @@ export class DocumentsService {
         data: {
           documentId: doc.id,
           dateReceived: data.dateReceived ? new Date(data.dateReceived) : new Date(),
-          issuer: data.sendingAgency || '',
-          departmentId: data.departmentId ? Number(data.departmentId) : undefined,
-          documentType: data.documentType,
-          signerName: data.signerName,
-          signerTitle: data.signerTitle,
           pageCount: data.pageCount ? Number(data.pageCount) : undefined,
           arrivalNumber: data.arrivalNumber ? Number(data.arrivalNumber) : undefined,
-          notes: data.notes,
         },
       });
     } else if (data.type === 'OUTGOING') {
@@ -149,19 +147,22 @@ export class DocumentsService {
     id: number,
     data: {
       documentNumber?: string;
-      title?: string;
-      description?: string;
+      subject?: string;
       type?: string;
+      issuedDate?: string | null;
+      /** @deprecated Use issuedDate — kept for legacy API compatibility. */
       issuanceDate?: string | null;
-      sendingAgency?: string;
       /** New canonical urgency: seeded name, legacy alias, numeric id, or null to clear */
       urgency?: string | null;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
       confidentialityLevel?: string;
       confidentialityId?: string | null;
-      category?: string;
+      categoryId?: number | null;
+      documentTypeId?: number | null;
+      issuer?: string | null;
+      signerName?: string | null;
+      signerTitle?: string | null;
       departmentId?: number | null;
-      processorId?: number | null;
     },
     updatedBy: number
   ): Promise<DocumentDetail> {
@@ -190,11 +191,18 @@ export class DocumentsService {
 
     const updatedDoc = await documentsRepository.update(id, {
       documentNumber: data.documentNumber,
-      title: data.title,
-      description: data.description,
+      subject: data.subject,
       type: data.type as any,
-      issuanceDate: data.issuanceDate === null ? null : data.issuanceDate ? new Date(data.issuanceDate) : undefined,
-      sendingAgency: data.sendingAgency,
+      issuedDate: data.issuedDate === null
+        ? null
+        : data.issuedDate
+          ? new Date(data.issuedDate)
+          : data.issuanceDate
+            ? new Date(data.issuanceDate)
+            : undefined,
+      issuer: data.issuer,
+      signerName: data.signerName,
+      signerTitle: data.signerTitle,
       urgencyId: data.urgency !== undefined ? data.urgency : undefined,
       confidentialityId:
         data.confidentialityId !== undefined
@@ -202,9 +210,9 @@ export class DocumentsService {
           : data.confidentialityLevel !== undefined
             ? data.confidentialityLevel
             : undefined,
-      category: data.category,
+      categoryId: data.categoryId,
+      documentTypeId: data.documentTypeId,
       departmentId: data.departmentId,
-      processorId: data.processorId,
       updatedBy,
     });
 
@@ -214,7 +222,7 @@ export class DocumentsService {
         const incomingExist = await prisma.incomingDocument.findUnique({ where: { documentId: id } });
         if (!incomingExist) {
           await prisma.incomingDocument.create({
-            data: { documentId: id, dateReceived: new Date(), issuer: data.sendingAgency || '' }
+            data: { documentId: id, dateReceived: new Date() }
           });
         }
       } else if (data.type === 'OUTGOING') {
@@ -252,22 +260,13 @@ export class DocumentsService {
       throw new BadRequestError('Document is already archived');
     }
 
-    // Begin transaction for update and logging
+    // Begin transaction for update.
     await prisma.$transaction([
       prisma.document.update({
         where: { id },
         data: {
           isArchived: true,
           updatedBy,
-        },
-      }),
-      prisma.systemLog.create({
-        data: {
-          userId: updatedBy,
-          action: 'ARCHIVE_DOCUMENT',
-          entityType: 'Document',
-          entityId: id,
-          details: 'Document archived',
         },
       }),
     ]);
@@ -286,7 +285,7 @@ export class DocumentsService {
       throw new BadRequestError('Document is not archived');
     }
 
-    // Begin transaction for update and logging
+    // Begin transaction for update.
     await prisma.$transaction([
       prisma.document.update({
         where: { id },
@@ -294,15 +293,6 @@ export class DocumentsService {
           isArchived: false,
           status: 'IN_PROGRESS', // Cập nhật lại status để mở khóa thao tác
           updatedBy,
-        },
-      }),
-      prisma.systemLog.create({
-        data: {
-          userId: updatedBy,
-          action: 'REOPEN_DOCUMENT',
-          entityType: 'Document',
-          entityId: id,
-          details: `Document reopened. Reason: ${reason}`,
         },
       }),
     ]);
@@ -332,15 +322,6 @@ export class DocumentsService {
         data: {
           status: status as any,
           updatedBy,
-        },
-      }),
-      prisma.systemLog.create({
-        data: {
-          userId: updatedBy,
-          action: 'UPDATE_DOCUMENT_STATUS',
-          entityType: 'Document',
-          entityId: id,
-          details: `Document status changed from ${existing.status} to ${status}`,
         },
       }),
     ]);
@@ -582,14 +563,13 @@ export class DocumentsService {
     sheet.columns = [
       { header: '#', key: 'index', width: 6 },
       { header: 'Document Number', key: 'documentNumber', width: 20 },
-      { header: 'Title', key: 'title', width: 40 },
+      { header: 'Subject', key: 'subject', width: 40 },
       { header: 'Type', key: 'type', width: 14 },
       { header: 'Urgency', key: 'urgencyName', width: 14 },
       { header: 'Confidentiality', key: 'confidentialityName', width: 16 },
-      { header: 'Sending Agency', key: 'sendingAgency', width: 25 },
-      { header: 'Issuance Date', key: 'issuanceDate', width: 16 },
+      { header: 'Issuer', key: 'issuer', width: 25 },
+      { header: 'Date on Letter', key: 'issuedDate', width: 16 },
       { header: 'Department', key: 'department', width: 20 },
-      { header: 'Processor', key: 'processor', width: 20 },
       { header: 'Status', key: 'documentStatus', width: 10 },
       { header: 'Created At', key: 'createdAt', width: 20 },
     ];
@@ -603,16 +583,15 @@ export class DocumentsService {
       sheet.addRow({
         index: index + 1,
         documentNumber: doc.documentNumber,
-        title: doc.title,
+        subject: doc.subject,
         type: doc.type,
         urgencyName: doc.urgency ? doc.urgency.name : '—',
         confidentialityName: doc.confidentiality
           ? `${doc.confidentiality.code ? `(${doc.confidentiality.code}) ` : ''}${doc.confidentiality.name}`
           : '—',
-        sendingAgency: doc.sendingAgency || '—',
-        issuanceDate: doc.issuanceDate ? new Date(doc.issuanceDate).toLocaleDateString() : '—',
+        issuer: doc.issuer || '—',
+        issuedDate: doc.issuedDate ? new Date(doc.issuedDate).toLocaleDateString() : '—',
         department: doc.department?.name || '—',
-        processor: doc.processor?.fullName || '—',
         documentStatus: doc.documentStatus,
         createdAt: new Date(doc.createdAt).toLocaleString(),
       });
@@ -648,7 +627,7 @@ export class DocumentsService {
       const startX = 40;
       let y = doc.y;
       const colWidths = [30, 100, 200, 80, 70, 80, 100];
-      const headers = ['#', 'Doc Number', 'Title', 'Type', 'Urgency', 'Status', 'Issuance Date'];
+      const headers = ['#', 'Doc Number', 'Subject', 'Type', 'Urgency', 'Status', 'Date on Letter'];
 
       doc.fontSize(9).font('Helvetica-Bold');
       headers.forEach((header, i) => {
@@ -673,11 +652,11 @@ export class DocumentsService {
         const row = [
           String(index + 1),
           item.documentNumber,
-          item.title.length > 40 ? item.title.substring(0, 40) + '...' : item.title,
+          item.subject.length > 40 ? item.subject.substring(0, 40) + '...' : item.subject,
           item.type,
           item.urgency ? item.urgency.name : '—',
           item.documentStatus,
-          item.issuanceDate ? new Date(item.issuanceDate).toLocaleDateString() : '—',
+          item.issuedDate ? new Date(item.issuedDate).toLocaleDateString() : '—',
         ];
 
         row.forEach((cell, i) => {

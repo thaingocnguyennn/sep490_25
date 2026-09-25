@@ -9,14 +9,9 @@ import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
 export interface OutgoingDocumentWithRelations {
   id: number;
   documentId: number;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: Date | null;
-  signerName: string | null;
-  signerTitle: string | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -38,19 +33,25 @@ export interface OutgoingDocumentWithRelations {
   recallReason: string | null;
   trashedAt: Date | null;
   trashedBy: number | null;
-  notes: string | null;
   assignedApproverId: number | null;
   assignedClerkId: number | null;
+  documentBookId: number | null;
+  documentBook: {
+    id: number;
+    name: string;
+    code: string | null;
+    year: number;
+  } | null;
+  bookEntry: {
+    sequenceNumber: number;
+    officialNumber: string;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
-  // Lĩnh vực văn bản
-  categoryId: number | null;
-  category: { id: number; name: string; code: string } | null;
   document: {
     id: number;
     documentNumber: string;
-    title: string;
-    description: string | null;
+    subject: string;
     type: string;
     fileUrl: string | null;
     ocrText: string | null;
@@ -69,6 +70,14 @@ export interface OutgoingDocumentWithRelations {
       name: string;
       description: string | null;
     } | null;
+    documentTypeId: number | null;
+    documentTypeRef: { id: number; name: string } | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    issuer: string | null;
+    issuedDate: Date | null;
+    categoryId: number | null;
+    category: { id: number; name: string; code: string } | null;
     documentStatus: string;
     isArchived: boolean;
     originalFileName: string | null;
@@ -106,6 +115,9 @@ const OUTGOING_INCLUDE = {
       department: { select: { id: true, name: true } },
       confidentiality: { select: { id: true, code: true, name: true, description: true } },
       urgency: { select: { id: true, name: true, description: true } },
+      documentTypeRef: { select: { id: true, name: true } },
+      // Include lĩnh vực văn bản (chỉ lấy ACTIVE, nhưng include không filter - filter ở service)
+      category: { select: { id: true, name: true, code: true } },
       attachments: {
         select: {
           id: true,
@@ -117,9 +129,20 @@ const OUTGOING_INCLUDE = {
       },
     },
   },
-  documentTypeRef: { select: { id: true, name: true } },
-  // Include lĩnh vực văn bản (chỉ lấy ACTIVE, nhưng include không filter - filter ở service)
-  category: { select: { id: true, name: true, code: true } },
+  documentBook: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      year: true,
+    },
+  },
+  bookEntry: {
+    select: {
+      sequenceNumber: true,
+      officialNumber: true,
+    },
+  },
   submittedByUser: { select: { id: true, fullName: true } },
   approvedByUser: { select: { id: true, fullName: true } },
   returnedByUser: { select: { id: true, fullName: true } },
@@ -142,6 +165,7 @@ export class OutgoingDocumentsRepository {
     status?: string;
     urgency?: string;
     documentTypeId?: number;
+    documentBookId?: number;
     dateFrom?: string;
     dateTo?: string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy enum value */
@@ -155,7 +179,7 @@ export class OutgoingDocumentsRepository {
       departmentName?: string | null;
     };
   }) {
-    const { page, limit, search, status, urgency, documentTypeId, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed, currentUser } = params;
+    const { page, limit, search, status, urgency, documentTypeId, documentBookId, dateFrom, dateTo, confidentialityLevel, departmentId, includeTrashed, currentUser } = params;
     const skip = (page - 1) * limit;
 
     // Mặc định chỉ hiện văn bản ACTIVE (không ở thùng rác)
@@ -179,12 +203,29 @@ export class OutgoingDocumentsRepository {
       } else {
         const authOr: Prisma.OutgoingDocumentWhereInput[] = [];
 
+        // 1. Tài liệu do chính user hiện tại tạo (bao gồm cả bản nháp DRAFT của chính họ)
+        authOr.push({ document: { createdBy: currentUser.id } });
+
+        // 2. Điều kiện chỉ áp dụng cho các tài liệu ĐÃ GỬI / KHÔNG PHẢI BẢN NHÁP (status != 'DRAFT')
+        const notDraft: Prisma.DocumentWhereInput = {
+          status: { not: 'DRAFT' as any },
+        };
+
         if (isSpecialist) {
-          authOr.push(
-            { document: { createdBy: currentUser.id } },
-            { document: { departmentId: currentUser.departmentId || -1 } },
-            { document: { processors: { some: { userId: currentUser.id } } } }
-          );
+          if (currentUser.departmentId) {
+            authOr.push({
+              document: {
+                ...notDraft,
+                departmentId: currentUser.departmentId,
+              },
+            });
+          }
+          authOr.push({
+            document: {
+              ...notDraft,
+              processors: { some: { userId: currentUser.id } },
+            },
+          });
           if (currentUser.departmentName) {
             authOr.push({
               document: { status: 'ISSUED' },
@@ -194,11 +235,24 @@ export class OutgoingDocumentsRepository {
         }
 
         if (isDeptHead) {
-          authOr.push(
-            { document: { departmentId: currentUser.departmentId || -1 } },
-            { assignedApproverId: currentUser.id },
-            { document: { processors: { some: { userId: currentUser.id } } } }
-          );
+          if (currentUser.departmentId) {
+            authOr.push({
+              document: {
+                ...notDraft,
+                departmentId: currentUser.departmentId,
+              },
+            });
+          }
+          authOr.push({
+            document: notDraft,
+            assignedApproverId: currentUser.id,
+          });
+          authOr.push({
+            document: {
+              ...notDraft,
+              processors: { some: { userId: currentUser.id } },
+            },
+          });
           if (currentUser.departmentName) {
             authOr.push({
               document: { status: 'ISSUED' },
@@ -208,12 +262,17 @@ export class OutgoingDocumentsRepository {
         }
 
         if (isClerk) {
-          authOr.push(
-            { document: { createdBy: currentUser.id } },
-            { assignedClerkId: currentUser.id }
-          );
+          authOr.push({
+            document: notDraft,
+            assignedClerkId: currentUser.id,
+          });
           if (currentUser.departmentId) {
-            authOr.push({ document: { departmentId: currentUser.departmentId } });
+            authOr.push({
+              document: {
+                ...notDraft,
+                departmentId: currentUser.departmentId,
+              },
+            });
           }
           if (currentUser.departmentName) {
             authOr.push({
@@ -235,10 +294,11 @@ export class OutgoingDocumentsRepository {
     if (search) {
       (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({
         OR: [
-          { document: { title: { contains: search, mode: 'insensitive' } } },
+          { dispatchNumber: { contains: search, mode: 'insensitive' } },
+          { document: { subject: { contains: search, mode: 'insensitive' } } },
           { document: { documentNumber: { contains: search, mode: 'insensitive' } } },
           { document: { ocrText: { contains: search, mode: 'insensitive' } } },
-          { signerName: { contains: search, mode: 'insensitive' } },
+          { document: { signerName: { contains: search, mode: 'insensitive' } } },
           { recipientName: { contains: search, mode: 'insensitive' } },
         ],
       });
@@ -265,7 +325,14 @@ export class OutgoingDocumentsRepository {
     }
 
     if (documentTypeId !== undefined) {
-      where.documentTypeId = documentTypeId;
+      where.document = {
+        ...(where.document as object),
+        documentTypeId,
+      };
+    }
+
+    if (documentBookId !== undefined) {
+      where.documentBookId = documentBookId;
     }
 
     if (dateFrom || dateTo) {
@@ -375,7 +442,7 @@ export class OutgoingDocumentsRepository {
       (where.AND as Array<Prisma.OutgoingDocumentWhereInput>).push({
         document: {
           OR: [
-            { title: { contains: search, mode: 'insensitive' } },
+            { subject: { contains: search, mode: 'insensitive' } },
             { documentNumber: { contains: search, mode: 'insensitive' } },
           ],
         },
@@ -398,6 +465,72 @@ export class OutgoingDocumentsRepository {
     ]);
 
     return { items, total };
+  }
+
+  /**
+   * Đếm số lượng văn bản đi chưa xử lý để hiển thị thông báo số đỏ:
+   * - Lãnh đạo (DEPARTMENT_HEAD): số văn bản chờ duyệt (SUBMITTED)
+   * - Văn thư (DOCUMENT_CLERK): số văn bản đã duyệt chưa vào sổ (APPROVED)
+   */
+  async getUnprocessedCount(currentUser: {
+    id: number;
+    roles: string[];
+    departmentId?: number | null;
+    departmentName?: string | null;
+  }): Promise<{ count: number }> {
+    const isDeptHead = currentUser.roles.includes('DEPARTMENT_HEAD');
+    const isClerk = currentUser.roles.includes('DOCUMENT_CLERK');
+    const isAdmin = currentUser.roles.includes('ADMIN');
+
+    let count = 0;
+
+    if (isDeptHead) {
+      // Đếm số văn bản đi chờ Lãnh đạo duyệt (SUBMITTED)
+      const authOr: Prisma.OutgoingDocumentWhereInput[] = [
+        { assignedApproverId: currentUser.id },
+        { document: { processors: { some: { userId: currentUser.id } } } },
+      ];
+      if (currentUser.departmentId) {
+        authOr.push({ document: { departmentId: currentUser.departmentId } });
+      }
+      count += await prisma.outgoingDocument.count({
+        where: {
+          document: { status: 'SUBMITTED', documentStatus: 'ACTIVE' },
+          OR: authOr,
+        },
+      });
+    }
+
+    if (isClerk) {
+      // Đếm số văn bản đi đã duyệt chờ Văn thư vào sổ (APPROVED)
+      const authOr: Prisma.OutgoingDocumentWhereInput[] = [
+        { assignedClerkId: currentUser.id },
+        { document: { createdBy: currentUser.id } },
+      ];
+      if (currentUser.departmentId) {
+        authOr.push({ document: { departmentId: currentUser.departmentId } });
+      }
+      count += await prisma.outgoingDocument.count({
+        where: {
+          document: { status: 'APPROVED', documentStatus: 'ACTIVE' },
+          OR: authOr,
+        },
+      });
+    }
+
+    if (isAdmin && !isDeptHead && !isClerk) {
+      // Admin xem tổng số vb chờ duyệt và chờ vào sổ trên hệ thống
+      count = await prisma.outgoingDocument.count({
+        where: {
+          document: {
+            status: { in: ['SUBMITTED', 'APPROVED'] },
+            documentStatus: 'ACTIVE',
+          },
+        },
+      });
+    }
+
+    return { count };
   }
 
   /**

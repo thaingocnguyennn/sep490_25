@@ -15,8 +15,8 @@ const ALLOWED_MIME_TYPES = [
   'image/bmp',
 ];
 
-// Maximum file size: 10MB
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Maximum file size: 50MB (matching OCR and document attachment limits)
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 // Ensure the upload directory exists
 const uploadDir = config.uploadDir;

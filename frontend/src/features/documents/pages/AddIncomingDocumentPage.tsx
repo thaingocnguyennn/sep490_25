@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import {
   documentsApi,
   incomingDocumentsApi,
-  type ProcessorType,
+  type IncomingDocumentDetail,
   type Urgency,
 } from '../../../api';
 import { documentBooksApi, type DocumentBook } from '../../../api/modules/document-books';
@@ -12,25 +12,14 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { URGENCY_OPTIONS } from '../../../shared/constants/urgency';
 import { CONFIDENTIALITY_OPTIONS } from '../../../shared/constants/confidentiality';
 import DocumentViewer from '../components/DocumentViewer';
-import OrganizationAssignmentTree from '../components/OrganizationAssignmentTree';
+import ProcessorRoleSection from '../components/ProcessorRoleSection';
 import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
 import type { LayoutContextValue } from '../../../layouts/MainLayout';
 import type { ConfidentialityCodeOrName, OcrResult } from '../../../types';
 
-interface ProcessorAssignment {
-  userId: number;
-  processorType: ProcessorType;
-}
-
 interface AddIncomingDocumentPageProps {
   editMode?: boolean;
 }
-
-const PROCESSOR_TYPE_LABELS: Record<ProcessorType, string> = {
-  XLC: 'XLC - Người xử lý chính',
-  PHXL: 'PHXL - Người phối hợp xử lý',
-  XDB: 'XDB - Để biết',
-};
 
 const URGENCY_LABELS: Record<Urgency, string> = {
   THUONG: 'Thường',
@@ -68,6 +57,8 @@ type Step = 1 | 2;
 export default function AddIncomingDocumentPage({ editMode = false }: AddIncomingDocumentPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isReturnedResubmit = searchParams.get('returned') === '1';
   const { isDocumentClerk, isAdmin } = useAuth();
   const hasAccess = isDocumentClerk || isAdmin;
   const { processors, loading: loadingProcessors, fetch: fetchProcessors } = useProcessors();
@@ -81,6 +72,8 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   const [ocrSuccess, setOcrSuccess] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null);
+  // Loaded incoming document (only set in editMode / returned-resubmit).
+  const [loadedIncomingDoc, setLoadedIncomingDoc] = useState<IncomingDocumentDetail | null>(null);
   const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null); // Track existing file from draft
   const [existingFileName, setExistingFileName] = useState<string | null>(null);
   const [existingFileSize, setExistingFileSize] = useState<number | null>(null);
@@ -104,11 +97,15 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   const [dateReceived, setDateReceived] = useState(new Date().toISOString().split('T')[0]);
   const [urgency, setUrgency] = useState<Urgency>('THUONG');
   const [confidentiality, setConfidentiality] = useState<ConfidentialityCodeOrName>('THUONG');
-  const [notes, setNotes] = useState('');
   const [processingInstructions, setProcessingInstructions] = useState('');
 
-  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
-  const [processorsList, setProcessorsList] = useState<ProcessorAssignment[]>([]);
+  const [attachments, setAttachments] = useState<{ file: File; name: string; url: string }[]>([]);
+  // Three priority-aware sections: XLC > PHXL > XDB. A user can only sit in
+  // one section at a time; moving them to a higher-priority section removes
+  // them from the lower-priority sections automatically (see handlers below).
+  const [xlcUserId, setXlcUserId] = useState<number | null>(null);
+  const [phxlUserIds, setPhxlUserIds] = useState<number[]>([]);
+  const [xdbUserIds, setXdbUserIds] = useState<number[]>([]);
 
   // Document book state
   const [documentBooks, setDocumentBooks] = useState<DocumentBook[]>([]);
@@ -161,11 +158,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     fetchDocumentBooks();
   }, [fetchProcessors, fetchDocumentTypes, fetchDocumentBooks]);
 
-  // Load draft document data when in edit mode
+  // Load existing document data when in edit mode OR when handling a
+  // returned-document resubmit (URL `?returned=1`). Both modes reuse the
+  // same form layout — the only difference is the submit handler.
   useEffect(() => {
-    if (!editMode || !id) return;
+    if ((!editMode && !isReturnedResubmit) || !id) return;
 
-    const loadDraft = async () => {
+    const loadExisting = async () => {
       try {
         const { data } = await incomingDocumentsApi.getById(Number(id));
         const doc = data.data;
@@ -174,22 +173,22 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
           setLoadingDraft(false);
           return;
         }
+        setLoadedIncomingDoc(doc);
 
         // Populate form fields
         setForm({
-          issuer: doc.issuer || '',
-          documentNumber: doc.documentNumber || '',
-          dateLetter: doc.dateLetter || '',
-          documentTypeId: doc.documentTypeId?.toString() || '',
-          summary: doc.summary || '',
+          issuer: doc.document.issuer || '',
+          documentNumber: doc.document.documentNumber || '',
+          dateLetter: doc.document.issuedDate || '',
+          documentTypeId: doc.document.documentTypeId?.toString() || '',
+          summary: doc.document.subject || '',
           pageCount: doc.pageCount?.toString() || '',
-          signerName: doc.signerName || '',
-          signerTitle: doc.signerTitle || '',
+          signerName: doc.document.signerName || '',
+          signerTitle: doc.document.signerTitle || '',
         });
 
         setArrivalNumber(doc.arrivalNumber?.toString() || '');
         setDateReceived(doc.dateReceived?.split('T')[0] || new Date().toISOString().split('T')[0]);
-        setNotes(doc.notes || '');
         setProcessingInstructions(doc.processingInstructions || '');
 
         // Set urgency and confidentiality if available
@@ -204,6 +203,26 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         if (doc.documentBookId) {
           setSelectedBookId(doc.documentBookId);
         }
+
+        // Hydrate the three priority-aware processor sections from the
+        // existing DocumentProcessor rows. Priority: XLC > PHXL > XDB, so a
+        // user can only land in one section.
+        const existingProcessors = doc.document.processors ?? [];
+        const xlc = existingProcessors.find((p) => p.processorType === 'XLC');
+        const phxl = existingProcessors
+          .filter((p) => p.processorType === 'PHXL' && (!xlc || p.user.id !== xlc.user.id))
+          .map((p) => p.user.id);
+        const xdb = existingProcessors
+          .filter(
+            (p) =>
+              p.processorType === 'XDB' &&
+              (!xlc || p.user.id !== xlc.user.id) &&
+              !phxl.includes(p.user.id)
+          )
+          .map((p) => p.user.id);
+        setXlcUserId(xlc?.user.id ?? null);
+        setPhxlUserIds(phxl);
+        setXdbUserIds(xdb);
 
         // Set preview URL if there's a file
         if (doc.document.fileUrl) {
@@ -229,14 +248,14 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
           }
         }
       } catch (err) {
-        setError('Không thể tải dữ liệu bản nháp');
+        setError('Không thể tải dữ liệu văn bản');
       } finally {
         setLoadingDraft(false);
       }
     };
 
-    loadDraft();
-  }, [editMode, id]);
+    loadExisting();
+  }, [editMode, isReturnedResubmit, id]);
 
   // Auto-collapse sidebar when entering OCR workspace (step 1), restore on unmount
   useEffect(() => {
@@ -273,6 +292,17 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       }
     };
   }, [documentPreviewUrl]);
+
+  // Revoke attachment blob URLs on unmount without re-running the cleanup
+  // every time the attachments list changes. Using a ref ensures we always
+  // see the latest list when the component actually unmounts.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach((att) => URL.revokeObjectURL(att.url));
+    };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -351,7 +381,8 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         setOcrSuccess('');
         setError('Không trích xuất được trường nào từ tài liệu. Vui lòng điền thông tin thủ công.');
       } else {
-        setOcrSuccess(`Đã trích xuất thành công ${extractedKeys.length} trường: ${extractedKeys.join(', ')}.`);
+        // setOcrSuccess(`Đã trích xuất thành công ${extractedKeys.length} trường: ${extractedKeys.join(', ')}.`);
+        setOcrSuccess(`Đã trích xuất thành công.`);
       }
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
@@ -365,11 +396,14 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     const files = e.target.files;
     if (files) {
       const newAttachments = Array.from(files).map((file) => ({
+        file,
         name: file.name,
         url: URL.createObjectURL(file),
       }));
       setAttachments((prev) => [...prev, ...newAttachments]);
     }
+    // Reset the input so picking the same file again still fires onChange
+    e.target.value = '';
   };
 
   const handleRemoveAttachment = (index: number) => {
@@ -379,17 +413,41 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     });
   };
 
-  const handleProcessorToggle = (userId: number, type: ProcessorType) => {
-    setProcessorsList((prev) => {
-      const existing = prev.find((p) => p.userId === userId);
-      if (existing) {
-        if (existing.processorType === type) {
-          return prev.filter((p) => p.userId !== userId);
-        }
-        return prev.map((p) => p.userId === userId ? { ...p, processorType: type } : p);
-      }
-      return [...prev, { userId, processorType: type }];
-    });
+  // XLC: replace any existing XLC. Always wins over PHXL/XDB — if the user
+  // was previously selected in either, drop them from those lists.
+  const handleXlcChange = (next: number[]) => {
+    const nextXlc = next[0] ?? null;
+    setXlcUserId(nextXlc);
+    if (nextXlc !== null) {
+      setPhxlUserIds((prev) => prev.filter((id) => id !== nextXlc));
+      setXdbUserIds((prev) => prev.filter((id) => id !== nextXlc));
+    }
+  };
+
+  // PHXL: add/remove from PHXL. If the user is currently XLC, ignore the
+  // toggle (XLC wins by priority).
+  const handlePhxlChange = (next: number[]) => {
+    if (xlcUserId !== null && next.includes(xlcUserId)) return;
+    setPhxlUserIds(next);
+  };
+
+  // XDB: add/remove from XDB. If the user is XLC or PHXL, ignore the toggle
+  // (higher priority wins).
+  const handleXdbChange = (next: number[]) => {
+    if (xlcUserId !== null && next.includes(xlcUserId)) return;
+    const filtered = next.filter((id) => !phxlUserIds.includes(id));
+    setXdbUserIds(filtered);
+  };
+
+  // Build the derived [{userId, processorType}] array on demand (validate +
+  // submit). We always derive from the three separate section states so the
+  // payload cannot include duplicate userIds.
+  const buildProcessorIds = (): { userId: number; processorType: 'XLC' | 'PHXL' | 'XDB' }[] => {
+    const list: { userId: number; processorType: 'XLC' | 'PHXL' | 'XDB' }[] = [];
+    if (xlcUserId !== null) list.push({ userId: xlcUserId, processorType: 'XLC' });
+    for (const id of phxlUserIds) list.push({ userId: id, processorType: 'PHXL' });
+    for (const id of xdbUserIds) list.push({ userId: id, processorType: 'XDB' });
+    return list;
   };
 
   const validateStep1 = (): string | null => {
@@ -407,9 +465,25 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   };
 
   const validateStep2 = (): string | null => {
-    if (processorsList.length === 0) return 'Phải chọn ít nhất một người xử lý';
-    const hasXLC = processorsList.some((p) => p.processorType === 'XLC');
-    if (!hasXLC) return 'Phải chọn ít nhất một Người xử lý chính (XLC)';
+    if (xlcUserId === null) return 'Phải chọn đúng 1 Người xử lý chính (XLC) là Trưởng phòng';
+    const xlcUser = processors.find((u) => u.id === xlcUserId);
+    if (!xlcUser?.roles.includes('DEPARTMENT_HEAD')) {
+      return 'Người xử lý chính (XLC) phải có vai trò Trưởng phòng';
+    }
+    // Priority invariants: a user should never appear in more than one section.
+    if (phxlUserIds.includes(xlcUserId) || xdbUserIds.includes(xlcUserId)) {
+      return 'Một người không thể nằm ở nhiều vai trò xử lý';
+    }
+    const overlap = phxlUserIds.filter((id) => xdbUserIds.includes(id));
+    if (overlap.length > 0) {
+      return 'Một người không thể nằm ở nhiều vai trò xử lý';
+    }
+    for (const id of [...phxlUserIds, ...xdbUserIds]) {
+      const u = processors.find((p) => p.id === id);
+      if (!u?.roles.some((r) => r === 'DEPARTMENT_HEAD' || r === 'SPECIALIST')) {
+        return `Người dùng đã chọn không thuộc Trưởng phòng hoặc Chuyên viên`;
+      }
+    }
     return null;
   };
 
@@ -423,6 +497,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     setSubmitting(true);
     setError('');
 
+    const processorIds = buildProcessorIds();
     const payload = {
       issuer: form.issuer || undefined,
       documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
@@ -432,13 +507,12 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       signerTitle: form.signerTitle || undefined,
       dateLetter: normalizeDate(form.dateLetter),
       dateReceived,
-      summary: form.summary || undefined,
+      summary: form.summary,
       pageCount: form.pageCount ? Number(form.pageCount) : undefined,
       urgency,
       confidentialityLevel: confidentiality,
-      notes: notes || undefined,
       processingInstructions: processingInstructions || undefined,
-      processorIds: processorsList,
+      processorIds,
       documentBookId: selectedBookId || undefined,
       attachments: attachments.map((a) => ({
         fileName: a.name,
@@ -446,29 +520,43 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       })),
     };
 
+    const attachmentFiles = attachments.map((a) => a.file);
+
     try {
+      // Resubmit-after-RETURN path. The clerk picks a new XLC; we POST to
+      // the dedicated resubmit endpoint which re-opens the document and
+      // resets the participations.
+      if (isReturnedResubmit && id) {
+        await incomingDocumentsApi.resubmit(Number(id), {
+          processorIds,
+          processingInstructions: processingInstructions || undefined,
+        });
+        navigate('/incoming-documents');
+        return;
+      }
+
       // In edit mode, first update the draft, then submit
       if (editMode && id) {
         // Update existing draft with file if changed
         if (selectedFile) {
-          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile);
+          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile, attachmentFiles);
         } else {
           await incomingDocumentsApi.updateDraft(Number(id), payload);
         }
-        // Mark document as submitted (PENDING status)
-        await incomingDocumentsApi.updateStatus(Number(id), { status: 'PENDING' });
+        // Submit the draft (creates workflow rows + participations; flips
+        // Document.status from DRAFT to PENDING).
+        await incomingDocumentsApi.submitDraft(Number(id));
         navigate('/incoming-documents');
-      } else {
-        // Normal create flow
-        if (selectedFile) {
-          // Persist the PDF file and create the incoming document in one request
-          await incomingDocumentsApi.createWithFile(payload, selectedFile);
-        } else {
-          // No file — create without attachment
-          await incomingDocumentsApi.create(payload);
-        }
-        navigate('/incoming-documents');
+        return;
       }
+
+      // Normal create flow
+      if (selectedFile) {
+        await incomingDocumentsApi.createWithFile(payload, selectedFile, attachmentFiles);
+      } else {
+        await incomingDocumentsApi.create(payload);
+      }
+      navigate('/incoming-documents');
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
       setError(apiError.response?.data?.message || 'Tạo văn bản đến thất bại. Vui lòng thử lại.');
@@ -490,11 +578,10 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       signerTitle: form.signerTitle || undefined,
       dateLetter: normalizeDate(form.dateLetter),
       dateReceived,
-      summary: form.summary || undefined,
+      summary: form.summary,
       pageCount: form.pageCount ? Number(form.pageCount) : undefined,
       urgency,
       confidentialityLevel: confidentiality,
-      notes: notes || undefined,
       documentBookId: selectedBookId || undefined,
       attachments: attachments.map((a) => ({
         fileName: a.name,
@@ -502,18 +589,20 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       })),
     };
 
+    const attachmentFiles = attachments.map((a) => a.file);
+
     try {
       if (editMode && id) {
         // Update existing draft
         if (selectedFile) {
-          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile);
+          await incomingDocumentsApi.updateDraftWithFile(Number(id), payload, selectedFile, attachmentFiles);
         } else {
           await incomingDocumentsApi.updateDraft(Number(id), payload);
         }
       } else {
         // Create new draft
         if (selectedFile) {
-          await incomingDocumentsApi.saveDraftWithFile(payload, selectedFile);
+          await incomingDocumentsApi.saveDraftWithFile(payload, selectedFile, attachmentFiles);
         } else {
           await incomingDocumentsApi.saveDraft(payload);
         }
@@ -531,7 +620,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     return (
       <>
         <div className="top-bar">
-          <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
+          <h1>
+            {isReturnedResubmit
+              ? 'Gửi lại văn bản sau khi trả lại'
+              : editMode
+                ? 'Sửa Văn bản đến'
+                : 'Thêm Văn bản đến mới'}
+          </h1>
           <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
         </div>
         <div className="page-content">
@@ -541,12 +636,16 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
     );
   }
 
-  // Show loading spinner while fetching draft data in edit mode
+  // Show loading spinner while fetching existing data in edit / returned mode
   if (loadingDraft) {
     return (
       <>
         <div className="top-bar">
-          <h1>Sửa Văn bản đến</h1>
+          <h1>
+            {isReturnedResubmit
+              ? 'Gửi lại văn bản sau khi trả lại'
+              : 'Sửa Văn bản đến'}
+          </h1>
           <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>Quay lại</button>
         </div>
         <div className="page-content">
@@ -564,7 +663,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
       <div className="ocr-page-shell">
         {/* Compact topbar */}
         <div className="ocr-workspace-topbar">
-          <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
+          <h1>
+            {isReturnedResubmit
+              ? 'Gửi lại văn bản sau khi trả lại'
+              : editMode
+                ? 'Sửa Văn bản đến'
+                : 'Thêm Văn bản đến mới'}
+          </h1>
           <div className="ocr-status-pill">
             <span className="ocr-status-dot" />
             OCR
@@ -853,17 +958,6 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
                     </select>
                   </div>
 
-                  <div className="form-group">
-                    <label htmlFor="notes">Ghi chú</label>
-                    <textarea
-                      id="notes"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Ghi chú bổ sung..."
-                      rows={3}
-                    />
-                  </div>
-
                   {/* Divider — phân tách nhẹ trước phần tệp đính kèm */}
                   <hr className="form-divider" />
 
@@ -923,7 +1017,11 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             className="btn btn-primary"
             onClick={handleContinue}
           >
-            {editMode ? 'Cập nhật & Tiếp tục' : 'Tiếp tục →'}
+            {isReturnedResubmit
+              ? 'Chọn lại XLC và gửi →'
+              : editMode
+                ? 'Cập nhật & Tiếp tục'
+                : 'Tiếp tục →'}
           </button>
         </div>
       </div>
@@ -934,7 +1032,13 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
   return (
     <>
       <div className="top-bar">
-        <h1>{editMode ? 'Sửa Văn bản đến' : 'Thêm Văn bản đến mới'}</h1>
+        <h1>
+          {isReturnedResubmit
+            ? 'Gửi lại văn bản sau khi trả lại'
+            : editMode
+              ? 'Sửa Văn bản đến'
+              : 'Thêm Văn bản đến mới'}
+        </h1>
         <button className="btn btn-secondary" onClick={() => navigate('/incoming-documents')}>
           Quay lại
         </button>
@@ -953,6 +1057,36 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
           </div>
         </div>
 
+        {isReturnedResubmit && (
+          <div
+            className="alert alert-warning"
+            style={{
+              marginBottom: 12,
+              background: '#fff8e1',
+              border: '1px solid #fcd34d',
+              padding: 12,
+              borderRadius: 6,
+              color: '#92400e',
+            }}
+          >
+            <strong>Văn bản này đang ở trạng thái "Trả lại".</strong>
+            {(() => {
+              const participationReason = loadedIncomingDoc?.document.participations?.find(
+                (p) => p.status === 'RETURNED' && p.returnReason
+              )?.returnReason;
+              return participationReason ? (
+                <div style={{ marginTop: 6 }}>
+                  <strong>Lý do trả lại:</strong> {participationReason}
+                </div>
+              ) : null;
+            })()}
+            <div style={{ marginTop: 6 }}>
+              Vui lòng chọn lại <strong>Người xử lý chính (XLC)</strong> và nhấn
+              "Gửi lại sau trả lại" để văn bản tiếp tục được xử lý.
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <div className="card-header">
             <h2>Bước 2: Phân công xử lý & Gửi</h2>
@@ -962,21 +1096,24 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             {error && <div className="alert alert-error">{error}</div>}
 
             <div className="processor-instructions">
-              <p>Phân công nhân viên xử lý văn bản này. Phải chọn ít nhất một <strong>XLC (Người xử lý chính)</strong>.</p>
+              <p>
+                Phân công nhân viên xử lý văn bản này. Phải chọn đúng <strong>1 XLC (Trưởng phòng)</strong>.
+                Thứ tự ưu tiên: <strong>XLC &gt; PHXL &gt; XDB</strong> — một người chỉ có thể nằm ở một vai trò.
+              </p>
             </div>
 
             <div className="processor-legend">
               <div className="legend-item">
                 <span className="legend-badge xl">XLC</span>
-                <span>Người xử lý chính — Người chịu trách nhiệm chính</span>
+                <span>Người xử lý chính — chỉ chọn 1 Trưởng phòng</span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge ph">PHXL</span>
-                <span>Người phối hợp xử lý — Hỗ trợ người xử lý chính</span>
+                <span>Người phối hợp xử lý — Trưởng phòng hoặc Chuyên viên</span>
               </div>
               <div className="legend-item">
                 <span className="legend-badge xd">XDB</span>
-                <span>Để biết</span>
+                <span>Để biết — Trưởng phòng hoặc Chuyên viên</span>
               </div>
             </div>
 
@@ -985,12 +1122,45 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
               {loadingProcessors ? (
                 <div className="loading-spinner"><div className="spinner" /></div>
               ) : (
-                <OrganizationAssignmentTree
-                  users={processors}
-                  assignments={processorsList}
-                  roleLabels={PROCESSOR_TYPE_LABELS}
-                  onAssignmentChange={handleProcessorToggle}
-                />
+                <div className="processor-role-sections">
+                  <ProcessorRoleSection
+                    title="Người xử lý chính (XLC)"
+                    description="Chỉ chọn 1 Trưởng phòng chịu trách nhiệm chính."
+                    variant="xlc"
+                    users={processors}
+                    blockedUserIds={[]}
+                    allowedRoles={['DEPARTMENT_HEAD']}
+                    selectedIds={xlcUserId === null ? [] : [xlcUserId]}
+                    mode="single"
+                    onChange={handleXlcChange}
+                  />
+                  <ProcessorRoleSection
+                    title="Người phối hợp xử lý (PHXL)"
+                    description="Chọn nhiều Trưởng phòng hoặc Chuyên viên hỗ trợ xử lý."
+                    variant="phxl"
+                    users={processors}
+                    blockedUserIds={xlcUserId !== null ? [xlcUserId] : []}
+                    allowedRoles={['DEPARTMENT_HEAD', 'SPECIALIST']}
+                    selectedIds={phxlUserIds}
+                    mode="multi"
+                    onChange={handlePhxlChange}
+                  />
+                  <ProcessorRoleSection
+                    title="Xem Để biết (XDB)"
+                    description="Chọn nhiều Trưởng phòng hoặc Chuyên viên chỉ để biết."
+                    variant="xdb"
+                    users={processors}
+                    blockedUserIds={
+                      xlcUserId !== null
+                        ? [xlcUserId, ...phxlUserIds]
+                        : phxlUserIds
+                    }
+                    allowedRoles={['DEPARTMENT_HEAD', 'SPECIALIST']}
+                    selectedIds={xdbUserIds}
+                    mode="multi"
+                    onChange={handleXdbChange}
+                  />
+                </div>
               )}
             </div>
 
@@ -1065,7 +1235,9 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Người xử lý</span>
-                  <span className="summary-value">{processorsList.length}</span>
+                  <span className="summary-value">
+                    {(xlcUserId !== null ? 1 : 0) + phxlUserIds.length + xdbUserIds.length}
+                  </span>
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Tệp đính kèm chính</span>
@@ -1100,7 +1272,11 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
             onClick={handleConfirm}
             disabled={submitting}
           >
-            {submitting ? 'Đang gửi...' : 'Xác nhận & Gửi'}
+            {submitting
+              ? 'Đang gửi...'
+              : isReturnedResubmit
+                ? 'Gửi lại sau trả lại'
+                : 'Xác nhận & Gửi'}
           </button>
         </div>
       </div>

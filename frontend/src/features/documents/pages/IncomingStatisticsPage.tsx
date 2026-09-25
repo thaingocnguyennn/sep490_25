@@ -1,31 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { incomingDocumentsApi } from '../../../api/modules/documents';
 import { useAuth } from '../../../contexts/AuthContext';
+import { LoadingSpinner } from '../../../shared/components';
 
 // ─── Nhãn trạng thái tiếng Việt ──────────────────────────────────────────────
 
 const STATUS_LABEL: Record<string, string> = {
-  DRAFT:             'Bản nháp',
-  SUBMITTED:         'Chờ duyệt',
-  RETURNED:          'Trả lại',
-  APPROVED:          'Đã duyệt',
-  IN_PROGRESS:       'Đang xử lý',
-  COMPLETED:         'Hoàn tất',
-  REJECTED:          'Từ chối',
-  CANCELLED:         'Đã hủy',
-  PENDING:           'Chờ xử lý',
+  DRAFT: 'Bản nháp',
+  SUBMITTED: 'Chờ duyệt',
+  RETURNED: 'Trả lại',
+  APPROVED: 'Đã duyệt',
+  IN_PROGRESS: 'Đang xử lý',
+  COMPLETED: 'Hoàn tất',
+  REJECTED: 'Từ chối',
+  CANCELLED: 'Đã hủy',
+  PENDING: 'Chờ xử lý',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  DRAFT:       '#95a5a6',
-  SUBMITTED:   '#3498db',
-  RETURNED:    '#e67e22',
-  APPROVED:    '#27ae60',
+  DRAFT: '#95a5a6',
+  SUBMITTED: '#3498db',
+  RETURNED: '#e67e22',
+  APPROVED: '#27ae60',
   IN_PROGRESS: '#9b59b6',
-  COMPLETED:   '#1abc9c',
-  REJECTED:    '#c0392b',
-  CANCELLED:   '#7f8c8d',
-  PENDING:     '#f39c12',
+  COMPLETED: '#1abc9c',
+  REJECTED: '#c0392b',
+  CANCELLED: '#7f8c8d',
+  PENDING: '#f39c12',
 };
 
 const PALETTE = [
@@ -35,37 +36,70 @@ const PALETTE = [
 
 function formatMonth(yyyyMM: string): string {
   const [year, month] = yyyyMM.split('-');
-  return `T${parseInt(month)}/${year}`;
+  return `T${parseInt(month, 10)}/${year}`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, color, icon }: {
-  label: string; value: number; color: string; icon: string;
+function KpiCard({
+  label,
+  value,
+  color,
+  icon,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  icon: string;
 }) {
   return (
-    <div style={{
-      background: '#fff', borderRadius: 12, padding: '20px 24px',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.07)', borderLeft: `4px solid ${color}`,
-      display: 'flex', alignItems: 'center', gap: 16,
-    }}>
-      <div style={{
-        width: 48, height: 48, borderRadius: '50%', background: `${color}20`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-      }}>
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 10,
+        padding: '18px 20px',
+        border: '1px solid #e2e8f0',
+        borderLeft: `4px solid ${color}`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      }}
+    >
+      <div
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 8,
+          background: `${color}15`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 22,
+          flexShrink: 0,
+        }}
+      >
         {icon}
       </div>
       <div>
-        <div style={{ fontSize: 28, fontWeight: 700, color: '#2d3436', lineHeight: 1 }}>
+        <div style={{ fontSize: 26, fontWeight: 700, color: '#1e293b', lineHeight: 1.1 }}>
           {value.toLocaleString('vi-VN')}
         </div>
-        <div style={{ fontSize: 13, color: '#636e72', marginTop: 4 }}>{label}</div>
+        <div style={{ fontSize: 13, color: '#64748b', marginTop: 4, fontWeight: 500 }}>
+          {label}
+        </div>
       </div>
     </div>
   );
 }
 
-function HorizontalBarChart({ title, data, labelKey, countKey, colors }: {
+function HorizontalBarChart({
+  title,
+  data,
+  labelKey,
+  countKey,
+  colors,
+}: {
   title: string;
   data: Record<string, unknown>[];
   labelKey: string;
@@ -74,9 +108,9 @@ function HorizontalBarChart({ title, data, labelKey, countKey, colors }: {
 }) {
   if (!data.length) {
     return (
-      <div style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16, color: '#2d3436' }}>{title}</h3>
-        <p style={{ color: '#b2bec3', textAlign: 'center', padding: '24px 0' }}>Không có dữ liệu</p>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 20, border: '1px solid #e2e8f0' }}>
+        <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 600, color: '#1e293b' }}>{title}</h3>
+        <p style={{ color: '#94a3b8', textAlign: 'center', padding: '24px 0', fontSize: 13 }}>Không có dữ liệu</p>
       </div>
     );
   }
@@ -84,25 +118,41 @@ function HorizontalBarChart({ title, data, labelKey, countKey, colors }: {
   const max = Math.max(...data.map((d) => d[countKey] as number), 1);
 
   return (
-    <div style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-      <h3 style={{ margin: '0 0 20px', fontSize: 16, color: '#2d3436' }}>{title}</h3>
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 10,
+        padding: 20,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+    >
+      <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: '#1e293b' }}>{title}</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {data.map((row, idx) => {
-          const label = row[labelKey] as string;
+          const label = (row[labelKey] as string) || 'Khác';
           const count = row[countKey] as number;
-          const pct   = Math.max((count / max) * 100, 2);
-          const color = colors ? (colors[idx] ?? PALETTE[idx % PALETTE.length]) : PALETTE[idx % PALETTE.length];
+          const pct = Math.max((count / max) * 100, 2);
+          const color = colors
+            ? colors[idx] ?? PALETTE[idx % PALETTE.length]
+            : PALETTE[idx % PALETTE.length];
+
           return (
-            <div key={label ?? idx}>
+            <div key={`${label}-${idx}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
-                <span style={{ color: '#2d3436', fontWeight: 500 }}>{label}</span>
-                <span style={{ color: '#636e72', fontWeight: 600 }}>{count}</span>
+                <span style={{ color: '#334155', fontWeight: 500 }}>{label}</span>
+                <span style={{ color: '#0f172a', fontWeight: 600 }}>{count.toLocaleString('vi-VN')}</span>
               </div>
-              <div style={{ height: 10, background: '#f1f2f6', borderRadius: 6, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', width: `${pct}%`, background: color,
-                  borderRadius: 6, transition: 'width 0.6s cubic-bezier(.4,0,.2,1)',
-                }} />
+              <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${pct}%`,
+                    background: color,
+                    borderRadius: 4,
+                    transition: 'width 0.5s ease',
+                  }}
+                />
               </div>
             </div>
           );
@@ -114,68 +164,81 @@ function HorizontalBarChart({ title, data, labelKey, countKey, colors }: {
 
 function MonthlyTrendChart({ data }: { data: { month: string; count: number }[] }) {
   if (!data.length) return null;
-
-  const W = 600;
-  const H = 160;
-  const PAD = { top: 16, right: 16, bottom: 32, left: 32 };
-  const chartW = W - PAD.left - PAD.right;
-  const chartH = H - PAD.top - PAD.bottom;
+  const W = 800;
+  const H = 220;
+  const PAD = { top: 20, right: 24, bottom: 36, left: 40 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top - PAD.bottom;
   const maxVal = Math.max(...data.map((d) => d.count), 1);
 
-  const points = data.map((d, i) => ({
-    x: PAD.left + (i / (data.length - 1 || 1)) * chartW,
-    y: PAD.top + chartH - (d.count / maxVal) * chartH,
+  const pts = data.map((d, i) => ({
+    x: PAD.left + (i / (data.length - 1 || 1)) * cW,
+    y: PAD.top + cH - (d.count / maxVal) * cH,
     count: d.count,
     month: d.month,
   }));
 
-  const polyline = points.map((p) => `${p.x},${p.y}`).join(' ');
-  const areaPath = [
-    `M ${points[0].x} ${H - PAD.bottom}`,
-    ...points.map((p) => `L ${p.x} ${p.y}`),
-    `L ${points[points.length - 1].x} ${H - PAD.bottom}`,
+  const polyline = pts.map((p) => `${p.x},${p.y}`).join(' ');
+  const area = [
+    `M ${pts[0].x} ${H - PAD.bottom}`,
+    ...pts.map((p) => `L ${p.x} ${p.y}`),
+    `L ${pts[pts.length - 1].x} ${H - PAD.bottom}`,
     'Z',
   ].join(' ');
 
   return (
-    <div style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-      <h3 style={{ margin: '0 0 12px', fontSize: 16, color: '#2d3436' }}>📈 Xu hướng theo tháng (12 tháng gần nhất)</h3>
-      <div style={{ overflowX: 'auto' }}>
-        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 320 }}>
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 10,
+        padding: '18px 20px',
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+    >
+      <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#1e293b' }}>
+        📈 Xu hướng theo tháng (12 tháng gần nhất)
+      </h3>
+      <div style={{ width: '100%', height: 240 }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          style={{ width: '100%', height: '100%', overflow: 'visible' }}
+          preserveAspectRatio="xMidYMid meet"
+        >
           <defs>
-            <linearGradient id="incomingAreaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="#0984e3" stopOpacity="0.25" />
+            <linearGradient id="incStatsGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0984e3" stopOpacity="0.25" />
               <stop offset="100%" stopColor="#0984e3" stopOpacity="0" />
             </linearGradient>
           </defs>
-          {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
-            const y = PAD.top + chartH - frac * chartH;
+          {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+            const y = PAD.top + cH - f * cH;
             return (
-              <g key={frac}>
-                <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="#f1f2f6" strokeWidth="1" />
-                <text x={PAD.left - 4} y={y + 4} fontSize="10" fill="#b2bec3" textAnchor="end">
-                  {Math.round(frac * maxVal)}
+              <g key={f}>
+                <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
+                <text x={PAD.left - 8} y={y + 4} fontSize="11" fill="#94a3b8" textAnchor="end">
+                  {Math.round(f * maxVal)}
                 </text>
               </g>
             );
           })}
-          <path d={areaPath} fill="url(#incomingAreaGrad)" />
+          <path d={area} fill="url(#incStatsGrad)" />
           <polyline points={polyline} fill="none" stroke="#0984e3" strokeWidth="2.5" strokeLinejoin="round" />
-          {points.map((p, i) => (
+          {pts.map((p, i) => (
             <g key={i}>
               <circle cx={p.x} cy={p.y} r="4" fill="#0984e3" stroke="#fff" strokeWidth="2" />
               {p.count > 0 && (
-                <text x={p.x} y={p.y - 8} fontSize="10" fill="#0984e3" textAnchor="middle" fontWeight="600">
+                <text x={p.x} y={p.y - 8} fontSize="11" fill="#0984e3" textAnchor="middle" fontWeight="600">
                   {p.count}
                 </text>
               )}
               <text
                 x={p.x}
-                y={H - PAD.bottom + 14}
-                fontSize="10"
-                fill="#636e72"
+                y={H - PAD.bottom + 16}
+                fontSize="11"
+                fill="#64748b"
                 textAnchor="middle"
-                transform={data.length > 6 ? `rotate(-30 ${p.x} ${H - PAD.bottom + 14})` : undefined}
+                transform={data.length > 6 ? `rotate(-25 ${p.x} ${H - PAD.bottom + 14})` : undefined}
               >
                 {formatMonth(p.month)}
               </text>
@@ -187,50 +250,56 @@ function MonthlyTrendChart({ data }: { data: { month: string; count: number }[] 
   );
 }
 
-// ─── Trang Thống kê Văn bản đến ───────────────────────────────────────────────
+// ─── Trang chính: IncomingStatisticsPage ──────────────────────────────────────
+
+type StatsData = {
+  totalCount: number;
+  byStatus: { status: string; count: number }[];
+  byDocumentType: { documentType: string; count: number }[];
+  byDepartment: { departmentId: number | null; departmentName: string; count: number }[];
+  byMonth: { month: string; count: number }[];
+};
 
 export default function IncomingStatisticsPage() {
   const { user } = useAuth();
-
-  type StatsData = {
-    totalCount: number;
-    byStatus: { status: string; count: number }[];
-    byDocumentType: { documentType: string; count: number }[];
-    byDepartment: { departmentId: number | null; departmentName: string; count: number }[];
-    byMonth: { month: string; count: number }[];
-  };
-
-  const [data, setData]       = useState<StatsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [data, setData] = useState<StatsData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('');
-  const [dateTo,   setDateTo]   = useState('');
+  const [dateTo, setDateTo] = useState('');
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = async () => {
     setLoading(true);
     setError(null);
+    setHasSearched(true);
     try {
       const params: { dateFrom?: string; dateTo?: string } = {};
       if (dateFrom) params.dateFrom = dateFrom;
-      if (dateTo)   params.dateTo   = dateTo;
+      if (dateTo) params.dateTo = dateTo;
       const res = await incomingDocumentsApi.getStatistics(params);
       setData(res.data.data ?? null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Không tải được dữ liệu thống kê');
+      setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu thống kê');
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo]);
+  };
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  const handleReset = () => {
+    setDateFrom('');
+    setDateTo('');
+    setData(null);
+    setHasSearched(false);
+    setError(null);
+  };
 
-  // Chuẩn bị dữ liệu cho biểu đồ
   const statusData = (data?.byStatus ?? []).map((s) => ({
     label: STATUS_LABEL[s.status] ?? s.status,
     count: s.count,
     rawStatus: s.status,
   }));
-  const statusColors = statusData.map((s) => STATUS_COLORS[s.rawStatus] ?? '#636e72');
+  const statusColors = statusData.map((s) => STATUS_COLORS[s.rawStatus] ?? '#64748b');
 
   const docTypeData = (data?.byDocumentType ?? []).map((s) => ({
     label: s.documentType,
@@ -249,151 +318,235 @@ export default function IncomingStatisticsPage() {
     !(user?.roles ?? []).includes('DOCUMENT_CLERK');
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      {/* Tiêu đề */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: '#2d3436' }}>
-          📥 Thống kê Văn bản đến
-        </h1>
-        <p style={{ margin: '4px 0 0', color: '#636e72', fontSize: 14 }}>
-          Tổng hợp số liệu và xu hướng văn bản đến trong hệ thống
-        </p>
-      </div>
-
-      {/* Banner phân quyền */}
-      {isSpecialistOnly && (
-        <div style={{
-          background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8,
-          padding: '12px 16px', marginBottom: 24, color: '#1e40af', fontSize: 14,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          ℹ️ Đang xem dữ liệu nội bộ phòng ban.
-        </div>
-      )}
-
-      {/* Bộ lọc thời gian */}
-      <div style={{
-        background: '#fff', borderRadius: 12, padding: '16px 20px',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: 24,
-        display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap',
-      }}>
+    <>
+      <div className="top-bar">
         <div>
-          <label style={{ display: 'block', fontSize: 12, color: '#636e72', marginBottom: 4, fontWeight: 600 }}>
-            Từ ngày
-          </label>
-          <input
-            id="incoming-stat-date-from"
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            style={{ padding: '7px 12px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, color: '#636e72', marginBottom: 4, fontWeight: 600 }}>
-            Đến ngày
-          </label>
-          <input
-            id="incoming-stat-date-to"
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            style={{ padding: '7px 12px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14 }}
-          />
-        </div>
-        <button
-          id="btn-incoming-filter-stats"
-          className="btn btn-primary"
-          onClick={fetchStats}
-          disabled={loading}
-        >
-          {loading ? '⏳ Đang tải...' : '🔍 Xem thống kê'}
-        </button>
-        {(dateFrom || dateTo) && (
-          <button
-            id="btn-incoming-reset-stats"
-            className="btn btn-secondary"
-            onClick={() => { setDateFrom(''); setDateTo(''); }}
-            disabled={loading}
-          >
-            ✕ Xóa lọc
-          </button>
-        )}
-      </div>
-
-      {/* Loading */}
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#636e72' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-          <p>Đang tải dữ liệu thống kê...</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {!loading && error && (
-        <div style={{
-          background: '#fdf0f0', border: '1px solid #fcc',
-          borderRadius: 10, padding: 20, color: '#e74c3c',
-        }}>
-          ⚠️ {error}
-          <button className="btn btn-secondary" onClick={fetchStats} style={{ marginLeft: 12 }}>
-            Thử lại
-          </button>
-        </div>
-      )}
-
-      {/* Nội dung */}
-      {!loading && !error && data && (
-        <>
-          {/* KPI Cards */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 16, marginBottom: 24,
-          }}>
-            <KpiCard label="Tổng văn bản đến"        value={data.totalCount}            color="#0984e3" icon="📥" />
-            <KpiCard label="Loại văn bản"             value={data.byDocumentType.length} color="#fdcb6e" icon="🗂️" />
-            <KpiCard label="Phòng ban liên quan"      value={data.byDepartment.length}   color="#00b894" icon="🏢" />
-          </div>
-
-          {/* Biểu đồ xu hướng */}
-          <div style={{ marginBottom: 20 }}>
-            <MonthlyTrendChart data={data.byMonth} />
-          </div>
-
-          {/* Biểu đồ cột */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: 16, marginBottom: 24,
-          }}>
-            <HorizontalBarChart
-              title="📋 Theo trạng thái"
-              data={statusData as any}
-              labelKey="label"
-              countKey="count"
-              colors={statusColors}
-            />
-            <HorizontalBarChart
-              title="📁 Theo loại văn bản"
-              data={docTypeData as any}
-              labelKey="label"
-              countKey="count"
-            />
-            <HorizontalBarChart
-              title="🏢 Theo phòng ban (Top 10)"
-              data={departmentData as any}
-              labelKey="label"
-              countKey="count"
-            />
-          </div>
-
-          <p style={{ textAlign: 'center', color: '#b2bec3', fontSize: 12, marginTop: 8 }}>
-            * Chỉ thống kê văn bản đang hoạt động (không tính văn bản đã xóa).
-            {dateFrom || dateTo ? ` Kỳ: ${dateFrom || '…'} → ${dateTo || 'nay'}` : ' Toàn bộ thời gian.'}
+          <h1 style={{ margin: 0 }}>Thống kê Văn bản đến</h1>
+          <p style={{ margin: '4px 0 0', color: '#636e72', fontSize: 14 }}>
+            Tổng hợp và phân tích số liệu văn bản đến theo khoảng thời gian
           </p>
-        </>
-      )}
-    </div>
+        </div>
+      </div>
+
+      <div className="page-content">
+        <div className="card">
+          <div className="card-body" style={{ padding: 20 }}>
+            {isSpecialistOnly && (
+              <div
+                style={{
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 6,
+                  padding: '10px 14px',
+                  marginBottom: 16,
+                  color: '#1e40af',
+                  fontSize: 13,
+                }}
+              >
+                ℹ️ Đang xem dữ liệu nội bộ phòng ban.
+              </div>
+            )}
+
+            {/* Bộ lọc Từ ngày - Đến ngày */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                fetchStats();
+              }}
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                padding: '14px 18px',
+                marginBottom: 20,
+                display: 'flex',
+                gap: 14,
+                alignItems: 'flex-end',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <label
+                  htmlFor="incoming-stat-date-from"
+                  style={{ display: 'block', fontSize: 13, color: '#334155', marginBottom: 4, fontWeight: 600 }}
+                >
+                  Từ ngày
+                </label>
+                <input
+                  id="incoming-stat-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ padding: '7px 12px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 14, background: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="incoming-stat-date-to"
+                  style={{ display: 'block', fontSize: 13, color: '#334155', marginBottom: 4, fontWeight: 600 }}
+                >
+                  Đến ngày
+                </label>
+                <input
+                  id="incoming-stat-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ padding: '7px 12px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 14, background: '#fff' }}
+                />
+              </div>
+
+              <button
+                id="btn-incoming-filter-stats"
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+                style={{ padding: '8px 18px' }}
+              >
+                {loading ? 'Đang tải...' : 'Xem thống kê'}
+              </button>
+
+              {(dateFrom || dateTo) && (
+                <button
+                  id="btn-incoming-reset-stats"
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleReset}
+                  disabled={loading}
+                  style={{ padding: '8px 14px' }}
+                >
+                  ✕ Xóa lọc
+                </button>
+              )}
+            </form>
+
+            {/* Trạng thái chưa xem thống kê */}
+            {!hasSearched && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '60px 20px',
+                  background: '#ffffff',
+                  borderRadius: 8,
+                  border: '1px dashed #cbd5e1',
+                }}
+              >
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    background: '#eff6ff',
+                    color: '#3b82f6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 26,
+                    margin: '0 auto 14px',
+                  }}
+                >
+                  📥
+                </div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1e293b', margin: '0 0 6px' }}>
+                  Chọn khoảng thời gian để xem thống kê văn bản đến
+                </h3>
+                <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto', lineHeight: 1.5 }}>
+                  Vui lòng chọn <strong>Từ ngày</strong> và <strong>Đến ngày</strong> ở bộ lọc bên trên, sau đó bấm nút <strong>"Xem thống kê"</strong> để hiển thị báo cáo chi tiết.
+                </p>
+              </div>
+            )}
+
+            {/* Loading */}
+            {loading && (
+              <div style={{ padding: '40px 0' }}>
+                <LoadingSpinner />
+              </div>
+            )}
+
+            {/* Error */}
+            {!loading && error && (
+              <div
+                style={{
+                  background: '#fdf0f0',
+                  border: '1px solid #fcc',
+                  borderRadius: 8,
+                  padding: 16,
+                  color: '#e74c3c',
+                  marginBottom: 20,
+                }}
+              >
+                ⚠️ {error}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={fetchStats}
+                  style={{ marginLeft: 12, padding: '4px 10px', fontSize: 13 }}
+                >
+                  Thử lại
+                </button>
+              </div>
+            )}
+
+            {/* Nội dung kết quả */}
+            {!loading && !error && hasSearched && data && (
+              <>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 16,
+                    marginBottom: 20,
+                  }}
+                >
+                  <KpiCard label="Tổng văn bản đến" value={data.totalCount} color="#0984e3" icon="📥" />
+                  <KpiCard label="Loại văn bản" value={data.byDocumentType.length} color="#fdcb6e" icon="🗂️" />
+                  <KpiCard label="Phòng ban liên quan" value={data.byDepartment.length} color="#00b894" icon="🏢" />
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <MonthlyTrendChart data={data.byMonth} />
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                    gap: 16,
+                  }}
+                >
+                  <HorizontalBarChart
+                    title="📋 Phân bổ theo Trạng thái"
+                    data={statusData as any}
+                    labelKey="label"
+                    countKey="count"
+                    colors={statusColors}
+                  />
+                  <HorizontalBarChart
+                    title="📁 Phân bổ theo Loại văn bản"
+                    data={docTypeData as any}
+                    labelKey="label"
+                    countKey="count"
+                  />
+                  <HorizontalBarChart
+                    title="🏢 Phân bổ theo Phòng ban liên quan"
+                    data={departmentData as any}
+                    labelKey="label"
+                    countKey="count"
+                  />
+                </div>
+
+                <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12, marginTop: 16 }}>
+                  * Thống kê dựa trên các văn bản đang hoạt động.
+                  {dateFrom || dateTo
+                    ? ` Khoảng thời gian: ${dateFrom || 'Từ trước'} → ${dateTo || 'Đến nay'}`
+                    : ' Toàn bộ thời gian.'}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

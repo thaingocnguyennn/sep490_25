@@ -8,10 +8,10 @@ import type { DashboardStats } from '../../../api/modules/documents';
 const COLORS = {
   incoming: '#3b82f6',   // Xanh dương — Văn bản đến
   outgoing: '#10b981',   // Xanh lá   — Văn bản đi
-  pending:  '#f59e0b',   // Vàng       — Đang xử lý
-  issued:   '#8b5cf6',   // Tím        — Đã phát hành
-  grid:     '#e5e7eb',
-  text:     '#6b7280',
+  pending: '#f59e0b',   // Vàng       — Đang xử lý
+  issued: '#8b5cf6',   // Tím        — Đã phát hành
+  grid: '#e5e7eb',
+  text: '#6b7280',
 };
 
 // Trạng thái văn bản đi theo nghị định 30
@@ -224,7 +224,7 @@ export default function DashboardPage() {
     <>
       {/* ─── Top Bar ─────────────────────────────────────────────────────── */}
       <div className="top-bar">
-        <h1>📊 Dashboard — Thống kê Văn bản</h1>
+        <h1> Dashboard — Thống kê Văn bản</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <label style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>Năm:</label>
           <select
@@ -369,10 +369,10 @@ export default function DashboardPage() {
               <div className="card-body">
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   {[
-                    { label: '📥 Văn bản đến', path: '/incoming-documents' },
-                    { label: '📤 Văn bản đi', path: '/outgoing-documents' },
-                    { label: '📊 Thống kê văn bản đi', path: '/outgoing-documents/statistics' },
-                    { label: '📄 Tất cả văn bản', path: '/documents' },
+                    { label: ' Văn bản đến', path: '/incoming-documents' },
+                    { label: ' Văn bản đi', path: '/outgoing-documents' },
+                    { label: ' Thống kê văn bản đi', path: '/outgoing-documents/statistics' },
+                    { label: ' Tất cả văn bản', path: '/documents' },
                   ].map((link) => (
                     <button
                       key={link.path}

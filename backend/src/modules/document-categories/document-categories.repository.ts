@@ -16,8 +16,7 @@ const categoryInclude = {
   createdBy: { select: { id: true, fullName: true } },
   _count: {
     select: {
-      incomingDocuments: true,
-      outgoingDocuments: true,
+      documents: true,
     },
   },
 } as const satisfies Prisma.DocumentCategoryInclude;
@@ -42,7 +41,7 @@ function mapToResponse(category: CategoryWithInclude): DocumentCategoryResponse 
       id: category.createdBy.id,
       fullName: category.createdBy.fullName,
     },
-    usageCount: category._count.incomingDocuments + category._count.outgoingDocuments,
+    usageCount: category._count.documents,
   };
 }
 
@@ -158,12 +157,9 @@ export class DocumentCategoriesRepository {
   // ──────────────────────────────────────────────────────────────────────────
 
   async countUsage(categoryId: number): Promise<DocumentCategoryUsage> {
-    const [incoming, outgoing] = await Promise.all([
-      prisma.incomingDocument.count({ where: { categoryId } }),
-      prisma.outgoingDocument.count({ where: { categoryId } }),
-    ]);
+    const total = await prisma.document.count({ where: { categoryId } });
 
-    return { incoming, outgoing, total: incoming + outgoing };
+    return { incoming: total, outgoing: 0, total };
   }
 
   // ──────────────────────────────────────────────────────────────────────────

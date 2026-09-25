@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIncomingDocuments } from '../../../shared/hooks';
 import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
@@ -6,15 +6,20 @@ import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
 import { useDocumentTypeOptions } from '../../document-types/hooks/useDocumentTypes';
+import { isIncomingItemUnread } from '../../../shared/utils/incomingUnread';
 
-type StatusTab = '' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT';
+type StatusTab = '' | 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'RETURNED';
 
+// Tabs are keyed off the per-viewer status. The `''` tab is "Tất cả" and
+// does not pass a status filter to the backend; the others map 1:1 onto
+// the `viewerStatus` enum values.
 const TABS: { value: StatusTab; label: string }[] = [
   { value: '', label: 'Tất cả' },
   { value: 'DRAFT', label: 'Bản nháp' },
   { value: 'PENDING', label: 'Chờ xử lý' },
   { value: 'IN_PROGRESS', label: 'Đang xử lý' },
-  { value: 'COMPLETED', label: 'Đã xử lý' },
+  { value: 'COMPLETED', label: 'Hoàn thành' },
+  { value: 'RETURNED', label: 'Trả lại' },
 ];
 
 export default function IncomingDocumentsPage() {
@@ -27,10 +32,52 @@ export default function IncomingDocumentsPage() {
   const [activeTab, setActiveTab] = useState<StatusTab>('');
   const [documentTypeFilter, setDocumentTypeFilter] = useState('');
 
+  // Mirror filter state into refs so the focus/visibility listener (set
+  // up once on mount) always reads the latest values. Without this the
+  // closure would capture stale filter values and the refocus fetch
+  // would lose user-applied filters.
+  const searchRef = useRef(search);
+  const statusFilterRef = useRef(statusFilter);
+  const documentTypeFilterRef = useRef(documentTypeFilter);
+  useEffect(() => {
+    searchRef.current = search;
+    statusFilterRef.current = statusFilter;
+    documentTypeFilterRef.current = documentTypeFilter;
+  }, [search, statusFilter, documentTypeFilter]);
+
   useEffect(() => {
     fetchDocumentTypes();
     fetch();
   }, [fetch, fetchDocumentTypes]);
+
+  // When the user navigates back from a document detail page (or alt-tabs
+  // back into the tab) we want both the bold "unread" styling and the
+  // sidebar badge count to drop immediately. The poll cadence in
+  // `MainLayout` covers the badge, but the list page would otherwise keep
+  // stale bold rows until the next user interaction. Listening to
+  // `visibilitychange` + `focus` triggers a re-fetch so the unread rows
+  // flip back to normal weight as soon as the user returns.
+  useEffect(() => {
+    const handleRefocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetch({
+        search: searchRef.current,
+        status: statusFilterRef.current,
+        documentTypeId: documentTypeFilterRef.current
+          ? Number(documentTypeFilterRef.current)
+          : undefined,
+      });
+    };
+    document.addEventListener('visibilitychange', handleRefocus);
+    window.addEventListener('focus', handleRefocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleRefocus);
+      window.removeEventListener('focus', handleRefocus);
+    };
+    // `fetch` is stable (wrapped in useCallback with [pageSize] deps in
+    // useIncomingDocuments), so binding once on mount is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetch]);
 
   useEffect(() => {
     setStatusFilter(activeTab);
@@ -72,16 +119,7 @@ export default function IncomingDocumentsPage() {
     <>
       <div className="top-bar">
         <h1>Văn bản đến</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {canViewPending && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => navigate('/incoming-documents/pending')}
-              title="Danh sách văn bản chờ Trưởng phòng xử lý"
-            >
-              Văn bản chờ xử lý
-            </button>
-          )}
+        <div style={{ display: 'flex', gap: 8 }}>        
           {canCreate && (
             <button className="btn btn-primary" onClick={() => navigate('/incoming-documents/new')}>
               + Thêm Văn bản đến mới
@@ -165,39 +203,44 @@ export default function IncomingDocumentsPage() {
                     <th>Trích yếu</th>
                     <th>Ngày đến</th>
                     <th>Độ khẩn</th>
-                    <th>Trạng thái</th>
+                    <th title="Trạng thái hiển thị là của bạn trong quy trình xử lý này">Trạng thái</th>
                     <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {documents.map((item) => (
-                    <tr key={item.id}>
+                    // `row-unread` drives the "bold for unread" styling; it
+                    // is driven by the precomputed `viewerUnread` flag set
+                    // by `useIncomingDocuments`. The flag is derived from
+                    // `viewerStatus === 'PENDING'`, which the backend sets
+                    // exactly when the viewer has a pending participation
+                    // row with `viewedAt IS NULL` (i.e. has not opened the
+                    // document yet).
+                    <tr key={item.id} className={isIncomingItemUnread(item) ? 'row-unread' : ''}>
                       <td style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea' }}>
                         {item.arrivalNumber ?? '—'}
                       </td>
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#667eea' }}>
-                          {item.documentNumber || '—'}
+                          {item.document.documentNumber || '—'}
                         </span>
                       </td>
-                      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.issuer || ''}>
-                        {item.issuer || '—'}
+                      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.document.issuer || ''}>
+                        {item.document.issuer || '—'}
                       </td>
                       <td>
-                        {item.documentTypeRef ? (
-                          <span className="badge badge-type">{item.documentTypeRef.name}</span>
-                        ) : item.documentType ? (
-                          <span className="badge badge-type">{item.documentType}</span>
+                        {item.document.documentTypeRef ? (
+                          <span className="badge badge-type">{item.document.documentTypeRef.name}</span>
                         ) : '—'}
                       </td>
                       <td style={{ maxWidth: 200 }}>
-                        <span title={item.summary || ''} style={{
+                        <span title={item.document.subject || ''} style={{
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                         }}>
-                          {item.summary || '—'}
+                          {item.document.subject || '—'}
                         </span>
                       </td>
                       <td>{new Date(item.dateReceived).toLocaleDateString('vi-VN')}</td>
@@ -208,25 +251,51 @@ export default function IncomingDocumentsPage() {
                           </span>
                         ) : '—'}
                       </td>
-                      <td><DocumentStatusBadge status={item.document.status} /></td>
+                      <td><DocumentStatusBadge status={item.document.viewerStatus ?? item.document.status} /></td>
                       <td>
-                        {item.document.status === 'DRAFT' ? (
-                          <button
-                            className="action-btn edit"
-                            title="Sửa bản nháp"
-                            onClick={() => navigate(`/incoming-documents/${item.id}/edit`)}
-                          >
-                            &#9998;
-                          </button>
-                        ) : (
-                          <button
-                            className="action-btn view"
-                            title="Xem chi tiết"
-                            onClick={() => navigate(`/incoming-documents/${item.id}`)}
-                          >
-                            &#128065;
-                          </button>
-                        )}
+                        {(() => {
+                          const status = item.document.viewerStatus ?? item.document.status;
+                          // Clerk who has the document in their DRAFT
+                          // (still editing) — edit button.
+                          if (status === 'DRAFT') {
+                            return (
+                              <button
+                                className="action-btn edit"
+                                title="Sửa bản nháp"
+                                onClick={() => navigate(`/incoming-documents/${item.id}/edit`)}
+                              >
+                                &#9998;
+                              </button>
+                            );
+                          }
+                          // Clerk who received a return — they need to re-open the document
+                          // and pick a new XLC. The edit page handles this
+                          // same flow. (The backend resolver guarantees
+                          // `RETURNED` only shows up for the original
+                          // creator when they had a CLERK participation,
+                          // so we don't need a separate creator check.)
+                          if (status === 'RETURNED' && isDocumentClerk) {
+                            return (
+                              <button
+                                className="action-btn edit"
+                                title="Văn bản bị trả lại — chọn lại người xử lý chính"
+                                onClick={() => navigate(`/incoming-documents/${item.id}/edit?returned=1`)}
+                              >
+                                &#9998;
+                              </button>
+                            );
+                          }
+                          // Everyone else — view button.
+                          return (
+                            <button
+                              className="action-btn view"
+                              title="Xem chi tiết"
+                              onClick={() => navigate(`/incoming-documents/${item.id}`)}
+                            >
+                              &#128065;
+                            </button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}

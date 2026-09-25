@@ -4,7 +4,14 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFields } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
-import { checkPdfSignature, extractSignaturesFromFile, isSupportedSignatureFile, getPdfSignatureDetail, buildSignatureSummary, buildVisualMarks } from '../../shared/utils/pdf-signature.util';
+import {
+  extractSignaturesFromFile,
+  buildSignatureSummary,
+  buildVisualMarks,
+  calculateFileHash,
+  isSupportedSignatureFile,
+  checkPdfSignature,
+} from '../../shared/utils/pdf-signature.util';
 import { DocumentStatus } from '@prisma/client';
 import { resolveConfidentialityIdWithDefault } from '../../shared/utils/confidentiality';
 import { resolveUrgencyIdWithDefault } from '../../shared/utils/urgency';
@@ -57,6 +64,29 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   CANCELLED: [],
 };
 
+function parseDateOrNull(input?: string | null): Date | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    const year = y.length === 2 ? `20${y}` : y;
+    const iso = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const fallback = new Date(trimmed);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export class OutgoingDocumentsService {
@@ -71,6 +101,8 @@ export class OutgoingDocumentsService {
     urgency?: string;
     includeTrashed?: boolean;
     documentType?: string;
+    documentTypeId?: number;
+    documentBookId?: number;
     dateFrom?: string;
     dateTo?: string;
     confidentialityLevel?: string;
@@ -104,9 +136,30 @@ export class OutgoingDocumentsService {
 
   /**
    * Lấy chi tiết văn bản đi theo ID.
+   * Bản nháp (DRAFT) chỉ có người tạo hoặc ADMIN mới có quyền xem.
    */
-  async getById(id: number) {
-    return outgoingDocumentsRepository.findById(id);
+  async getById(
+    id: number,
+    currentUser?: {
+      id: number;
+      roles: string[];
+      departmentId?: number | null;
+      departmentName?: string | null;
+    }
+  ) {
+    const doc = await outgoingDocumentsRepository.findById(id);
+    if (!doc) throw new NotFoundError('Không tìm thấy văn bản đi');
+
+    // Nếu văn bản ở trạng thái DRAFT thì CHỈ người tạo (createdBy) hoặc ADMIN mới có quyền xem
+    if (currentUser && doc.document.status === 'DRAFT') {
+      const isAdmin = currentUser.roles.includes('ADMIN');
+      const isCreator = doc.document.createdByUser?.id === currentUser.id;
+      if (!isAdmin && !isCreator) {
+        throw new ForbiddenError('Bản nháp này chưa được gửi đi và chỉ người soạn thảo mới có quyền truy cập');
+      }
+    }
+
+    return doc;
   }
 
   /**
@@ -114,8 +167,8 @@ export class OutgoingDocumentsService {
    * Tạo bản ghi Document + OutgoingDocument với trạng thái DRAFT.
    */
   async create(data: {
-    title: string;
-    description?: string;
+    subject: string;
+    issuer?: string;
     /** Seeded name (THUONG/KHAN/THUONG_KHAN/HOA_TOC), legacy alias, or numeric id */
     urgency?: string;
     /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, or legacy ConfidentialityLevel */
@@ -127,9 +180,24 @@ export class OutgoingDocumentsService {
     recipientName?: string;
     recipientAddress?: string;
     recipientEmail?: string;
-    notes?: string;
     createdBy: number;
     relatedIncomingDocumentId?: number;
+    // ─── Kết quả OCR từ frontend (lưu trực tiếp trong 1 lần duy nhất) ───
+    /** Toàn văn text OCR đã bóc tách ở màn hình tạo */
+    ocrText?: string;
+    /** COMPLETED nếu OCR đã thành công; để trống nếu chưa chạy */
+    ocrStatus?: 'COMPLETED' | 'FAILED' | 'PENDING';
+    /** Người ký bóc tách từ OCR */
+    signerName?: string;
+    /** Chức vụ người ký bóc tách từ OCR */
+    signerTitle?: string;
+    /** Số ký hiệu bóc tách từ OCR */
+    documentNumber?: string;
+    /** Ngày ký bóc tách từ OCR (hoặc dateLetter) */
+    issuedDate?: string;
+    dateLetter?: string;
+    /** Số trang bóc tách từ OCR */
+    pageCount?: number;
   }) {
     // Tự động sinh số văn bản nội bộ
     const documentNumber = await documentsRepository.generateDocumentNumber('OUTGOING');
@@ -139,19 +207,33 @@ export class OutgoingDocumentsService {
       ? await resolveUrgencyIdWithDefault(data.urgency)
       : await resolveUrgencyIdWithDefault(null);
 
+    const parsedIssuedDate = parseDateOrNull(data.issuedDate || data.dateLetter);
+
     const result = await prisma.$transaction(async (tx) => {
       // Tạo bản ghi Document chính
       const document = await tx.document.create({
         data: {
           documentNumber,
-          title: data.title,
-          description: data.description,
+          subject: data.subject,
+          issuer: data.issuer || undefined,
           type: 'OUTGOING',
           status: DocumentStatus.DRAFT,
           urgencyId,
           confidentialityId: await resolveConfidentialityIdWithDefault(data.confidentialityLevel),
           departmentId: data.departmentId,
+          documentTypeId: data.documentTypeId,
+          // Lĩnh vực văn bản (chỉ nhận ID hợp lệ, validation đã kiểm tra ACTIVE ở controller)
+          categoryId: data.documentCategoryId,
           createdBy: data.createdBy,
+          // ─── Lưu kết quả OCR từ frontend (nếu có) để không cần chạy lại ───
+          ...(data.ocrText ? {
+            ocrText:   data.ocrText,
+            ocrStatus: data.ocrStatus ?? 'COMPLETED',
+          } : {}),
+          // Thông tin người ký và ngày văn bản nếu đã bóc tách từ OCR
+          ...(data.signerName  ? { signerName:  data.signerName  } : {}),
+          ...(data.signerTitle ? { signerTitle: data.signerTitle } : {}),
+          ...(parsedIssuedDate ? { issuedDate:  parsedIssuedDate } : {}),
         },
       });
 
@@ -159,14 +241,14 @@ export class OutgoingDocumentsService {
       const outgoing = await tx.outgoingDocument.create({
         data: {
           documentId: document.id,
-          documentTypeId: data.documentTypeId,
-          // Lĩnh vực văn bản (chỉ nhận ID hợp lệ, validation đã kiểm tra ACTIVE ở controller)
-          categoryId: data.documentCategoryId,
-          recipientName: data.recipientName,
+          recipientName:  data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
-          notes: data.notes,
           relatedIncomingDocumentId: data.relatedIncomingDocumentId,
+          // Lưu số trang từ OCR nếu có
+          ...(data.pageCount ? { pageCount: data.pageCount } : {}),
+          // Lưu số ký hiệu dự thảo từ OCR nếu có
+          ...(data.documentNumber ? { documentNumber: data.documentNumber } : {}),
         },
       });
 
@@ -318,14 +400,20 @@ export class OutgoingDocumentsService {
     const outgoing = await outgoingDocumentsRepository.findById(id);
 
     // 2. Kiểm tra quyền truy cập
-    const { roles } = currentUser;
+    const { roles, id: userId } = currentUser;
     const isAdmin = roles.includes('ADMIN');
     const isClerk = roles.includes('DOCUMENT_CLERK');
     const isDeptHead = roles.includes('DEPARTMENT_HEAD');
     const isSpecialist = roles.includes('SPECIALIST');
 
-    // Chuyên viên chỉ xem được văn bản của phòng mình
-    if (!isAdmin && !isClerk && !isDeptHead && isSpecialist) {
+    const isCreator = outgoing.document.createdByUser?.id === userId;
+    const isSubmitter = outgoing.submittedBy === userId;
+    const isApprover = outgoing.assignedApproverId === userId || outgoing.approvedBy === userId;
+    const isAssignedClerk = outgoing.assignedClerkId === userId || outgoing.forwardedBy === userId || outgoing.issuedBy === userId;
+    const isPublicStatus = ['APPROVED', 'WAITING_FOR_ISSUE', 'REGISTERED', 'ISSUED', 'COMPLETED'].includes(outgoing.document.status);
+
+    // Chỉ chặn nếu là chuyên viên xem văn bản nháp của phòng khác mà không có liên quan đến luồng xử lý
+    if (!isAdmin && !isClerk && !isDeptHead && !isCreator && !isSubmitter && !isApprover && !isAssignedClerk && !isPublicStatus && isSpecialist) {
       const docDeptId = outgoing.document.department?.id;
       if (
         docDeptId !== undefined &&
@@ -365,6 +453,7 @@ export class OutgoingDocumentsService {
       throw new BadRequestError('CANNOT_READ_FILE: Không thể đọc file.');
     }
 
+    const fileHash = calculateFileHash(buffer);
     let signatures;
     try {
       signatures = extractSignaturesFromFile(buffer, filePath, mimeType);
@@ -376,11 +465,12 @@ export class OutgoingDocumentsService {
       documentId: id,
       fileName: filename,
       fileType: signatures.length > 0 ? signatures[0].fileType : (path.extname(filename).toLowerCase() === '.pdf' ? 'PDF' : 'WORD'),
+      fileHash,
       signatureCount: signatures.length,
       summary: buildSignatureSummary(signatures),
       signatures,
       visualMarks: buildVisualMarks(),
-      warning: 'This result is based on digital signature structure inspection and does not confirm legal validity through a trusted CA/PKI validation process.',
+      warning: 'Xác thực chữ ký số PDF theo chuẩn ISO 32000 và pyHanko. Mã băm SHA-256 xác minh tính toàn vẹn của tệp kể từ thời điểm tải lên hệ thống.',
     };
   }
 
@@ -396,13 +486,19 @@ export class OutgoingDocumentsService {
     const outgoing = await outgoingDocumentsRepository.findById(id);
 
     // 2. Kiểm tra quyền truy cập (giống getSignatures)
-    const { roles } = currentUser;
+    const { roles, id: userId } = currentUser;
     const isAdmin = roles.includes('ADMIN');
     const isClerk = roles.includes('DOCUMENT_CLERK');
     const isDeptHead = roles.includes('DEPARTMENT_HEAD');
     const isSpecialist = roles.includes('SPECIALIST');
 
-    if (!isAdmin && !isClerk && !isDeptHead && isSpecialist) {
+    const isCreator = outgoing.document.createdByUser?.id === userId;
+    const isSubmitter = outgoing.submittedBy === userId;
+    const isApprover = outgoing.assignedApproverId === userId || outgoing.approvedBy === userId;
+    const isAssignedClerk = outgoing.assignedClerkId === userId || outgoing.forwardedBy === userId || outgoing.issuedBy === userId;
+    const isPublicStatus = ['APPROVED', 'WAITING_FOR_ISSUE', 'REGISTERED', 'ISSUED', 'COMPLETED'].includes(outgoing.document.status);
+
+    if (!isAdmin && !isClerk && !isDeptHead && !isCreator && !isSubmitter && !isApprover && !isAssignedClerk && !isPublicStatus && isSpecialist) {
       const docDeptId = outgoing.document.department?.id;
       if (
         docDeptId !== undefined &&
@@ -463,8 +559,7 @@ export class OutgoingDocumentsService {
   async updateMetadata(
     id: number,
     data: {
-      title?: string;
-      description?: string;
+      subject?: string;
       urgency?: string;
       /** Accepts a code ('A'/'B'/'C'), seeded name, numeric id, legacy ConfidentialityLevel, or null to clear */
       confidentialityLevel?: string | number | null;
@@ -477,7 +572,6 @@ export class OutgoingDocumentsService {
       recipientAddress?: string;
       recipientEmail?: string;
       pageCount?: number;
-      notes?: string;
     },
     updatedBy: number,
   ) {
@@ -491,8 +585,7 @@ export class OutgoingDocumentsService {
     }
 
     const documentUpdate: Record<string, unknown> = {
-      title: data.title,
-      description: data.description,
+      subject: data.subject,
       departmentId: data.departmentId,
       updatedBy,
     };
@@ -511,6 +604,16 @@ export class OutgoingDocumentsService {
         : await resolveUrgencyIdWithDefault(data.urgency);
     }
 
+    if (data.documentTypeId !== undefined) {
+      documentUpdate.documentTypeId = data.documentTypeId;
+    }
+    if (data.signerName !== undefined) {
+      documentUpdate.signerName = data.signerName;
+    }
+    if (data.signerTitle !== undefined) {
+      documentUpdate.signerTitle = data.signerTitle;
+    }
+
     await prisma.$transaction(async (tx) => {
       // Cập nhật Document chính
       await tx.document.update({
@@ -522,15 +625,11 @@ export class OutgoingDocumentsService {
       await tx.outgoingDocument.update({
         where: { id },
         data: {
-          documentTypeId: data.documentTypeId,
           documentNumber: data.documentNumber,
-          signerName: data.signerName,
-          signerTitle: data.signerTitle,
           recipientName: data.recipientName,
           recipientAddress: data.recipientAddress,
           recipientEmail: data.recipientEmail,
           pageCount: data.pageCount,
-          notes: data.notes,
         },
       });
     });
@@ -554,12 +653,14 @@ export class OutgoingDocumentsService {
       sentDate?: string;
       recipientName?: string;
       recipientAddress?: string;
+      recipientEmail?: string;
       /** Urgency name/id để cập nhật khi phát hành (THUONG, KHAN, THUONG_KHAN, HOA_TOC) */
       urgency?: string;
       /** Confidentiality name/code/id để cập nhật khi phát hành */
       confidentialityLevel?: string;
       assignedApproverId?: number;
       assignedClerkId?: number;
+      note?: string;
     },
   ) {
     const outgoing = await outgoingDocumentsRepository.findById(id);
@@ -610,7 +711,24 @@ export class OutgoingDocumentsService {
         if (outgoing.assignedClerkId && outgoing.assignedClerkId !== userId) {
           throw new BadRequestError('Bạn không được phân quyền để vào sổ văn bản này');
         }
-        if (options?.dispatchNumber) outgoingUpdateData.dispatchNumber = options.dispatchNumber;
+        if (options?.dispatchNumber) {
+          const cleanDispatchNum = options.dispatchNumber.trim();
+          // Kiểm tra xem số đi / số phát hành này đã được sử dụng ở văn bản khác hay chưa
+          const existingDoc = await prisma.outgoingDocument.findFirst({
+            where: {
+              id: { not: id },
+              dispatchNumber: cleanDispatchNum,
+              document: { documentStatus: 'ACTIVE', status: { not: 'TRASHED' as any } },
+            },
+            select: { id: true, dispatchNumber: true, document: { select: { documentNumber: true } } },
+          });
+          if (existingDoc) {
+            throw new BadRequestError(
+              `Số đi/Số phát hành "${cleanDispatchNum}" đã được sử dụng cho văn bản khác (ID: ${existingDoc.id}${existingDoc.document?.documentNumber ? ` - ${existingDoc.document.documentNumber}` : ''}). Vui lòng chọn số khác.`
+            );
+          }
+          outgoingUpdateData.dispatchNumber = cleanDispatchNum;
+        }
         if (options?.issuanceDate) outgoingUpdateData.issuanceDate = new Date(options.issuanceDate);
         outgoingUpdateData.forwardedAt = now;
         outgoingUpdateData.forwardedBy = userId;
@@ -619,11 +737,29 @@ export class OutgoingDocumentsService {
         if (outgoing.assignedClerkId && outgoing.assignedClerkId !== userId) {
           throw new BadRequestError('Bạn không được phân quyền để phát hành văn bản này');
         }
+        if (options?.dispatchNumber) {
+          const cleanDispatchNum = options.dispatchNumber.trim();
+          const existingDoc = await prisma.outgoingDocument.findFirst({
+            where: {
+              id: { not: id },
+              dispatchNumber: cleanDispatchNum,
+              document: { documentStatus: 'ACTIVE', status: { not: 'TRASHED' as any } },
+            },
+            select: { id: true, dispatchNumber: true, document: { select: { documentNumber: true } } },
+          });
+          if (existingDoc) {
+            throw new BadRequestError(
+              `Số đi/Số phát hành "${cleanDispatchNum}" đã được sử dụng cho văn bản khác (ID: ${existingDoc.id}${existingDoc.document?.documentNumber ? ` - ${existingDoc.document.documentNumber}` : ''}). Vui lòng chọn số khác.`
+            );
+          }
+          outgoingUpdateData.dispatchNumber = cleanDispatchNum;
+        }
         outgoingUpdateData.issuedAt = now;
         outgoingUpdateData.issuedBy = userId;
         if (options?.sentDate) outgoingUpdateData.sentDate = new Date(options.sentDate);
         if (options?.recipientName) outgoingUpdateData.recipientName = options.recipientName;
         if (options?.recipientAddress) outgoingUpdateData.recipientAddress = options.recipientAddress;
+        if (options?.recipientEmail) outgoingUpdateData.recipientEmail = options.recipientEmail;
         break;
       case 'RECALLED':
         outgoingUpdateData.recalledAt = now;
@@ -674,37 +810,162 @@ export class OutgoingDocumentsService {
           data: outgoingUpdateData,
         });
       }
-
-      // Ghi SystemLog
-      await tx.systemLog.create({
-        data: {
-          userId,
-          action: `OUTGOING_STATUS_CHANGE`,
-          entityType: 'OutgoingDocument',
-          entityId: id,
-          details: `Chuyển trạng thái từ "${currentStatus}" sang "${newStatus}"${
-            options?.returnReason ? `. Lý do: ${options.returnReason}` : ''
-          }${options?.recallReason ? `. Lý do thu hồi: ${options.recallReason}` : ''}`,
-        },
-      });
     });
+
+    // ─── Gửi Email khi Chuyên viên trình duyệt (SUBMITTED) ───
+    if (newStatus === 'SUBMITTED' && options?.assignedApproverId) {
+      try {
+        const submitter = await prisma.user.findUnique({
+          where: { id: userId },
+          include: { department: true },
+        });
+        const submitterName = submitter?.fullName || 'Chuyên viên';
+        const submitterDept = submitter?.department?.name ? ` (${submitter.department.name})` : '';
+
+        // 1. Gửi Email thông báo qua Nodemailer cho Lãnh đạo
+        const approver = await prisma.user.findUnique({
+          where: { id: options.assignedApproverId },
+          select: { id: true, fullName: true, email: true },
+        });
+
+        // Xác định danh sách email nhận thông báo:
+        // 1. Ưu tiên gửi đến email nhận ngoài nếu được nhập trên form (outgoing.recipientEmail hoặc options?.recipientEmail)
+        // 2. Gửi đến email của Lãnh đạo nếu là email hợp lệ (không phải đuôi ảo .local)
+        const recipientList: string[] = [];
+
+        const docRecipientEmail = (options?.recipientEmail || outgoing.recipientEmail || '').trim();
+        if (docRecipientEmail && docRecipientEmail.includes('@')) {
+          recipientList.push(docRecipientEmail);
+        }
+
+        if (approver?.email && approver.email.includes('@')) {
+          if (!approver.email.endsWith('.local') && !recipientList.includes(approver.email)) {
+            recipientList.push(approver.email.trim());
+          } else if (recipientList.length === 0) {
+            recipientList.push(approver.email.trim());
+          }
+        }
+
+        if (recipientList.length > 0) {
+          const docTitle = outgoing.document.subject;
+          const docNumber = outgoing.documentNumber || outgoing.document.documentNumber || 'Chưa cấp số';
+          const docType = outgoing.document.documentTypeRef?.name || 'Chưa phân loại';
+          const recipientName = outgoing.recipientName || 'Chưa xác định';
+          const recipientEmail = outgoing.recipientEmail || '';
+          const signerInfo = outgoing.document.signerName
+            ? `${outgoing.document.signerName}${outgoing.document.signerTitle ? ` (${outgoing.document.signerTitle})` : ''}`
+            : 'Chưa xác định';
+          const reviewUrl = `${config.frontendUrl}/outgoing-documents/${id}`;
+
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 20px; border-radius: 6px 6px 0 0; text-align: center;">
+                <h2 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 600;">Thông Báo Trình Duyệt Văn Bản Đi</h2>
+              </div>
+              <div style="padding: 24px 20px; color: #333333; line-height: 1.6;">
+                <p style="font-size: 15px; margin-top: 0;">Kính gửi Thầy/Cô <strong>${approver?.fullName || 'Lãnh đạo'}</strong>,</p>
+                <p style="font-size: 14px;">Chuyên viên <strong>${submitterName}</strong>${submitterDept} đã trình duyệt một văn bản đi mới trên hệ thống với thông tin chi tiết như sau:</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px;">
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569; width: 160px;">Trích yếu:</td>
+                    <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${docTitle}</td>
+                  </tr>
+                  <tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Số ký hiệu dự thảo:</td>
+                    <td style="padding: 10px 12px; color: #1e293b; font-family: monospace; font-weight: 600;">${docNumber}</td>
+                  </tr>
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Loại văn bản:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${docType}</td>
+                  </tr>
+                  <tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Người ký dự kiến:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${signerInfo}</td>
+                  </tr>
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Nơi nhận / Kính gửi:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${recipientName}</td>
+                  </tr>
+                  ${
+                    recipientEmail
+                      ? `
+                  <tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #475569;">Email nhận:</td>
+                    <td style="padding: 10px 12px; color: #1e293b;">${recipientEmail}</td>
+                  </tr>`
+                      : ''
+                  }
+                  ${
+                    options?.note
+                      ? `
+                  <tr style="background: #fef9c3; border-bottom: 1px solid #fde047;">
+                    <td style="padding: 10px 12px; font-weight: 600; color: #854d0e;">Ý kiến trình duyệt:</td>
+                    <td style="padding: 10px 12px; color: #713f12; font-style: italic;">${options.note}</td>
+                  </tr>`
+                      : ''
+                  }
+                </table>
+
+                <div style="text-align: center; margin: 26px 0 16px;">
+                  <a href="${reviewUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 15px; font-weight: 600; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    Xem &amp; Phê duyệt Văn bản
+                  </a>
+                </div>
+                <p style="font-size: 13px; color: #64748b; text-align: center; margin-top: 8px;">Hoặc truy cập đường dẫn: <a href="${reviewUrl}" style="color: #2563eb;">${reviewUrl}</a></p>
+                
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 0;">Email này được gửi tự động từ Hệ thống Quản lý Văn bản và Điều hành (DMS). Vui lòng không phản hồi trực tiếp email này.</p>
+              </div>
+            </div>
+          `;
+
+          // Chuẩn bị file đính kèm nếu có
+          const attachments: Array<{ filename: string; path: string }> = [];
+          const fileUrl = outgoing.document.fileUrl;
+          if (fileUrl) {
+            const filePath = path.join(config.uploadDir || 'uploads', path.basename(fileUrl));
+            if (fs.existsSync(filePath)) {
+              attachments.push({
+                filename: outgoing.document.originalFileName || `${docTitle}.${path.extname(fileUrl).slice(1) || 'pdf'}`,
+                path: filePath,
+              });
+            }
+          }
+
+          try {
+            await sendEmail({
+              to: recipientList,
+              subject: `[Trình duyệt văn bản] ${docTitle} - Chờ phê duyệt`,
+              html: emailHtml,
+              attachments,
+            });
+          } catch (emailErr) {
+            // eslint-disable-next-line no-console
+            console.warn('[Outgoing Document] Không thể gửi email cho lãnh đạo (kiểm tra cấu hình SMTP trong backend/.env):', emailErr);
+          }
+        }
+      } catch (notifyErr) {
+        // eslint-disable-next-line no-console
+        console.warn('[Outgoing Document] Lỗi khi tạo thông báo cho lãnh đạo:', notifyErr);
+      }
+    }
 
     return outgoingDocumentsRepository.findById(id);
   }
 
   /**
-   * Xóa mềm văn bản đi (chức năng #5 - Delete).
-   * Chuyển trạng thái sang TRASHED.
-   * Chỉ cho phép chuyên viên, văn thư hoặc trưởng phòng xóa văn bản chưa hoàn tất/hủy.
+   * Xóa mềm văn bản đi (chuyển vào thùng rác).
+   * Khi văn bản đã được gửi đi / trình duyệt / phát hành, văn bản là tài liệu công việc chính thức nên không cho phép xóa.
+   * Chỉ cho phép xóa khi văn bản ở trạng thái Bản nháp (DRAFT).
    */
   async softDelete(id: number, userId: number) {
     const outgoing = await outgoingDocumentsRepository.findById(id);
     const currentStatus = outgoing.document.status;
-    const forbiddenStatuses = ['COMPLETED', 'TRASHED', 'CANCELLED'];
 
-    if (forbiddenStatuses.includes(currentStatus)) {
+    if (currentStatus !== 'DRAFT') {
       throw new BadRequestError(
-        `Không thể xóa văn bản đang ở trạng thái "${currentStatus}".`,
+        'Không thể xóa văn bản đã được gửi đi hoặc đang trong quy trình xử lý. Chỉ cho phép xóa văn bản ở trạng thái Bản nháp.',
       );
     }
 
@@ -724,17 +985,6 @@ export class OutgoingDocumentsService {
         data: {
           trashedAt: new Date(),
           trashedBy: userId,
-        },
-      });
-
-      // Ghi log xóa mềm
-      await tx.systemLog.create({
-        data: {
-          userId,
-          action: 'OUTGOING_SOFT_DELETE',
-          entityType: 'OutgoingDocument',
-          entityId: id,
-          details: `Xóa mềm (chuyển vào thùng rác) văn bản đi`,
         },
       });
     });
@@ -764,37 +1014,37 @@ export class OutgoingDocumentsService {
       throw new BadRequestError('Danh sách email người nhận không được để trống');
     }
 
-    const title = outgoing.document.title;
+    const title = outgoing.document.subject;
     const docNumber = outgoing.dispatchNumber || outgoing.documentNumber || 'KHÔNG CÓ SỐ';
     const issuanceDate = outgoing.issuanceDate
       ? new Date(outgoing.issuanceDate).toLocaleDateString('vi-VN')
       : 'Chưa xác định';
-    const signerName = outgoing.signerName || 'Chưa xác định';
-    const signerTitle = outgoing.signerTitle || '';
+    const signerName = outgoing.document.signerName || 'Chưa xác định';
+    const signerTitle = outgoing.document.signerTitle || '';
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 6px 6px 0 0; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 20px;">&#128394; Văn bản chính thức</h1>
+        <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 20px; border-radius: 6px 6px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">Văn bản chính thức</h1>
         </div>
         <div style="background: #f9f9f9; padding: 20px;">
           <p style="color: #333;">Kính gửi Quý đơn vị / Cá nhân,</p>
           <p style="color: #333;">Hệ thống quản lý văn bản trân trọng gửi đến Quý vị văn bản sau:</p>
           <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
             <tr style="background: #fff; border-bottom: 1px solid #eee;">
-              <td style="padding: 10px; font-weight: bold; color: #555; width: 160px;">&#128204; Tiêu đề:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555; width: 160px;">Tiêu đề:</td>
               <td style="padding: 10px; color: #222;">${title}</td>
             </tr>
             <tr style="background: #f5f5f5; border-bottom: 1px solid #eee;">
-              <td style="padding: 10px; font-weight: bold; color: #555;">&#128196; Số hiệu:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555;">Số hiệu:</td>
               <td style="padding: 10px; color: #222;">${docNumber}</td>
             </tr>
             <tr style="background: #fff; border-bottom: 1px solid #eee;">
-              <td style="padding: 10px; font-weight: bold; color: #555;">&#128197; Ngày ban hành:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555;">Ngày ban hành:</td>
               <td style="padding: 10px; color: #222;">${issuanceDate}</td>
             </tr>
             <tr style="background: #f5f5f5;">
-              <td style="padding: 10px; font-weight: bold; color: #555;">&#128100; Người ký:</td>
+              <td style="padding: 10px; font-weight: bold; color: #555;">Người ký:</td>
               <td style="padding: 10px; color: #222;">${signerName}${signerTitle ? ` &ndash; ${signerTitle}` : ''}</td>
             </tr>
           </table>
@@ -833,17 +1083,6 @@ export class OutgoingDocumentsService {
         failedEmails.push(email);
       }
     }
-
-    // Ghi log
-    await prisma.systemLog.create({
-      data: {
-        userId,
-        action: 'OUTGOING_SEND_EMAIL',
-        entityType: 'OutgoingDocument',
-        entityId: id,
-        details: `Gửi email văn bản đi. Thành công: [${sentEmails.join(', ')}]. Thất bại: [${failedEmails.join(', ')}]`,
-      },
-    });
 
     return {
       sentCount: sentEmails.length,
@@ -935,16 +1174,30 @@ export class OutgoingDocumentsService {
     }));
 
     // ── 3. Phân bổ theo loại văn bản ──────────────────────────────────────
-    const byDocumentTypeRaw = await prisma.outgoingDocument.groupBy({
-      by: ['documentType'],
-      where: baseOutgoingFilter as any,
+    const byDocumentTypeRaw = await prisma.document.groupBy({
+      by: ['documentTypeId'],
+      where: {
+        ...baseDocumentFilter,
+        type: 'OUTGOING',
+      } as any,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
 
+    const documentTypeIds = byDocumentTypeRaw
+      .map((row) => row.documentTypeId)
+      .filter((id): id is number => id !== null);
+    const documentTypeNames = await prisma.documentType.findMany({
+      where: { id: { in: documentTypeIds } },
+      select: { id: true, name: true },
+    });
+    const documentTypeNameMap = new Map(documentTypeNames.map((dt) => [dt.id, dt.name]));
+
     const byDocumentType = byDocumentTypeRaw.map((row) => ({
-      documentType: row.documentType ?? 'Chưa phân loại',
-      count: row._count.id,
+      documentType: row.documentTypeId
+        ? (documentTypeNameMap.get(row.documentTypeId) ?? 'Chưa phân loại')
+        : 'Chưa phân loại',
+      count: (row._count as any).id ?? 0,
     }));
 
     // ── 4. Phân bổ theo phòng ban soạn thảo ──────────────────────────────
@@ -1066,7 +1319,7 @@ export class OutgoingDocumentsService {
       { header: 'Số đi', key: 'dispatchNumber', width: 15 },
       { header: 'Số/Ký hiệu', key: 'documentNumber', width: 20 },
       { header: 'Nơi nhận', key: 'recipientName', width: 25 },
-      { header: 'Trích yếu', key: 'title', width: 40 },
+      { header: 'Trích yếu', key: 'subject', width: 40 },
       { header: 'Người ký', key: 'signerName', width: 20 },
       { header: 'Loại VB', key: 'documentType', width: 15 },
       { header: 'Độ khẩn', key: 'urgencyName', width: 15 },
@@ -1084,9 +1337,9 @@ export class OutgoingDocumentsService {
         dispatchNumber: item.dispatchNumber || '—',
         documentNumber: item.document.documentNumber || '—',
         recipientName: item.recipientName || '—',
-        title: item.document.title || '—',
-        signerName: item.signerName || '—',
-        documentType: item.documentType || '—',
+        subject: item.document.subject || '—',
+        signerName: item.document.signerName || '—',
+        documentType: item.document.documentTypeRef?.name || '—',
         urgencyName: item.document.urgency?.name || '—',
         sentDate: item.sentDate ? new Date(item.sentDate).toLocaleDateString('vi-VN') : '—',
         issuedAt: item.issuedAt ? new Date(item.issuedAt).toLocaleDateString('vi-VN') : '—',
@@ -1158,7 +1411,7 @@ export class OutgoingDocumentsService {
           y = 40;
         }
 
-        const title = item.document.title.length > 50 ? item.document.title.substring(0, 50) + '...' : item.document.title;
+        const title = item.document.subject.length > 50 ? item.document.subject.substring(0, 50) + '...' : item.document.subject;
         const recipient = (item.recipientName || '').length > 20 ? (item.recipientName || '').substring(0, 20) + '...' : (item.recipientName || '—');
 
         const row = [
@@ -1184,6 +1437,18 @@ export class OutgoingDocumentsService {
 
       doc.end();
     });
+  }
+
+  /**
+   * Đếm số lượng văn bản đi chưa xử lý theo vai trò (Lãnh đạo chưa duyệt, Văn thư chưa vào sổ)
+   */
+  async getUnprocessedCount(currentUser: {
+    id: number;
+    roles: string[];
+    departmentId?: number | null;
+    departmentName?: string | null;
+  }) {
+    return outgoingDocumentsRepository.getUnprocessedCount(currentUser);
   }
 }
 

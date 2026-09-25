@@ -36,6 +36,7 @@ export const uploadToSupabase = async (file: Express.Multer.File): Promise<strin
   }
 
   try {
+    // @ts-ignore
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL!,
@@ -80,6 +81,7 @@ export const deleteFromSupabase = async (fileUrl: string): Promise<void> => {
   }
 
   try {
+    // @ts-ignore
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL!,

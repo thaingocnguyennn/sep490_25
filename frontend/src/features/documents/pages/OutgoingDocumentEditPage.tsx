@@ -36,8 +36,7 @@ export default function OutgoingDocumentEditPage() {
   const ocrFields = (location.state as { ocrFields?: Record<string, string> })?.ocrFields;
 
   const [form, setForm] = useState<UpdateOutgoingMetadataRequest>({
-    title: '',
-    description: '',
+    subject: '',
     urgency: 'THUONG' as UrgencyName,
     confidentialityLevel: 'THUONG',
     documentTypeId: undefined,
@@ -48,7 +47,6 @@ export default function OutgoingDocumentEditPage() {
     recipientAddress: '',
     recipientEmail: '',
     pageCount: undefined,
-    notes: '',
     departmentId: undefined,
   });
 
@@ -60,31 +58,28 @@ export default function OutgoingDocumentEditPage() {
       .then((data) => {
         setDoc(data);
         setForm({
-          title: data.document.title,
-          description: data.document.description || '',
+          subject: data.document.subject,
           urgency: (normalizeUrgencyName(data.document.urgency?.name) || 'THUONG') as UrgencyName,
           confidentialityLevel:
             (data.document.confidentiality?.name as ConfidentialityName) ??
             (data.document.confidentiality?.code === 'A' ? 'TUYET_MAT'
               : data.document.confidentiality?.code === 'B' ? 'TOI_MAT'
               : data.document.confidentiality?.code === 'C' ? 'MAT'
-              : data.document.confidentiality?.code === 'C' ? 'MAT'
               : 'THUONG'),
           documentTypeId: data.documentTypeId || undefined,
           documentNumber: data.documentNumber || '',
-          signerName: data.signerName || '',
-          signerTitle: data.signerTitle || '',
+          signerName: data.document.signerName || '',
+          signerTitle: data.document.signerTitle || '',
           recipientName: data.recipientName || '',
           recipientAddress: data.recipientAddress || '',
           recipientEmail: data.recipientEmail || '',
           pageCount: data.pageCount || undefined,
-          notes: data.notes || '',
           departmentId: data.document.department?.id || undefined,
           ...(ocrFields ? {
             documentNumber: ocrFields.documentNumber || data.documentNumber || '',
-            signerName: ocrFields.signerName || data.signerName || '',
-            signerTitle: ocrFields.signerTitle || data.signerTitle || '',
-            title: (ocrFields.summary ? ocrFields.summary : data.document.title),
+            signerName: ocrFields.signerName || data.document.signerName || '',
+            signerTitle: ocrFields.signerTitle || data.document.signerTitle || '',
+            subject: (ocrFields.summary ? ocrFields.summary : data.document.subject),
             pageCount: ocrFields.pageCount ? parseInt(ocrFields.pageCount) : (data.pageCount || undefined),
           } : {}),
         });
@@ -95,7 +90,7 @@ export default function OutgoingDocumentEditPage() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!form.title?.trim()) errs.title = 'Tiêu đề không được để trống';
+    if (!form.subject?.trim()) errs.subject = 'Trích yếu không được để trống';
     setValidationErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -120,8 +115,7 @@ export default function OutgoingDocumentEditPage() {
 
     const result = await updateMetadata(doc.id, {
       ...form,
-      title: form.title?.trim(),
-      description: form.description?.trim() || undefined,
+      subject: form.subject?.trim(),
       documentTypeId: form.documentTypeId ? Number(form.documentTypeId) : undefined,
       documentNumber: form.documentNumber?.trim() || undefined,
       signerName: form.signerName?.trim() || undefined,
@@ -131,7 +125,6 @@ export default function OutgoingDocumentEditPage() {
       recipientAddress: form.recipientAddress?.trim() || undefined,
       recipientEmail: form.recipientEmail?.trim() || undefined,
       pageCount: form.pageCount ? Number(form.pageCount) : undefined,
-      notes: form.notes?.trim() || undefined,
     });
 
     if (result) {
@@ -145,9 +138,9 @@ export default function OutgoingDocumentEditPage() {
       <div className="page-content">
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: 40 }}>
-            <p style={{ color: '#e74c3c' }}>⚠️ {loadError || 'Không tìm thấy văn bản đi'}</p>
+            <p style={{ color: '#e74c3c' }}>{loadError || 'Không tìm thấy văn bản đi'}</p>
             <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => navigate('/outgoing-documents')}>
-              ← Quay lại
+              Quay lại
             </button>
           </div>
         </div>
@@ -160,7 +153,7 @@ export default function OutgoingDocumentEditPage() {
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btn btn-secondary" onClick={() => navigate(`/outgoing-documents/${doc.id}`)} style={{ padding: '6px 12px' }}>
-            ← Quay lại chi tiết
+            Quay lại chi tiết
           </button>
           <h1>Chỉnh sửa Văn bản đi</h1>
         </div>
@@ -169,13 +162,13 @@ export default function OutgoingDocumentEditPage() {
       <div className="page-content">
         {ocrFields && (
           <div style={{ background: '#d4edda', border: '1px solid #28a745', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#155724' }}>
-            ✅ Đã điền sẵn thông tin từ kết quả OCR. Vui lòng kiểm tra và chỉnh sửa nếu cần.
+            Đã điền sẵn thông tin từ kết quả OCR. Vui lòng kiểm tra và chỉnh sửa nếu cần.
           </div>
         )}
 
         <div className="card" style={{ maxWidth: 860, margin: '0 auto' }}>
           <div className="card-header">
-            <h2>✏️ Cập nhật thông tin văn bản đi</h2>
+            <h2>Cập nhật thông tin văn bản đi</h2>
             <p style={{ color: '#636e72', fontSize: 13, margin: 0 }}>
               Số văn bản hệ thống: <code style={{ color: '#667eea' }}>{doc.document.documentNumber}</code>
             </p>
@@ -184,28 +177,28 @@ export default function OutgoingDocumentEditPage() {
           <div className="card-body">
             {actionError && (
               <div style={{ padding: '12px 16px', background: '#fdf0f0', border: '1px solid #fcc', borderRadius: 8, color: '#e74c3c', marginBottom: 20 }}>
-                ⚠️ {actionError}
+                {actionError}
               </div>
             )}
 
             <form id="form-edit-outgoing" onSubmit={handleSubmit}>
               <div className="form-group" style={{ marginBottom: 20 }}>
                 <label htmlFor="title" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  Tiêu đề văn bản <span style={{ color: '#e74c3c' }}>*</span>
+                  Trích yếu văn bản <span style={{ color: '#e74c3c' }}>*</span>
                 </label>
                 <input
-                  id="title"
-                  name="title"
+                  id="subject"
+                  name="subject"
                   type="text"
-                  value={form.title}
+                  value={form.subject}
                   onChange={handleChange}
                   style={{
                     width: '100%', padding: '10px 14px',
-                    border: `1px solid ${validationErrors.title ? '#e74c3c' : '#dfe6e9'}`,
+                    border: `1px solid ${validationErrors.subject ? '#e74c3c' : '#dfe6e9'}`,
                     borderRadius: 8, fontSize: 15, boxSizing: 'border-box',
                   }}
                 />
-                {validationErrors.title && <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.title}</p>}
+                {validationErrors.subject && <p style={{ color: '#e74c3c', fontSize: 13, marginTop: 4 }}>{validationErrors.subject}</p>}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
@@ -321,7 +314,6 @@ export default function OutgoingDocumentEditPage() {
                 </div>
               </div>
 
-              {/* Người nhận */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div className="form-group">
                   <label htmlFor="recipientName" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Người/Cơ quan nhận</label>
@@ -362,30 +354,6 @@ export default function OutgoingDocumentEditPage() {
                 </div>
               </div>
 
-              {/* Mô tả + ghi chú */}
-              <div className="form-group" style={{ marginBottom: 16 }}>
-                <label htmlFor="description" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Mô tả thêm</label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={form.description}
-                  onChange={handleChange}
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 28 }}>
-                <label htmlFor="notes" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>Ghi chú nội bộ</label>
-                <textarea
-                  id="notes"
-                  name="notes"
-                  value={form.notes}
-                  onChange={handleChange}
-                  rows={2}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #dfe6e9', borderRadius: 8, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
-
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => navigate(`/outgoing-documents/${doc.id}`)} disabled={actionLoading}>
                   Hủy
@@ -396,7 +364,7 @@ export default function OutgoingDocumentEditPage() {
                   className="btn btn-primary"
                   disabled={actionLoading}
                 >
-                  {actionLoading ? '⏳ Đang lưu...' : '💾 Lưu thay đổi'}
+                  {actionLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
             </form>

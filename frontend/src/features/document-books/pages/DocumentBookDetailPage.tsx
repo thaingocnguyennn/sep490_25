@@ -1,24 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { documentBooksApi, DocumentBook, IncomingBookEntryItem, OutgoingBookEntryItem } from '../../../api/modules/document-books';
+import {
+  documentBooksApi,
+  DocumentBook,
+  IncomingBookEntryItem,
+  OutgoingBookEntryItem,
+} from '../../../api/modules/document-books';
 import { useDocumentBookActions } from '../../../shared/hooks';
 import { useAuth } from '../../../contexts/AuthContext';
 import { LoadingSpinner, ConfirmModal } from '../../../shared/components';
 import { DocumentBookFormModal } from '../components/DocumentBookFormModal';
-import '../styles/document-books.css';
 
-// ─────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────
 function formatDate(d?: string | null) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('vi-VN');
-}
-
-function statusLabel(s: DocumentBook['status']) {
-  if (s === 'ACTIVE') return { label: 'Hoạt động', cls: 'badge-success' };
-  if (s === 'CLOSED') return { label: 'Đã khóa', cls: 'badge-warning' };
-  return { label: 'Ngừng HĐ', cls: 'badge-danger' };
 }
 
 function urgencyLabel(name?: string | null) {
@@ -28,12 +23,9 @@ function urgencyLabel(name?: string | null) {
     KHAN: 'Khẩn',
     THUONG: 'Thường',
   };
-  return name ? (map[name] ?? name) : '—';
+  return name ? map[name] ?? name : '—';
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Main Component
-// ─────────────────────────────────────────────────────────────────
 export function DocumentBookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -42,7 +34,6 @@ export function DocumentBookDetailPage() {
 
   const bookId = parseInt(id ?? '0', 10);
 
-  // ── State ──────────────────────────────────────────────────────
   const [book, setBook] = useState<DocumentBook | null>(null);
   const [loadingBook, setLoadingBook] = useState(true);
 
@@ -59,7 +50,6 @@ export function DocumentBookDetailPage() {
 
   const { closeBook, reopenBook, deleteBook, loading: actionLoading } = useDocumentBookActions();
 
-  // ── Load Book ──────────────────────────────────────────────────
   const loadBook = useCallback(async () => {
     if (!bookId) return;
     setLoadingBook(true);
@@ -73,26 +63,32 @@ export function DocumentBookDetailPage() {
     }
   }, [bookId, navigate]);
 
-  // ── Load Entries ───────────────────────────────────────────────
-  const loadEntries = useCallback(async (page: number) => {
-    if (!bookId) return;
-    setLoadingEntries(true);
-    try {
-      const data = await documentBooksApi.getEntries(bookId, { page, limit: 20 });
-      setEntries(data.items);
-      setEntriesTotal(data.total);
-      setEntriesTotalPages(data.totalPages);
-    } catch {
-      setEntries([]);
-    } finally {
-      setLoadingEntries(false);
-    }
-  }, [bookId]);
+  const loadEntries = useCallback(
+    async (page: number) => {
+      if (!bookId) return;
+      setLoadingEntries(true);
+      try {
+        const data = await documentBooksApi.getEntries(bookId, { page, limit: 15 });
+        setEntries(data.items);
+        setEntriesTotal(data.total);
+        setEntriesTotalPages(data.totalPages);
+      } catch {
+        setEntries([]);
+      } finally {
+        setLoadingEntries(false);
+      }
+    },
+    [bookId],
+  );
 
-  useEffect(() => { loadBook(); }, [loadBook]);
-  useEffect(() => { loadEntries(entriesPage); }, [loadEntries, entriesPage]);
+  useEffect(() => {
+    loadBook();
+  }, [loadBook]);
 
-  // ── Actions ────────────────────────────────────────────────────
+  useEffect(() => {
+    loadEntries(entriesPage);
+  }, [loadEntries, entriesPage]);
+
   const handleClose = async () => {
     if (!book) return;
     try {
@@ -100,7 +96,7 @@ export function DocumentBookDetailPage() {
       setConfirmClose(false);
       loadBook();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Lỗi khi khóa sổ');
+      alert(err.response?.data?.message || 'Lỗi khi đóng sổ');
     }
   };
 
@@ -120,8 +116,6 @@ export function DocumentBookDetailPage() {
     try {
       const result = await deleteBook(book.id);
       setConfirmDelete(false);
-      // Nếu sổ bị soft-delete → quay lại danh sách
-      // Nếu chuyển INACTIVE → cập nhật lại trang
       if (result?.data?.deletedAt) {
         navigate('/document-books');
       } else {
@@ -132,261 +126,428 @@ export function DocumentBookDetailPage() {
     }
   };
 
-  // ── Render helpers ─────────────────────────────────────────────
-  if (loadingBook) return <div style={{ padding: 40 }}><LoadingSpinner /></div>;
+  if (loadingBook) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   if (!book) return null;
 
-  const { label: statusLbl, cls: statusCls } = statusLabel(book.status);
   const totalEntries = (book._count?.incomingEntries ?? 0) + (book._count?.outgoingEntries ?? 0);
   const isIncoming = book.bookType === 'INCOMING';
 
-  const deleteConfirmMsg = totalEntries > 0
-    ? `Sổ "${book.name}" đã có ${totalEntries} văn bản. Sổ sẽ được chuyển sang trạng thái Ngừng hoạt động (văn bản đã đăng ký vẫn được giữ nguyên).`
-    : `Xác nhận xóa sổ "${book.name}"? Sổ chưa có văn bản nên sẽ bị xóa hoàn toàn khỏi danh sách.`;
+  const deleteConfirmMsg =
+    totalEntries > 0
+      ? `Sổ "${book.name}" đã có ${totalEntries} văn bản. Sổ sẽ được chuyển sang trạng thái Ngừng hoạt động (dữ liệu đã vào sổ vẫn được bảo lưu). Bạn có chắc chắn?`
+      : `Xác nhận xóa sổ "${book.name}"? Sổ chưa có văn bản nên sẽ bị xóa hoàn toàn khỏi hệ thống.`;
 
   return (
-    <div className="document-books-page">
-      {/* ── Breadcrumb ── */}
-      <nav style={{ marginBottom: 16, fontSize: 14, color: '#636e72' }}>
-        <Link to="/document-books" style={{ color: '#6c5ce7', textDecoration: 'none' }}>
-          Quản lý sổ văn bản
-        </Link>
-        {' / '}
-        <span>{book.name}</span>
-      </nav>
+    <>
+      {/* Top Bar */}
+      <div className="top-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate('/document-books')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            &larr; Danh sách sổ
+          </button>
+          <h1 style={{ margin: 0 }}>{book.name}</h1>
+          <span
+            className={`status-badge ${
+              book.status === 'ACTIVE'
+                ? 'status-active'
+                : book.status === 'CLOSED'
+                ? 'status-pending'
+                : 'status-inactive'
+            }`}
+          >
+            {book.status === 'ACTIVE' ? 'Đang mở' : book.status === 'CLOSED' ? 'Đã đóng' : 'Ngừng HĐ'}
+          </span>
+          {book.isDefault && (
+            <span
+              style={{
+                padding: '2px 8px',
+                background: '#e8f8f0',
+                color: '#27ae60',
+                borderRadius: 12,
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              Mặc định
+            </span>
+          )}
+        </div>
 
-      {/* ── Detail Card ── */}
-      <div className="card" style={{ padding: 24, marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-          {/* Left: info */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-              <h2 style={{ margin: 0, fontSize: 22 }}>{book.name}</h2>
-              <span className={`badge ${statusCls}`}>{statusLbl}</span>
-              {book.isDefault && <span className="badge badge-success">Mặc định</span>}
-            </div>
+        {canManage && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {book.status === 'ACTIVE' && (
+              <>
+                <button className="btn btn-secondary" onClick={() => setEditModalOpen(true)}>
+                  Chỉnh sửa
+                </button>
+                <button className="btn btn-secondary" onClick={() => setConfirmClose(true)}>
+                  Đóng sổ
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={book.isDefault}
+                  title={book.isDefault ? 'Không thể xóa sổ mặc định' : 'Xóa sổ'}
+                  style={book.isDefault ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
+                  Xóa sổ
+                </button>
+              </>
+            )}
+            {book.status === 'CLOSED' && (
+              <button className="btn btn-primary" onClick={() => setConfirmReopen(true)}>
+                Mở lại sổ
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px 32px', color: '#555', fontSize: 14 }}>
-              <div><strong>Mã sổ:</strong> {book.code || '—'}</div>
-              <div>
-                <strong>Loại sổ:</strong>{' '}
-                <span className={`badge ${isIncoming ? 'badge-info' : 'badge-primary'}`}>
-                  {isIncoming ? 'Văn bản đến' : 'Văn bản đi'}
-                </span>
-              </div>
-              <div><strong>Năm:</strong> {book.year}</div>
-              <div><strong>Phòng ban:</strong> {book.department?.name || '—'}</div>
-              <div><strong>Số hiện tại:</strong> <strong style={{ fontSize: 16 }}>{book.currentNumber}</strong></div>
-              <div><strong>Số VB trong sổ:</strong> {totalEntries}</div>
-              <div><strong>Ngày mở:</strong> {formatDate(book.openedAt)}</div>
-              <div><strong>Ngày khóa:</strong> {formatDate(book.closedAt)}</div>
-              <div><strong>Tạo bởi:</strong> {book.createdBy?.fullName || '—'}</div>
-              {book.description && (
-                <div style={{ gridColumn: '1 / -1' }}><strong>Mô tả:</strong> {book.description}</div>
-              )}
-            </div>
+      <div className="page-content">
+        {/* KPI Cards / Metadata Summary */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 16,
+            marginBottom: 24,
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              borderLeft: '4px solid #3498db',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 13, color: '#636e72', fontWeight: 500 }}>Số hiện tại</span>
+            <span style={{ fontSize: 24, fontWeight: 700, color: '#2d3436' }}>
+              {book.currentNumber}
+            </span>
+            <span style={{ fontSize: 12, color: '#95a5a6' }}>Số văn bản tiếp theo: {book.currentNumber + 1}</span>
           </div>
 
-          {/* Right: actions */}
-          {canManage && (
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              {/* ACTIVE: Chỉnh sửa, Khóa sổ, Xóa */}
-              {book.status === 'ACTIVE' && (
-                <>
-                  <button className="btn btn-secondary" onClick={() => setEditModalOpen(true)}>
-                    ✏️ Chỉnh sửa
-                  </button>
-                  <button className="btn btn-warning" onClick={() => setConfirmClose(true)}>
-                    🔒 Khóa sổ
-                  </button>
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => setConfirmDelete(true)}
-                    disabled={book.isDefault}
-                    title={book.isDefault ? 'Không thể xóa sổ mặc định' : 'Xóa sổ'}
-                  >
-                    🗑️ Xóa
-                  </button>
-                </>
-              )}
-              {/* CLOSED: Mở lại sổ */}
-              {book.status === 'CLOSED' && (
-                <button className="btn btn-primary" onClick={() => setConfirmReopen(true)}>
-                  🔓 Mở lại sổ
-                </button>
-              )}
-              {/* INACTIVE: chỉ xem, không có nút */}
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              borderLeft: '4px solid #2ecc71',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 13, color: '#636e72', fontWeight: 500 }}>Tổng số đã vào sổ</span>
+            <span style={{ fontSize: 24, fontWeight: 700, color: '#2d3436' }}>
+              {totalEntries}
+            </span>
+            <span style={{ fontSize: 12, color: '#95a5a6' }}>Văn bản trong sổ</span>
+          </div>
+
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              borderLeft: '4px solid #9b59b6',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 13, color: '#636e72', fontWeight: 500 }}>Loại sổ & Năm</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#2d3436', marginTop: 2 }}>
+              {isIncoming ? 'Văn bản đến' : 'Văn bản đi'} — Năm {book.year}
+            </span>
+            <span style={{ fontSize: 12, color: '#95a5a6' }}>Mã sổ: {book.code || '—'}</span>
+          </div>
+
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              borderLeft: '4px solid #e67e22',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 13, color: '#636e72', fontWeight: 500 }}>Phòng ban quản lý</span>
+            <span style={{ fontSize: 16, fontWeight: 600, color: '#2d3436', marginTop: 4 }}>
+              {book.department?.name || 'Toàn cơ quan'}
+            </span>
+            <span style={{ fontSize: 12, color: '#95a5a6' }}>Người tạo: {book.createdBy?.fullName || '—'}</span>
+          </div>
+        </div>
+
+        {/* Entries Table Card */}
+        <div className="card">
+          <div className="card-header">
+            <h2>Danh sách văn bản đã vào sổ ({entriesTotal})</h2>
+          </div>
+
+          <div className="card-body" style={{ padding: 0 }}>
+            {loadingEntries ? (
+              <LoadingSpinner />
+            ) : entries.length === 0 ? (
+              <div className="empty-state" style={{ padding: 48, textAlign: 'center' }}>
+                <p style={{ color: '#636e72', margin: 0 }}>
+                  Chưa có văn bản nào được đăng ký vào sổ này.
+                </p>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      {isIncoming ? (
+                        <>
+                          <th style={{ width: 80, textAlign: 'center' }}>Số đến</th>
+                          <th>Ngày đến</th>
+                          <th>Số ký hiệu</th>
+                          <th>Cơ quan gửi</th>
+                          <th>Trích yếu nội dung</th>
+                          <th>Loại VB</th>
+                          <th>Độ khẩn</th>
+                          <th>Trạng thái</th>
+                          <th style={{ width: 80, textAlign: 'right' }}>Thao tác</th>
+                        </>
+                      ) : (
+                        <>
+                          <th style={{ width: 80, textAlign: 'center' }}>Số đi</th>
+                          <th>Số ký hiệu</th>
+                          <th>Loại VB</th>
+                          <th>Trích yếu nội dung</th>
+                          <th>Người ký</th>
+                          <th>Nơi nhận</th>
+                          <th>Ngày ban hành</th>
+                          <th>Độ khẩn</th>
+                          <th>Trạng thái</th>
+                          <th style={{ width: 80, textAlign: 'right' }}>Thao tác</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isIncoming
+                      ? (entries as IncomingBookEntryItem[]).map((entry) => (
+                          <tr key={entry.id}>
+                            <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                              {entry.arrivalNumber}
+                            </td>
+                            <td>{formatDate(entry.arrivalDate)}</td>
+                            <td>
+                              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                {entry.documentNumberSnapshot || '—'}
+                              </span>
+                            </td>
+                            <td>{entry.senderSnapshot}</td>
+                            <td style={{ maxWidth: 260 }}>
+                              <span
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                }}
+                                title={entry.summarySnapshot}
+                              >
+                                {entry.summarySnapshot}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="badge badge-type">
+                                {entry.incomingDocument.documentTypeRef?.name ||
+                                  entry.documentTypeSnapshot ||
+                                  '—'}
+                              </span>
+                            </td>
+                            <td>{urgencyLabel(entry.incomingDocument.document.urgency?.name)}</td>
+                            <td>
+                              <span className="status-badge status-active">
+                                {entry.incomingDocument.document.status}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <Link
+                                to={`/incoming-documents/${entry.incomingDocument.id}`}
+                                className="action-btn view"
+                                title="Xem chi tiết văn bản đến"
+                              >
+                                &#128065;
+                              </Link>
+                            </td>
+                          </tr>
+                        ))
+                      : (entries as OutgoingBookEntryItem[]).map((entry) => (
+                          <tr key={entry.id}>
+                            <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                              {entry.officialNumber}
+                            </td>
+                            <td>
+                              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                {entry.documentSymbol || '—'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="badge badge-type">
+                                {entry.outgoingDocument.documentTypeRef?.name ||
+                                  entry.documentTypeSnapshot ||
+                                  '—'}
+                              </span>
+                            </td>
+                            <td style={{ maxWidth: 260 }}>
+                              <span
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                }}
+                                title={entry.summarySnapshot}
+                              >
+                                {entry.summarySnapshot}
+                              </span>
+                            </td>
+                            <td>{entry.signerSnapshot || '—'}</td>
+                            <td>
+                              {entry.outgoingDocument.recipientName ||
+                                entry.recipientsSnapshot ||
+                                '—'}
+                            </td>
+                            <td>{formatDate(entry.issuanceDate)}</td>
+                            <td>{urgencyLabel(entry.outgoingDocument.document.urgency?.name)}</td>
+                            <td>
+                              <span className="status-badge status-active">
+                                {entry.outgoingDocument.document.status}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <Link
+                                to={`/outgoing-documents/${entry.outgoingDocument.id}`}
+                                className="action-btn view"
+                                title="Xem chi tiết văn bản đi"
+                              >
+                                &#128065;
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {entriesTotalPages > 1 && (
+            <div className="pagination">
+              <button
+                onClick={() => setEntriesPage((p) => Math.max(1, p - 1))}
+                disabled={entriesPage === 1}
+              >
+                Trước
+              </button>
+              {Array.from({ length: entriesTotalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === entriesTotalPages || Math.abs(p - entriesPage) <= 2)
+                .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, idx) =>
+                  p === '...' ? (
+                    <span key={`dots-${idx}`} className="dots">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      className={entriesPage === p ? 'active' : ''}
+                      onClick={() => setEntriesPage(p as number)}
+                    >
+                      {p}
+                    </button>
+                  ),
+                )}
+              <button
+                onClick={() => setEntriesPage((p) => Math.min(entriesTotalPages, p + 1))}
+                disabled={entriesPage === entriesTotalPages}
+              >
+                Sau
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Entries Table ── */}
-      <div className="card" style={{ padding: '0 0 16px' }}>
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 16 }}>
-            Danh sách văn bản đã đăng ký ({entriesTotal})
-          </h3>
-        </div>
-
-        {loadingEntries ? (
-          <div style={{ padding: 32 }}><LoadingSpinner /></div>
-        ) : entries.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '32px', color: '#999' }}>
-            Chưa có văn bản nào được đăng ký vào sổ này
-          </div>
-        ) : (
-          <>
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    {isIncoming ? (
-                      <>
-                        <th>Số đến</th>
-                        <th>Ngày đến</th>
-                        <th>Số ký hiệu</th>
-                        <th>Cơ quan gửi</th>
-                        <th>Trích yếu</th>
-                        <th>Loại VB</th>
-                        <th>Độ khẩn</th>
-                        <th>Trạng thái</th>
-                        <th>Thao tác</th>
-                      </>
-                    ) : (
-                      <>
-                        <th>Số phát hành</th>
-                        <th>Số ký hiệu</th>
-                        <th>Loại VB</th>
-                        <th>Trích yếu</th>
-                        <th>Người ký</th>
-                        <th>Người nhận</th>
-                        <th>Ngày ban hành</th>
-                        <th>Độ khẩn</th>
-                        <th>Trạng thái</th>
-                        <th>Thao tác</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {isIncoming
-                    ? (entries as IncomingBookEntryItem[]).map((entry) => (
-                      <tr key={entry.id}>
-                        <td><strong>{entry.arrivalNumber}</strong></td>
-                        <td>{formatDate(entry.arrivalDate)}</td>
-                        <td>{entry.documentNumberSnapshot || '—'}</td>
-                        <td>{entry.senderSnapshot}</td>
-                        <td style={{ maxWidth: 250 }}>{entry.summarySnapshot}</td>
-                        <td>{entry.incomingDocument.documentTypeRef?.name || entry.documentTypeSnapshot || '—'}</td>
-                        <td>{urgencyLabel(entry.incomingDocument.document.urgency?.name)}</td>
-                        <td>
-                          <span className="badge badge-info" style={{ fontSize: 11 }}>
-                            {entry.incomingDocument.document.status}
-                          </span>
-                        </td>
-                        <td>
-                          <Link
-                            to={`/incoming-documents/${entry.incomingDocument.id}`}
-                            style={{ color: '#6c5ce7', fontSize: 12 }}
-                          >
-                            Xem
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
-                    : (entries as OutgoingBookEntryItem[]).map((entry) => (
-                      <tr key={entry.id}>
-                        <td><strong>{entry.officialNumber}</strong></td>
-                        <td>{entry.documentSymbol || '—'}</td>
-                        <td>{entry.outgoingDocument.documentTypeRef?.name || entry.documentTypeSnapshot || '—'}</td>
-                        <td style={{ maxWidth: 250 }}>{entry.summarySnapshot}</td>
-                        <td>{entry.signerSnapshot || '—'}</td>
-                        <td>{entry.outgoingDocument.recipientName || entry.recipientsSnapshot || '—'}</td>
-                        <td>{formatDate(entry.issuanceDate)}</td>
-                        <td>{urgencyLabel(entry.outgoingDocument.document.urgency?.name)}</td>
-                        <td>
-                          <span className="badge badge-info" style={{ fontSize: 11 }}>
-                            {entry.outgoingDocument.document.status}
-                          </span>
-                        </td>
-                        <td>
-                          <Link
-                            to={`/outgoing-documents/${entry.outgoingDocument.id}`}
-                            style={{ color: '#6c5ce7', fontSize: 12 }}
-                          >
-                            Xem
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
-                  }
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {entriesTotalPages > 1 && (
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', padding: '16px' }}>
-                <button
-                  className="btn btn-secondary"
-                  disabled={entriesPage === 1}
-                  onClick={() => setEntriesPage(p => p - 1)}
-                  style={{ padding: '4px 12px' }}
-                >
-                  Trước
-                </button>
-                <span style={{ padding: '4px 12px', background: '#f8f9fa', borderRadius: 4 }}>
-                  Trang {entriesPage} / {entriesTotalPages}
-                </span>
-                <button
-                  className="btn btn-secondary"
-                  disabled={entriesPage === entriesTotalPages}
-                  onClick={() => setEntriesPage(p => p + 1)}
-                  style={{ padding: '4px 12px' }}
-                >
-                  Sau
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* ── Modals ── */}
       {editModalOpen && (
         <DocumentBookFormModal
           book={book}
           onClose={() => setEditModalOpen(false)}
-          onSuccess={() => { setEditModalOpen(false); loadBook(); }}
+          onSuccess={() => {
+            setEditModalOpen(false);
+            loadBook();
+          }}
         />
       )}
 
       <ConfirmModal
         open={confirmClose}
-        title="Khóa sổ văn bản"
-        message={`Sau khi khóa, sổ "${book.name}" sẽ không nhận đăng ký văn bản mới. Bạn có thể mở lại bất cứ lúc nào.`}
+        title="Xác nhận đóng sổ văn bản"
+        message={`Sau khi đóng, sổ "${book.name}" sẽ tạm ngừng cấp số văn bản mới. Bạn có thể mở lại sổ bất cứ lúc nào.`}
         onConfirm={handleClose}
         onCancel={() => setConfirmClose(false)}
       />
 
       <ConfirmModal
         open={confirmReopen}
-        title="Mở lại sổ văn bản"
-        message={`Mở lại sổ "${book.name}"? Sổ sẽ tiếp tục nhận đăng ký văn bản mới từ số ${book.currentNumber + 1}.`}
+        title="Xác nhận mở lại sổ văn bản"
+        message={`Mở lại sổ "${book.name}"? Sổ sẽ tiếp tục nhận cấp số văn bản tiếp theo từ số ${
+          book.currentNumber + 1
+        }.`}
         onConfirm={handleReopen}
         onCancel={() => setConfirmReopen(false)}
       />
 
       <ConfirmModal
         open={confirmDelete}
-        title="Xác nhận xóa/ngừng sổ"
+        title="Xác nhận xóa / ngừng sổ"
         message={deleteConfirmMsg}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
 
-      {actionLoading && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.1)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LoadingSpinner /></div>}
-    </div>
+      {actionLoading && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.1)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <LoadingSpinner />
+        </div>
+      )}
+    </>
   );
 }

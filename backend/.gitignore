@@ -21,4 +21,4 @@ uploads/
 .DS_Store
 Thumbs.db
 temp/
-tests/
+test/

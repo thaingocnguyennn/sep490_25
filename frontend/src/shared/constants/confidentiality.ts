@@ -13,7 +13,7 @@ export interface ConfidentialityOption {
 }
 
 export const CONFIDENTIALITY_OPTIONS: ConfidentialityOption[] = [
-  { value: 'THUONG',    name: 'THUONG',    code: null, label: 'Thường (không mật)' },
+  { value: 'THUONG',    name: 'THUONG',    code: null, label: 'Thường' },
   { value: 'MAT',       name: 'MAT',       code: 'C',  label: 'Mật (C)' },
   { value: 'TOI_MAT',   name: 'TOI_MAT',   code: 'B',  label: 'Tối mật (B)' },
   { value: 'TUYET_MAT', name: 'TUYET_MAT', code: 'A',  label: 'Tuyệt mật (A)' },

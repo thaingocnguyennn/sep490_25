@@ -8,6 +8,7 @@ interface UseDocumentBooksOptions {
   bookType?: string;
   year?: number;
   status?: string;
+  departmentId?: number;
 }
 
 export function useDocumentBooks(options: UseDocumentBooksOptions = {}) {
@@ -37,6 +38,7 @@ export function useDocumentBooks(options: UseDocumentBooksOptions = {}) {
     options.bookType,
     options.year,
     options.status,
+    options.departmentId,
   ]);
 
   useEffect(() => {

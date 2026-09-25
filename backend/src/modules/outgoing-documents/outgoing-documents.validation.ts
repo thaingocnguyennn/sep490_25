@@ -9,15 +9,39 @@ export const registerOutgoingDocumentValidation = [
 // ─── Validation tạo văn bản đi ────────────────────────────────────────────────
 
 export const createOutgoingDocumentValidation = [
-  body('title')
+  body('subject')
     .trim()
-    .notEmpty().withMessage('Tiêu đề văn bản không được để trống')
-    .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
+    .notEmpty().withMessage('Trích yếu văn bản không được để trống')
+    .isLength({ max: 2000 }).withMessage('Trích yếu tối đa 2000 ký tự'),
 
-  body('description')
+  body('issuer')
     .optional()
     .trim()
-    .isString().withMessage('Mô tả phải là chuỗi ký tự'),
+    .isString().withMessage('Cơ quan ban hành phải là chuỗi ký tự'),
+
+  body('documentNumber')
+    .optional()
+    .trim()
+    .isString().withMessage('Số ký hiệu phải là chuỗi ký tự'),
+
+  body('issuedDate')
+    .optional()
+    .trim()
+    .isString().withMessage('Ngày văn bản phải là chuỗi ký tự'),
+
+  body('signerName')
+    .optional()
+    .trim()
+    .isString().withMessage('Họ tên người ký phải là chuỗi ký tự'),
+
+  body('signerTitle')
+    .optional()
+    .trim()
+    .isString().withMessage('Chức vụ người ký phải là chuỗi ký tự'),
+
+  body('pageCount')
+    .optional()
+    .isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
 
   body('urgency')
     .optional()
@@ -83,10 +107,13 @@ export const createOutgoingDocumentValidation = [
     .trim()
     .isEmail().withMessage('Email người nhận không hợp lệ'),
 
-  body('notes')
+  body('ocrText')
     .optional()
-    .trim()
-    .isString().withMessage('Ghi chú phải là chuỗi ký tự'),
+    .isString(),
+
+  body('ocrStatus')
+    .optional()
+    .isString(),
 
   body('relatedIncomingDocumentId')
     .optional()
@@ -99,16 +126,11 @@ export const updateOutgoingMetadataValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('ID văn bản phải là số nguyên dương'),
 
-  body('title')
+  body('subject')
     .optional()
     .trim()
-    .notEmpty().withMessage('Tiêu đề không được rỗng nếu được cung cấp')
-    .isLength({ max: 500 }).withMessage('Tiêu đề tối đa 500 ký tự'),
-
-  body('description')
-    .optional()
-    .trim()
-    .isString(),
+    .notEmpty().withMessage('Trích yếu không được rỗng nếu được cung cấp')
+    .isLength({ max: 2000 }).withMessage('Trích yếu tối đa 2000 ký tự'),
 
   body('urgency')
     .optional({ nullable: true })
@@ -194,10 +216,6 @@ export const updateOutgoingMetadataValidation = [
   body('pageCount')
     .optional()
     .isInt({ min: 1 }).withMessage('Số trang phải là số nguyên dương'),
-
-  body('notes')
-    .optional()
-    .isString(),
 ];
 
 // ─── Validation cập nhật trạng thái ─────────────────────────────────────────
@@ -262,6 +280,34 @@ export const updateOutgoingStatusValidation = [
       }
       return true;
     }),
+
+  body('assignedApproverId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID người phê duyệt phải là số nguyên dương'),
+
+  body('assignedClerkId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID văn thư tiếp nhận phải là số nguyên dương'),
+
+  body('note')
+    .optional()
+    .trim()
+    .isString().withMessage('Ý kiến/ghi chú phải là chuỗi ký tự'),
+
+  body('recipientName')
+    .optional()
+    .trim()
+    .isString(),
+
+  body('recipientAddress')
+    .optional()
+    .trim()
+    .isString(),
+
+  body('recipientEmail')
+    .optional()
+    .trim()
+    .isEmail().withMessage('Email người nhận không hợp lệ'),
 ];
 
 // ─── Validation params ID chung ───────────────────────────────────────────────
@@ -289,6 +335,10 @@ export const listOutgoingDocumentsValidation = [
   query('documentTypeId')
     .optional()
     .isInt({ min: 1 }).withMessage('ID thể loại văn bản phải là số nguyên dương'),
+
+  query('documentBookId')
+    .optional()
+    .isInt({ min: 1 }).withMessage('ID sổ văn bản phải là số nguyên dương'),
 
   query('urgency')
     .optional()

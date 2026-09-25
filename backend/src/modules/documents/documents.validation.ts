@@ -1,5 +1,5 @@
 import { body, query, param } from 'express-validator';
-import { DocumentType, DocumentLifecycleStatus } from '@prisma/client';
+import { DocumentDirection, DocumentLifecycleStatus } from '@prisma/client';
 
 // Allowed urgency lookup values (seeded names, legacy aliases, numeric ids)
 const URGENCY_ALLOWED = ['THUONG', 'KHAN', 'THUONG_KHAN', 'THUONG_KHAU', 'HOA_TOC'];
@@ -8,31 +8,35 @@ const isValidUrgency = (v: string) => URGENCY_ALLOWED.includes(v) || /^\d+$/.tes
 // ─── Validation for uploading a new document ─────────────────────────────────
 
 export const uploadDocumentValidation = [
-  body('title')
+  body('subject')
     .trim()
     .notEmpty()
-    .withMessage('Title is required')
-    .isLength({ max: 500 })
-    .withMessage('Title must be at most 500 characters'),
-  body('description')
-    .optional()
-    .trim()
+    .withMessage('Subject is required')
     .isLength({ max: 2000 })
-    .withMessage('Description must be at most 2000 characters'),
+    .withMessage('Subject must be at most 2000 characters'),
   body('type')
     .notEmpty()
     .withMessage('Document type is required')
     .isIn(['INCOMING', 'OUTGOING', 'INTERNAL', 'ARCHIVAL'])
     .withMessage('Type must be INCOMING, OUTGOING, INTERNAL, or ARCHIVAL'),
+  body('issuedDate')
+    .optional()
+    .isISO8601()
+    .withMessage('Date on letter must be a valid ISO 8601 date'),
   body('issuanceDate')
     .optional()
     .isISO8601()
-    .withMessage('Issuance date must be a valid ISO 8601 date'),
+    .withMessage('Issuance date must be a valid ISO 8601 date (deprecated alias)'),
   body('sendingAgency')
     .optional()
     .trim()
     .isLength({ max: 200 })
     .withMessage('Sending agency must be at most 200 characters'),
+  body('issuer')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Issuer must be at most 200 characters'),
   body('urgency')
     .optional()
     .custom((value) => {
@@ -92,14 +96,32 @@ export const uploadDocumentValidation = [
     .trim()
     .isLength({ max: 100 })
     .withMessage('Category must be at most 100 characters'),
+  body('categoryId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Invalid category ID'),
+  body('documentTypeId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Invalid document type ID'),
+  body('documentTypeRef')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Invalid document type ref ID'),
   body('departmentId')
     .optional()
     .isInt({ min: 1 })
     .withMessage('Invalid department ID'),
-  body('processorId')
+  body('signerName')
     .optional()
-    .isInt({ min: 1 })
-    .withMessage('Invalid processor ID'),
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer name must be at most 200 characters'),
+  body('signerTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer title must be at most 200 characters'),
 ];
 
 // ─── Validation for updating document metadata ──────────────────────────────
@@ -111,16 +133,11 @@ export const updateDocumentValidation = [
     .trim()
     .isLength({ min: 1, max: 100 })
     .withMessage('Document number must be 1-100 characters'),
-  body('title')
+  body('subject')
     .optional()
     .trim()
-    .isLength({ min: 1, max: 500 })
-    .withMessage('Title must be 1-500 characters'),
-  body('description')
-    .optional()
-    .trim()
-    .isLength({ max: 2000 })
-    .withMessage('Description must be at most 2000 characters'),
+    .isLength({ min: 1, max: 2000 })
+    .withMessage('Subject must be 1-2000 characters'),
   body('type')
     .optional()
     .isIn(['INCOMING', 'OUTGOING', 'INTERNAL', 'ARCHIVAL'])
@@ -129,11 +146,30 @@ export const updateDocumentValidation = [
     .optional({ nullable: true })
     .isISO8601()
     .withMessage('Issuance date must be a valid ISO 8601 date'),
+  body('issuedDate')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('Date on letter must be a valid ISO 8601 date'),
   body('sendingAgency')
     .optional()
     .trim()
     .isLength({ max: 200 })
     .withMessage('Sending agency must be at most 200 characters'),
+  body('issuer')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Issuer must be at most 200 characters'),
+  body('signerName')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer name must be at most 200 characters'),
+  body('signerTitle')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Signer title must be at most 200 characters'),
   body('urgency')
     .optional({ nullable: true })
     .custom((value) => {
@@ -198,10 +234,6 @@ export const updateDocumentValidation = [
     .optional({ nullable: true })
     .isInt({ min: 1 })
     .withMessage('Invalid department ID'),
-  body('processorId')
-    .optional({ nullable: true })
-    .isInt({ min: 1 })
-    .withMessage('Invalid processor ID'),
 ];
 
 // ─── Validation for list/filter query parameters ────────────────────────────

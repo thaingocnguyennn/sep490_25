@@ -64,6 +64,14 @@ router.post(
   documentsController.performOcr.bind(documentsController)
 );
 
+// POST /documents/verify-signatures — Kiểm tra chữ ký số trực tiếp trên file upload
+router.post(
+  '/verify-signatures',
+  requireRole('DOCUMENT_CLERK', 'SPECIALIST', 'DEPARTMENT_HEAD', 'ADMIN'),
+  ocrUpload.single('file'),
+  documentsController.verifySignatures.bind(documentsController)
+);
+
 // ─── CRUD Routes ────────────────────────────────────────────────────────────
 
 // GET /documents — List documents with filters and pagination

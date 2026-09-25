@@ -1,7 +1,7 @@
 import api from '../axios';
 import type { ApiResponse, PaginatedResponse, Document, DocumentFilterParams, UpdateDocumentRequest, ConfidentialityCodeOrName, OcrResult } from '../../types';
 
-export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentDirection = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'DRAFT' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
 export type ProcessorType = 'XLC' | 'PHXL' | 'XDB';
 export type Urgency = 'THUONG' | 'KHAN' | 'THUONG_KHAN' | 'THUONG_KHAU' | 'HOA_TOC';
@@ -53,22 +53,10 @@ export type WorkflowStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED
 export interface IncomingDocumentDetail {
   id: number;
   documentId: number;
-  issuer: string | null;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
-  documentNumber: string | null;
   arrivalNumber: number | null;
-  signerName: string | null;
-  signerTitle: string | null;
-  dateLetter: string | null;
   dateReceived: string;
-  summary: string | null;
   pageCount: number | null;
-  notes: string | null;
   processingInstructions: string | null;
-  createdByClerkId: number | null;
-  createdByClerk: { id: number; fullName: string } | null;
   documentBookId: number | null;
   documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
@@ -77,32 +65,29 @@ export interface IncomingDocumentDetail {
 export interface IncomingDocumentListItem {
   id: number;
   documentId: number;
-  issuer: string | null;
-  documentType: string | null;
-  documentTypeId: number | null;
-  documentTypeRef: { id: number; name: string } | null;
-  documentNumber: string | null;
   arrivalNumber: number | null;
-  signerName: string | null;
-  signerTitle: string | null;
-  dateLetter: string | null;
   dateReceived: string;
-  summary: string | null;
   pageCount: number | null;
-  notes: string | null;
   processingInstructions: string | null;
-  createdByClerkId: number | null;
-  createdByClerk: { id: number; fullName: string } | null;
   documentBookId: number | null;
   documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
+  /**
+   * Client-computed flag indicating this row has not been opened by the
+   * current viewer yet. Derived from `viewerStatus === 'PENDING'`. The
+   * list page uses it to render the unread (bold) style; the sidebar
+   * unread counter uses the same predicate to count rows.
+   *
+   * Optional because the backend does not return this field — only the
+   * frontend annotate-list helpers populate it after the API response.
+   */
+  viewerUnread?: boolean;
 }
 
 
 
 export interface CreateIncomingDocumentRequest {
   issuer?: string;
-  documentType?: string;
   documentTypeId?: number;
   documentNumber?: string;
   arrivalNumber?: number;
@@ -110,10 +95,9 @@ export interface CreateIncomingDocumentRequest {
   signerTitle?: string;
   dateLetter?: string;
   dateReceived: string;
-  summary?: string;
+  summary: string;
   pageCount?: number;
   urgency?: Urgency;
-  notes?: string;
   processingInstructions?: string;
   processorIds: { userId: number; processorType: ProcessorType }[];
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
@@ -123,15 +107,19 @@ export interface CreateIncomingDocumentRequest {
 }
 
 export type HeadAction = 'FINISH' | 'FORWARD' | 'RETURN';
-/** Same set as HeadAction — kept as a separate alias for callers that
- * historically distinguished specialist actions. */
-export type SpecialistAction = HeadAction;
+/**
+ * Per the new flow design, the assigned specialist (XLC at step 3) has
+ * exactly ONE action available: FINISH. The FORWARD / RETURN branches
+ * that used to live on the specialist endpoint have been removed from
+ * both the backend service and the route validation, so the frontend
+ * type is narrowed here as well to keep the call sites honest.
+ */
+export type SpecialistAction = 'FINISH';
 
 export interface ProcessIncomingDocumentRequest {
   action: HeadAction;
   processorIds?: { userId: number; processorType: ProcessorType }[];
   processingInstructions?: string;
-  deadline?: string;
   reason?: string;
   attachments?: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }[];
 }
@@ -312,9 +300,11 @@ export const incomingDocumentsApi = {
   /**
    * Save a draft incoming document with a PDF/image file attached.
    * Sends metadata and the file in a single multipart request.
+   * Additional "Tệp đính kèm" files (if provided) are uploaded under the
+   * `attachments` field name and persisted as DocumentAttachment rows.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  saveDraftWithFile: (data: any, file: File) => {
+  saveDraftWithFile: (data: any, file: File, attachmentFiles?: File[]) => {
     const formData = new FormData();
     formData.append('file', file);
     const entries: [string, string | number | undefined][] = [
@@ -331,7 +321,6 @@ export const incomingDocumentsApi = {
       ['urgency', data.urgency],
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
-      ['notes', data.notes],
       ['documentBookId', data.documentBookId],
     ];
     for (const [key, value] of entries) {
@@ -339,6 +328,13 @@ export const incomingDocumentsApi = {
         formData.append(key, String(value));
       }
     }
+    if (attachmentFiles && attachmentFiles.length > 0) {
+      for (const att of attachmentFiles) {
+        formData.append('attachments', att);
+      }
+    }
+    // `data.attachments` is kept for backwards compatibility (metadata-only
+    // entries). The backend ignores entries with `fileUrl: blob:...`.
     if (data.attachments && data.attachments.length > 0) {
       formData.append('attachments', JSON.stringify(data.attachments));
     }
@@ -356,9 +352,11 @@ export const incomingDocumentsApi = {
 
   /**
    * Update an existing draft incoming document with a new file.
+   * Additional "Tệp đính kèm" files (if provided) are uploaded under the
+   * `attachments` field name and persisted as DocumentAttachment rows.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  updateDraftWithFile: (id: number, data: any, file: File) => {
+  updateDraftWithFile: (id: number, data: any, file: File, attachmentFiles?: File[]) => {
     const formData = new FormData();
     formData.append('file', file);
     const entries: [string, string | number | undefined][] = [
@@ -375,12 +373,16 @@ export const incomingDocumentsApi = {
       ['urgency', data.urgency],
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
-      ['notes', data.notes],
       ['documentBookId', data.documentBookId],
     ];
     for (const [key, value] of entries) {
       if (value !== undefined) {
         formData.append(key, String(value));
+      }
+    }
+    if (attachmentFiles && attachmentFiles.length > 0) {
+      for (const att of attachmentFiles) {
+        formData.append('attachments', att);
       }
     }
     if (data.attachments && data.attachments.length > 0) {
@@ -395,8 +397,11 @@ export const incomingDocumentsApi = {
    * Create an incoming document with a PDF/image file attached.
    * Sends metadata and the file in a single multipart request.
    * Used when the user has already run OCR and wants to persist the PDF.
+   *
+   * Additional "Tệp đính kèm" files (if provided) are uploaded under the
+   * `attachments` field name and persisted as DocumentAttachment rows.
    */
-  createWithFile: (data: CreateIncomingDocumentRequest, file: File) => {
+  createWithFile: (data: CreateIncomingDocumentRequest, file: File, attachmentFiles?: File[]) => {
     const formData = new FormData();
     // Attach file first so it appears first in the multipart body
     formData.append('file', file);
@@ -415,7 +420,6 @@ export const incomingDocumentsApi = {
       ['urgency', data.urgency],
       ['confidentialityLevel', data.confidentialityLevel],
       ['confidentialityId', data.confidentialityId],
-      ['notes', data.notes],
       ['processingInstructions', data.processingInstructions],
       ['documentBookId', data.documentBookId],
     ];
@@ -427,6 +431,11 @@ export const incomingDocumentsApi = {
     if (data.processorIds && data.processorIds.length > 0) {
       formData.append('processorIds', JSON.stringify(data.processorIds));
     }
+    if (attachmentFiles && attachmentFiles.length > 0) {
+      for (const att of attachmentFiles) {
+        formData.append('attachments', att);
+      }
+    }
     if (data.attachments && data.attachments.length > 0) {
       formData.append('attachments', JSON.stringify(data.attachments));
     }
@@ -437,6 +446,28 @@ export const incomingDocumentsApi = {
 
   updateStatus: (id: number, data: { status: string; notes?: string }) =>
     api.patch<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/status`, data),
+
+  /**
+   * Submit a DRAFT incoming document for processing. Used by the create/edit
+   * page instead of the older `updateStatus({ status: 'PENDING' })` flow,
+   * because the new flow also creates workflow rows and participations.
+   */
+  submitDraft: (id: number) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/submit-draft`, {}),
+
+  /**
+   * Resubmit a returned document. The clerk picks a new primary handler
+   * (XLC) and the document is re-opened for the head/specialist to act on.
+   */
+  resubmit: (id: number, data: { processorIds: { userId: number; processorType: 'XLC' | 'PHXL' | 'XDB' }[]; processingInstructions?: string }) =>
+    api.post<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/resubmit`, data),
+
+  /**
+   * Mark the calling user as having viewed this document for the first
+   * time. Idempotent. The detail page calls this on mount.
+   */
+  markViewed: (id: number) =>
+    api.post<ApiResponse<{ id: number }>>(`/incoming-documents/${id}/view`, {}),
 
   updateWorkflowStep: (id: number, workflowId: number, data: { stepStatus: string; notes?: string }) =>
     api.patch<ApiResponse<IncomingDocumentDetail>>(`/incoming-documents/${id}/workflow/${workflowId}`, data),

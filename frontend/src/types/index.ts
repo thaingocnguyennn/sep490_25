@@ -120,7 +120,7 @@ export interface ApiResponse<T = unknown> {
 
 // ─── Document Management Types ──────────────────────────────────────────────
 
-export type DocumentType = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
+export type DocumentDirection = 'INCOMING' | 'OUTGOING' | 'INTERNAL' | 'ARCHIVAL';
 export type DocumentStatus = 'ACTIVE' | 'DELETED';
 
 /**
@@ -163,9 +163,8 @@ export type UrgencyCodeOrName = UrgencyName | UrgencyAlias | number;
 export interface Document {
   id: number;
   documentNumber: string;
-  title: string;
-  description: string | null;
-  type: DocumentType;
+  subject: string;
+  type: DocumentDirection;
   fileUrl: string | null;
   documentStatus: DocumentStatus;
   isArchived: boolean;
@@ -173,9 +172,16 @@ export interface Document {
   urgency: Urgency | null;
   confidentialityId: number | null;
   confidentiality: Confidentiality | null;
-  sendingAgency: string | null;
-  issuanceDate: string | null;
-  category: string | null;
+  documentTypeId: number | null;
+  documentTypeRef: { id: number; name: string; code?: string } | null;
+  /** Cơ quan ban hành / nơi gửi (tên cũ: sendingAgency) */
+  issuer: string | null;
+  signerName: string | null;
+  signerTitle: string | null;
+  /** Ngày ghi trên văn bản (do cơ quan ban hành ghi; tên cũ: issuanceDate, dateOnLetter) */
+  issuedDate: string | null;
+  categoryId: number | null;
+  category: { id: number; name: string; code: string } | null;
   originalFileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
@@ -184,9 +190,32 @@ export interface Document {
   createdByUser: { id: number; fullName: string } | null;
   updatedByUser?: { id: number; fullName: string } | null;
   department: { id: number; name: string } | null;
-  processor: { id: number; fullName: string } | null;
   // Optional fields from dev schema (DocumentWorkflow, processors, attachments)
   status: string; // DocumentStatus enum - DRAFT, PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED
+  /**
+   * Per-actor status badge value. When the API supports it (incoming
+   * document list/detail endpoints), this reflects the calling user's own
+   * workflow progress on the document rather than the global document
+   * status. Frontend falls back to `status` when this field is absent
+   * (e.g. older API responses or other document types).
+   */
+  viewerStatus?: string;
+  /**
+   * Per-actor participation rows as returned by the backend. Each row
+   * describes one (user, role) tuple's progress on this document. The
+   * `viewerStatus` field above is computed from this list — the frontend
+   * reads `viewerStatus` directly for badges, but `participations` is
+   * available for richer displays.
+   */
+  participations?: Array<{
+    id: number;
+    status: string;
+    participationRole: string;
+    viewedAt: string | null;
+    completedAt: string | null;
+    returnedAt: string | null;
+    returnReason: string | null;
+  }>;
   workflows?: Array<{
     id: number;
     status: string;
@@ -216,7 +245,7 @@ export interface DocumentFilterParams {
   page?: number;
   limit?: number;
   search?: string;
-  type?: DocumentType;
+  type?: DocumentDirection;
   status?: DocumentStatus;
   isArchived?: boolean;
   /** Seeded urgency name, legacy alias, or numeric id */
@@ -232,17 +261,22 @@ export interface DocumentFilterParams {
 
 export interface UpdateDocumentRequest {
   documentNumber?: string;
-  title?: string;
-  description?: string;
-  type?: DocumentType;
+  subject?: string;
+  type?: DocumentDirection;
+  /** Ngày ghi trên văn bản */
+  issuedDate?: string | null;
+  /** @deprecated Use issuedDate — kept for legacy client compatibility. */
   issuanceDate?: string | null;
-  sendingAgency?: string;
+  issuer?: string | null;
+  signerName?: string | null;
+  signerTitle?: string | null;
   /** Seeded urgency name, legacy alias, or numeric id; null to clear */
   urgency?: UrgencyCodeOrName | null;
   urgencyId?: UrgencyCodeOrName | null;
   confidentialityLevel?: ConfidentialityCodeOrName;
   confidentialityId?: ConfidentialityCodeOrName | null;
-  category?: string;
+  categoryId?: number | null;
+  documentTypeId?: number | null;
   departmentId?: number | null;
   processorId?: number | null;
 }
@@ -265,14 +299,11 @@ export type OutgoingDocumentStatus =
 export interface OutgoingDocument {
   id: number;
   documentId: number;
-  documentType: string | null;
   documentTypeId: number | null;
   documentTypeRef: { id: number; name: string } | null;
   documentNumber: string | null;
   dispatchNumber: string | null;
   issuanceDate: string | null;
-  signerName: string | null;
-  signerTitle: string | null;
   recipientName: string | null;
   recipientAddress: string | null;
   recipientEmail: string | null;
@@ -295,17 +326,26 @@ export interface OutgoingDocument {
   recallReason: string | null;
   trashedAt: string | null;
   trashedBy: number | null;
-  notes: string | null;
   assignedApproverId: number | null;
   assignedClerkId: number | null;
+  documentBookId?: number | null;
+  documentBook?: {
+    id: number;
+    name: string;
+    code?: string | null;
+    year: number;
+  } | null;
+  bookEntry?: {
+    sequenceNumber: number;
+    officialNumber: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   // Relations
   document: {
     id: number;
     documentNumber: string;
-    title: string;
-    description: string | null;
+    subject: string;
     type: string;
     fileUrl: string | null;
     ocrText: string | null;
@@ -315,6 +355,15 @@ export interface OutgoingDocument {
     urgency: Urgency | null;
     confidentialityId: number | null;
     confidentiality: Confidentiality | null;
+    documentTypeId: number | null;
+    documentTypeRef: { id: number; name: string } | null;
+    issuer: string | null;
+    signerName: string | null;
+    signerTitle: string | null;
+    issuedDate?: string | null;
+    issuanceDate: string | null;
+    categoryId: number | null;
+    category: { id: number; name: string; code: string } | null;
     documentStatus: DocumentStatus;
     isArchived: boolean;
     originalFileName: string | null;
@@ -343,8 +392,10 @@ export interface OutgoingDocument {
 }
 
 export interface CreateOutgoingDocumentRequest {
-  title: string;
-  description?: string;
+  subject: string;
+  issuer?: string;
+  documentNumber?: string;
+  issuedDate?: string;
   urgency?: UrgencyCodeOrName;
   confidentialityLevel?: ConfidentialityCodeOrName;
   confidentialityId?: ConfidentialityCodeOrName;
@@ -353,16 +404,22 @@ export interface CreateOutgoingDocumentRequest {
   documentTypeId?: number;
   /** ID lĩnh vực văn bản (DocumentCategory) */
   documentCategoryId?: number;
+  signerName?: string;
+  signerTitle?: string;
   recipientName?: string;
   recipientAddress?: string;
   recipientEmail?: string;
-  notes?: string;
+  pageCount?: number;
   relatedIncomingDocumentId?: number;
+  // ─── Kết quả OCR (truyền từ màn hình tạo để lưu DB trong 1 lần duy nhất) ───
+  /** Toàn văn text OCR — lưu thẳng vào DB */
+  ocrText?: string;
+  /** COMPLETED nếu OCR đã chạy thành công ở màn hình tạo */
+  ocrStatus?: 'COMPLETED' | 'FAILED' | 'PENDING';
 }
 
 export interface UpdateOutgoingMetadataRequest {
-  title?: string;
-  description?: string;
+  subject?: string;
   urgency?: UrgencyCodeOrName | null;
   confidentialityLevel?: ConfidentialityCodeOrName | null;
   confidentialityId?: ConfidentialityCodeOrName | null;
@@ -378,7 +435,6 @@ export interface UpdateOutgoingMetadataRequest {
   recipientAddress?: string;
   recipientEmail?: string;
   pageCount?: number;
-  notes?: string;
 }
 
 export interface UpdateOutgoingStatusRequest {
@@ -397,6 +453,7 @@ export interface UpdateOutgoingStatusRequest {
   confidentialityLevel?: ConfidentialityCodeOrName;
   assignedApproverId?: number;
   assignedClerkId?: number;
+  note?: string;
 }
 
 export interface OutgoingDocumentFilterParams {
@@ -408,6 +465,7 @@ export interface OutgoingDocumentFilterParams {
   urgencyId?: UrgencyCodeOrName;
   documentType?: string;
   documentTypeId?: number;
+  documentBookId?: number;
   dateFrom?: string;
   dateTo?: string;
   confidentialityLevel?: ConfidentialityCodeOrName;
@@ -417,6 +475,8 @@ export interface OutgoingDocumentFilterParams {
 
 export interface OcrResult {
   confidence: number;
+  text?: string;
+  totalPages?: number;
   extractedFields: {
     issuer?: string;
     documentNumber?: string;
@@ -451,6 +511,7 @@ export type SignatureEvidenceType =
   | "UNKNOWN";
 
 export type SignatureVerificationLevel =
+  | "FULL_PYHANKO_STANDARDS_VERIFIED"
   | "BASIC_STRUCTURE_ONLY"
   | "BASIC_STRUCTURE_AND_CERTIFICATE_EXTRACTION"
   | "SIGNED_RANGE_CHECK"
@@ -480,6 +541,23 @@ export interface DocumentSignatureItem {
   issuer?: string;
   serialNumber?: string;
   signingTime?: string;
+
+  // Các trường kiểm tra mật mã chuyên sâu pyHanko
+  hashIntact?: boolean | null;
+  signatureValid?: boolean | null;
+  certificateTrusted?: boolean | null;
+  certificateRevoked?: boolean | null;
+  modifiedAfterSigning?: boolean | null;
+  modificationLevel?: string | null;
+  modificationAllowed?: boolean | null;
+  coverage?: string | null;
+  overallValid?: boolean | null;
+
+  // Thời gian
+  trustedTimestamp?: string | null;
+  timestampValid?: boolean | null;
+  signerReportedTime?: string | null;
+
   subFilter?: string;
   byteRange?: [number, number, number, number];
   signedRevisionEnd?: number;
@@ -495,6 +573,7 @@ export interface DocumentSignatureItem {
 export interface DocumentSignatureSummary {
   hasCryptographicSignature: boolean;
   cryptographicSignatureCount: number;
+  allSignaturesValid?: boolean;
   hasVisualSignatureAppearance: null;
   conclusion:
     | "CRYPTOGRAPHIC_SIGNATURE_FOUND"
@@ -512,6 +591,7 @@ export interface DocumentSignatureResponse {
   documentId: number;
   fileName: string;
   fileType: SignatureFileType;
+  fileHash?: string;
   signatureCount: number;
   summary: DocumentSignatureSummary;
   signatures: DocumentSignatureItem[];

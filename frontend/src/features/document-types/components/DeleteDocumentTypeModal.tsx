@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useDocumentTypeActions } from '../hooks/useDocumentTypes';
-import { DocumentKindResponse } from '../types/documentType.types';
+import { DocumentTypeResponse } from '../types/documentType.types';
 
 interface DeleteDocumentTypeModalProps {
-  documentType: DocumentKindResponse;
+  documentType: DocumentTypeResponse;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -17,10 +17,9 @@ export const DeleteDocumentTypeModal: React.FC<DeleteDocumentTypeModalProps> = (
   const [apiError, setApiError] = useState<string | null>(null);
 
   const hasUsage = documentType.usageCount > 0;
-  
-  const title = hasUsage ? 'Ngừng hoạt động thể loại văn bản' : 'Xóa thể loại văn bản';
-  const actionText = hasUsage ? 'Ngừng hoạt động' : 'Xóa';
-  
+  const title = hasUsage ? 'Vô hiệu hóa thể loại văn bản' : 'Xóa thể loại văn bản';
+  const actionText = hasUsage ? 'Vô hiệu hóa' : 'Xóa';
+
   const handleDelete = async () => {
     setApiError(null);
     try {
@@ -33,55 +32,82 @@ export const DeleteDocumentTypeModal: React.FC<DeleteDocumentTypeModalProps> = (
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={{ maxWidth: 450 }}>
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal" style={{ maxWidth: 480 }}>
         <div className="modal-header">
-          <h2 style={{ fontSize: 18, color: hasUsage ? '#e67e22' : '#d63031' }}>{title}</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Đóng">&times;</button>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{title}</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Đóng">
+            &times;
+          </button>
         </div>
-
         <div className="modal-body">
-          {apiError && (
-            <div className="alert alert-error" style={{ marginBottom: 16 }}>
-              ⚠ {apiError}
+          {/* Thông tin */}
+          <div
+            style={{
+              padding: '12px 16px',
+              background: '#f8f9fa',
+              borderRadius: 8,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 15, color: '#2d3436' }}>
+              {documentType.name}
             </div>
-          )}
+            <div style={{ fontSize: 13, color: '#636e72', marginTop: 2 }}>
+              Mã thể loại: <span style={{ fontFamily: 'monospace' }}>{documentType.code}</span>
+            </div>
+          </div>
 
           {hasUsage ? (
-            <div>
-              <p>
-                Thể loại <strong>{documentType.name} ({documentType.code})</strong> đang được sử dụng bởi <strong>{documentType.usageCount}</strong> văn bản.
-              </p>
-              <p style={{ marginTop: 8 }}>
-                Hệ thống sẽ không xóa hoàn toàn mà chuyển trạng thái sang <strong>Ngừng hoạt động (INACTIVE)</strong>.
-                Các văn bản cũ vẫn giữ nguyên, nhưng sẽ không thể chọn thể loại này khi tạo mới.
-              </p>
-              <p style={{ marginTop: 8, color: '#e67e22', fontWeight: 500 }}>
-                Bạn có chắc chắn muốn tiếp tục?
+            <div
+              className="alert"
+              style={{
+                background: '#fff3cd',
+                border: '1px solid #ffeeba',
+                color: '#856404',
+                marginBottom: 0,
+              }}
+            >
+              <strong>Thể loại đang được sử dụng</strong>
+              <p style={{ marginTop: 6, marginBottom: 0 }}>
+                Thể loại này đang liên kết với <strong>{documentType.usageCount} văn bản</strong>. Hệ
+                thống sẽ chuyển sang trạng thái <strong>Ngừng hoạt động</strong> thay vì xóa để bảo toàn dữ liệu.
               </p>
             </div>
           ) : (
-            <div>
-              <p>
-                Bạn có chắc chắn muốn xóa thể loại văn bản <strong>{documentType.name} ({documentType.code})</strong>?
-              </p>
-              <p style={{ marginTop: 8, color: '#636e72' }}>
-                Hành động này không thể hoàn tác, nhưng hệ thống vẫn lưu trữ thông tin trong thùng rác để phục hồi nếu cần.
+            <div className="alert alert-error" style={{ marginBottom: 0 }}>
+              <strong>Xác nhận xóa hoàn toàn</strong>
+              <p style={{ marginTop: 6, marginBottom: 0 }}>
+                Thể loại văn bản này chưa được sử dụng và sẽ bị xóa khỏi hệ thống.
               </p>
             </div>
           )}
-        </div>
 
+          {apiError && (
+            <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>
+              {apiError}
+            </div>
+          )}
+        </div>
         <div className="modal-footer">
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={loading}
+          >
             Hủy
           </button>
-          <button 
-            type="button" 
-            className="btn btn-primary" 
-            onClick={handleDelete} 
+          <button
+            type="button"
+            className={`btn ${hasUsage ? 'btn-primary' : 'btn-danger'}`}
+            onClick={handleDelete}
             disabled={loading}
-            style={{ backgroundColor: hasUsage ? '#e67e22' : '#d63031' }}
           >
             {loading ? 'Đang xử lý...' : `Xác nhận ${actionText.toLowerCase()}`}
           </button>

@@ -218,6 +218,21 @@ button {
   cursor: not-allowed;
 }
 
+.btn-sm {
+  padding: 10px 22px;
+  font-size: 15px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  width: auto;
+}
+
+.top-bar .btn {
+  width: auto;
+}
+
 .btn-secondary {
   background: #dfe6e9;
   color: #2d3436;
@@ -354,6 +369,44 @@ button {
   margin-top: 12px;
 }
 
+/* Badge số lượng thông báo màu đỏ nổi trên mục Văn bản đi */
+.sidebar-badge-red {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  margin-left: auto;
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.5);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.sidebar-icon-badge-red {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  line-height: 1;
+}
+
 .sidebar-footer {
   padding: 16px 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -465,6 +518,25 @@ button {
 
 .data-table tr:hover td {
   background: #f8f9fa;
+}
+
+/* Unread row styling — used by IncomingDocumentsPage and
+   PendingIncomingDocumentsPage to draw the user's eye to documents
+   they have not yet opened. The list annotators set a `viewerUnread`
+   flag based on `viewerStatus === 'PENDING'` (i.e. the viewer's
+   participation row has `viewedAt IS NULL`).
+   We bold every cell except those containing an inline badge / status
+   pill, which already carry their own visual weight and look heavy
+   when forced to 700. */
+.data-table tbody tr.row-unread td {
+  font-weight: 700;
+  color: #2d3436;
+}
+.data-table tbody tr.row-unread td .badge,
+.data-table tbody tr.row-unread td .status-badge,
+.data-table tbody tr.row-unread td .sidebar-badge-red,
+.data-table tbody tr.row-unread td .sidebar-icon-badge-red {
+  font-weight: 600;
 }
 
 .status-badge {
@@ -1203,6 +1275,163 @@ textarea:focus {
   background: #f8f9fa;
 }
 
+/* Three priority-aware processor sections (XLC > PHXL > XDB) */
+.processor-role-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.processor-role-section {
+  border: 1px solid #dfe6e9;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(45, 52, 54, 0.04);
+  overflow: hidden;
+  border-top-width: 3px;
+}
+
+.processor-role-section.variant-xlc { border-top-color: #667eea; }
+.processor-role-section.variant-phxl { border-top-color: #3498db; }
+.processor-role-section.variant-xdb { border-top-color: #95a5a6; }
+
+.processor-role-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.processor-role-section-header > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.processor-role-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.processor-role-badge.badge-xlc { background: #667eea; }
+.processor-role-badge.badge-phxl { background: #3498db; }
+.processor-role-badge.badge-xdb { background: #95a5a6; }
+
+.processor-role-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3436;
+}
+
+.processor-role-count {
+  font-size: 12px;
+  color: #636e72;
+}
+
+.processor-role-count strong {
+  color: #2d3436;
+}
+
+.processor-role-description {
+  padding: 10px 16px 0;
+  font-size: 12px;
+  color: #636e72;
+  line-height: 1.5;
+}
+
+.processor-role-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px 0;
+  min-height: 38px;
+}
+
+.processor-role-empty-hint {
+  font-size: 12px;
+  color: #95a5a6;
+  font-style: italic;
+}
+
+.processor-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.processor-role-chip.chip-xlc {
+  background: #eef0ff;
+  color: #4c51bf;
+  border-color: #c9d0fb;
+}
+.processor-role-chip.chip-phxl {
+  background: #e8f4fb;
+  color: #2471a3;
+  border-color: #bbdefb;
+}
+.processor-role-chip.chip-xdb {
+  background: #ecf0f1;
+  color: #5d6d7e;
+  border-color: #cfd8dc;
+}
+
+.processor-role-chip button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  color: inherit;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+
+.processor-role-chip button:hover {
+  opacity: 1;
+}
+
+.processor-role-tree {
+  margin-top: 12px;
+  border: 1px solid #e9ecef;
+}
+
+/* Selected highlight per variant (uses the existing inset accent bar pattern). */
+.organization-user-row.variant-xlc.selected {
+  border-color: #c9d0fb;
+  background: #f8f9ff;
+  box-shadow: inset 3px 0 0 #667eea;
+}
+.organization-user-row.variant-phxl.selected {
+  border-color: #bbdefb;
+  background: #f4f9fd;
+  box-shadow: inset 3px 0 0 #3498db;
+}
+.organization-user-row.variant-xdb.selected {
+  border-color: #cfd8dc;
+  background: #f4f6f7;
+  box-shadow: inset 3px 0 0 #95a5a6;
+}
+
+.organization-user-row.blocked {
+  opacity: 0.55;
+}
+
+.organization-user-row.blocked .organization-user-checkbox {
+  cursor: not-allowed;
+}
+
 /* Organization assignment tree */
 .organization-assignment-tree {
   overflow: hidden;
@@ -1378,6 +1607,20 @@ textarea:focus {
 
 .organization-department-row.unassigned {
   color: #636e72;
+}
+
+.organization-department-checkbox {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0 6px 0 2px;
+  accent-color: #667eea;
+  cursor: pointer;
+}
+
+.organization-department-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .organization-tree-toggle {
@@ -1940,6 +2183,82 @@ textarea:focus {
   flex-shrink: 0;
 }
 
+/* File selector strip — sits between the toolbar and the viewer so users
+   can switch between the main document and any "Tệp đính kèm" without
+   leaving the preview section. */
+.pdf-preview-files {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e8ecf0;
+  overflow-x: auto;
+}
+
+.pdf-preview-files-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #636e72;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.pdf-preview-files-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.pdf-preview-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 6px 12px;
+  border: 1px solid #dfe6e9;
+  border-radius: 999px;
+  background: #f8f9fa;
+  color: #2d3436;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+
+.pdf-preview-file-chip:hover {
+  background: #eef1f5;
+  border-color: #c8d0d6;
+}
+
+.pdf-preview-file-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.35);
+}
+
+.pdf-preview-file-chip.active {
+  background: #667eea;
+  border-color: #5568d3;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+.pdf-preview-file-chip-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pdf-preview-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .pdf-preview-viewer {
   position: relative;
   min-height: 400px;
@@ -2172,6 +2491,18 @@ textarea:focus {
   color: #ffffff;
 }
 
+/* ─── Action buttons: default (top-bar action) ────────────────────────────── */
+
+.action-btn:not(.edit):not(.delete):not(.lock):not(.unlock):not(.view) {
+  background: #eef0ff;
+  color: #667eea;
+}
+
+.action-btn:not(.edit):not(.delete):not(.lock):not(.unlock):not(.view):hover {
+  background: #667eea;
+  color: #ffffff;
+}
+
 .workflow-step-assignee {
   font-size: 12px;
   color: #667eea;
@@ -2199,35 +2530,6 @@ textarea:focus {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-}
-
-/* Small buttons */
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 12px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.btn-sm.btn-success {
-  background: #27ae60;
-  color: #fff;
-}
-
-.btn-sm.btn-success:hover {
-  background: #1e8449;
-}
-
-.btn-sm.btn-danger {
-  background: #e74c3c;
-  color: #fff;
-}
-
-.btn-sm.btn-danger:hover {
-  background: #c0392b;
 }
 
 /* Attachments Grid */

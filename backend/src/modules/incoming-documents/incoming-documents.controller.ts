@@ -109,17 +109,26 @@ export class IncomingDocumentsController {
    * Save an incoming document as a draft with a file attached.
    * The file is persisted to disk; if the database transaction fails, the
    * uploaded file is cleaned up to avoid orphaned files on disk.
+   *
+   * The multer route handler uploads both `file` (the main PDF, used for OCR)
+   * and `attachments` (additional "Tệp đính kèm" files).
    */
   async saveDraftWithFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const file = req.file;
+      const files = req.files as
+        | { [fieldname: string]: Express.Multer.File[] }
+        | undefined;
+      const file = files?.file?.[0];
       if (!file) {
         res.status(400).json({ success: false, message: 'No file uploaded' });
         return;
       }
 
+      const attachmentFiles = files?.attachments ?? [];
+
       const result = await incomingDocumentsService.saveDraftWithFile(
         file,
+        attachmentFiles,
         { ...req.body },
         req.user!.userId,
       );
@@ -149,19 +158,28 @@ export class IncomingDocumentsController {
   /**
    * PUT /incoming-documents/:id/draft/with-file
    * Update an existing draft document with a new file.
+   *
+   * The multer route handler uploads both `file` (the main PDF, used for OCR)
+   * and `attachments` (additional "Tệp đính kèm" files).
    */
   async updateDraftWithFile(req: Request, res: Response, next: NextFunction) {
     try {
       const idParam = parseInt(req.params.id as string, 10);
-      const file = req.file;
+      const files = req.files as
+        | { [fieldname: string]: Express.Multer.File[] }
+        | undefined;
+      const file = files?.file?.[0];
       if (!file) {
         res.status(400).json({ success: false, message: 'No file uploaded' });
         return;
       }
 
+      const attachmentFiles = files?.attachments ?? [];
+
       const result = await incomingDocumentsService.updateDraftWithFile(
         idParam,
         file,
+        attachmentFiles,
         { ...req.body },
         req.user!.userId,
       );
@@ -179,17 +197,27 @@ export class IncomingDocumentsController {
    *
    * JSON-stringified fields (processorIds, attachments) are parsed by the
    * parseJsonFields middleware before this method is called.
+   *
+   * The multer route handler uploads both `file` (the main PDF, used for OCR)
+   * and `attachments` (additional "Tệp đính kèm" files) — both end up on
+   * disk before this handler runs.
    */
   async createWithFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const file = req.file;
+      const files = req.files as
+        | { [fieldname: string]: Express.Multer.File[] }
+        | undefined;
+      const file = files?.file?.[0];
       if (!file) {
         res.status(400).json({ success: false, message: 'No file uploaded' });
         return;
       }
 
+      const attachmentFiles = files?.attachments ?? [];
+
       const result = await incomingDocumentsService.createWithFile(
         file,
+        attachmentFiles,
         { ...req.body },
         req.user!.userId,
       );
@@ -212,6 +240,71 @@ export class IncomingDocumentsController {
         notes
       );
       res.status(200).json(successResponse(incoming, 'Cập nhật trạng thái thành công'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /incoming-documents/:id/view
+   * Mark the calling user as having opened this document for the first
+   * time. Idempotent.
+   */
+  async markViewed(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      await incomingDocumentsService.markViewed(
+        idParam,
+        req.user!.userId,
+        req.user!.roles ?? []
+      );
+      res
+        .status(200)
+        .json(successResponse({ id: idParam }, 'Đã ghi nhận lượt xem'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /incoming-documents/:id/resubmit
+   * Used by the original clerk to re-open a returned document. The clerk
+   * picks a new primary handler (XLC) and submits again.
+   */
+  async resubmit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const incoming = await incomingDocumentsService.resubmitReturned(
+        idParam,
+        {
+          processorIds: req.body.processorIds ?? [],
+          processingInstructions: req.body.processingInstructions,
+        },
+        req.user!.userId
+      );
+      res
+        .status(200)
+        .json(successResponse(incoming, 'Đã gửi lại văn bản sau khi trả lại'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /incoming-documents/:id/submit-draft
+   * Used by the original clerk to submit a DRAFT for processing. Replaces
+   * the older "PATCH /:id/status { PENDING }" flow.
+   */
+  async submitDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const idParam = parseInt(req.params.id as string, 10);
+      const incoming = await incomingDocumentsService.submitDraft(
+        idParam,
+        req.user!.userId
+      );
+      res
+        .status(200)
+        .json(successResponse(incoming, 'Đã gửi văn bản đến'));
     } catch (error) {
       next(error);
     }
@@ -260,7 +353,15 @@ export class IncomingDocumentsController {
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string | undefined;
 
-      const result = await incomingDocumentsService.listPendingForHead({ page, limit, search });
+      const result = await incomingDocumentsService.listPendingForHead({
+        page,
+        limit,
+        search,
+        viewerFor: {
+          userId: req.user!.userId,
+          userRoles: req.user!.roles ?? [],
+        },
+      });
       res.status(200).json(
         successResponse(
           {
@@ -289,6 +390,10 @@ export class IncomingDocumentsController {
         limit,
         search,
         userId: req.user!.userId,
+        viewerFor: {
+          userId: req.user!.userId,
+          userRoles: req.user!.roles ?? [],
+        },
       });
       res.status(200).json(
         successResponse(

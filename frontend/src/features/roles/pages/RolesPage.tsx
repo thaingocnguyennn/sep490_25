@@ -25,10 +25,8 @@ export default function RolesPage() {
   return (
     <>
       <div className="top-bar">
-        <h1>Quản lý vai trò</h1>
-        <button className="btn btn-primary" onClick={() => navigate('/admin/roles/new')}>
-          + Tạo vai trò
-        </button>
+        <h1>Xem danh sách vai trò</h1>
+        
       </div>
 
       <div className="page-content">
@@ -49,8 +47,7 @@ export default function RolesPage() {
                     <th>Tên vai trò</th>
                     <th>Mô tả</th>
                     <th>Người dùng</th>
-                    <th>Ngày tạo</th>
-                    <th>Thao tác</th>
+                    <th>Ngày tạo</th>                    
                   </tr>
                 </thead>
                 <tbody>
@@ -77,24 +74,7 @@ export default function RolesPage() {
                       </td>
                       <td style={{ color: '#636e72', fontSize: 13 }}>
                         {role.createdAt ? new Date(role.createdAt).toLocaleDateString() : '—'}
-                      </td>
-                      <td>
-                        <button
-                          className="action-btn edit"
-                          title="Chỉnh sửa"
-                          onClick={() => navigate(`/admin/roles/${role.id}/edit`)}
-                        >
-                          &#9998;
-                        </button>
-                        <button
-                          className="action-btn delete"
-                          title="Xóa"
-                          disabled={actionLoading}
-                          onClick={() => setDeleteTarget({ id: role.id, name: role.name })}
-                        >
-                          &#128465;
-                        </button>
-                      </td>
+                      </td>                      
                     </tr>
                   ))}
                 </tbody>
