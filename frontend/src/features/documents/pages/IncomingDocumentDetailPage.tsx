@@ -3,8 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   incomingDocumentsApi,
   type IncomingDocumentDetail,
-  type WorkflowStatus,
 } from '../../../api';
+import { incomingUnreadSignal } from '../state/incomingUnreadSignal';
 import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -16,12 +16,6 @@ import QuickFinishModal from '../components/QuickFinishModal';
 import PdfPreview from '../components/PdfPreview';
 
 import RegisterDocumentModal from '../components/RegisterDocumentModal';
-
-const WORKFLOW_ACTION_LABELS: Record<string, string> = {
-  PENDING: 'Chưa xử lý',
-  APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
-};
 
 const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   PENDING: 'Chờ xử lý',
@@ -39,7 +33,6 @@ export default function IncomingDocumentDetailPage() {
   const [doc, setDoc] = useState<IncomingDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [updatingStep, setUpdatingStep] = useState<number | null>(null);
   const [processOpen, setProcessOpen] = useState(false);
   const [processMode, setProcessMode] = useState<'head' | 'specialist'>('head');
 
@@ -85,20 +78,52 @@ export default function IncomingDocumentDetailPage() {
   // when the user has not opened the document yet, so re-mounting and
   // reloads are safe.
   //
-  // We deliberately fire-and-forget; a failure here should not block
-  // showing the document. The list will eventually refresh with the new
-  // per-viewer status.
+  // On success we optimistically drop the sidebar unread badge via the
+  // `incomingUnreadSignal` pub/sub. This is the single, simple place
+  // where the badge is decremented — no prior-status check, no
+  // doc-arrives effect. Why no guard:
+  //
+  //  - A previous implementation read `doc.document.viewerStatus` to
+  //    decide whether to decrement. But `doc` is fetched AFTER
+  //    `markViewed()` has already updated `viewedAt` server-side, so
+  //    the resolver now returns `IN_PROGRESS` instead of `PENDING`,
+  //    and the guard bypassed itself exactly when it should have
+  //    fired — causing the badge to stay stale for up to 15s.
+  //
+  //  - `markViewed` is server-side idempotent (re-marking an
+  //    already-viewed doc is a no-op). If the user re-opens an
+  //    already-read doc the optimistic decrement is over by 1 — the
+  //    15s polling tick reconciles it back to truth via
+  //    `syncFromBackend`.
+  //
+  //  - For DRAFT documents we skip the call entirely (no "unread"
+  //    semantics for the editing clerk) AND skip the decrement, so
+  //    the badge is unaffected.
   useEffect(() => {
     if (!id || !user) return;
     // Don't bother calling /view for DRAFT documents — the clerk is the
     // editor and there's no "unread" semantics for them.
     if (doc?.document.status === 'DRAFT') return;
-    incomingDocumentsApi.markViewed(Number(id)).catch(() => {
-      // Silently ignore — the resolver will still work without viewedAt
-      // (it just won't switch PENDING → IN_PROGRESS on this load).
-    });
-    // We intentionally only depend on `id` and `user?.id`; we don't want
-    // to re-fire when `doc` updates after the view call.
+    let cancelled = false;
+    incomingDocumentsApi
+      .markViewed(Number(id))
+      .then(() => {
+        if (cancelled) return;
+        // Drop the badge by 1 immediately. The polling hook
+        // (running every 15s) will reconcile with the backend truth
+        // — any small drift is corrected within `intervalMs`.
+        incomingUnreadSignal.decrement(1);
+      })
+      .catch(() => {
+        // Silently ignore — the resolver will still work without
+        // viewedAt (it just won't switch PENDING → IN_PROGRESS on this
+        // load). A failed POST should NEVER block showing the doc.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally only depend on `id` and `user?.id`; we don't
+    // want to re-fire when `doc` updates after the view call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user?.id]);
 
@@ -182,64 +207,11 @@ export default function IncomingDocumentDetailPage() {
     }
   };
 
-  const handleWorkflowStepAction = async (workflowId: number, action: string) => {
-    if (!doc || !user) return;
-    setUpdatingStep(workflowId);
-    try {
-      const currentStep = doc.document.workflows?.find((w) => w.id === workflowId);
-      if (!currentStep) return;
-
-      let newStatus: WorkflowStatus;
-      let stepStatus: string;
-
-      if (action === 'approve') {
-        stepStatus = 'APPROVED';
-        const allSteps = doc.document.workflows!;
-        const currentIdx = allSteps.findIndex((w) => w.id === workflowId);
-        const isLast = currentIdx === allSteps.length - 1;
-        newStatus = isLast ? 'COMPLETED' : 'IN_PROGRESS';
-      } else if (action === 'reject') {
-        stepStatus = 'REJECTED';
-        newStatus = 'REJECTED';
-      } else {
-        return;
-      }
-
-      await incomingDocumentsApi.updateWorkflowStep(doc.id, workflowId, {
-        stepStatus,
-        notes: `Bước "${currentStep.workflowStep.name}": ${WORKFLOW_ACTION_LABELS[stepStatus]}`,
-      });
-      fetchDoc();
-    } catch {
-      setError('Cập nhật thất bại');
-    } finally {
-      setUpdatingStep(null);
-    }
-  };
-
   const isCurrentUserXlc = (doc: IncomingDocumentDetail): boolean => {
     if (!user) return false;
     return (doc.document.processors ?? []).some(
       (p) => p.user.id === user.id && p.processorType === 'XLC'
     );
-  };
-
-  const canUserActOnStep = (
-    wf: NonNullable<IncomingDocumentDetail['document']['workflows']>[number]
-  ): boolean => {
-    if (!user) return false;
-    const stepOrder = wf.workflowStep.stepOrder;
-
-    if (stepOrder === 1) {
-      return isAdmin || !!user.roles?.includes('DOCUMENT_CLERK');
-    }
-    if (stepOrder === 2) {
-      return isDepartmentHead || isAdmin;
-    }
-    if (stepOrder === 3) {
-      return (isSpecialist || isAdmin) && isCurrentUserXlc(doc!);
-    }
-    return false;
   };
 
   if (loading) {
@@ -582,70 +554,6 @@ export default function IncomingDocumentDetailPage() {
             </div>
           )}
 
-          {d.workflows && d.workflows.length > 0 && (
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div className="card-header">
-                <h2>Quy trình xử lý</h2>
-                <div style={{ fontSize: 13, color: '#636e72' }}>
-                  Trạng thái: <strong>{(WORKFLOW_STATUS_LABELS[d.viewerStatus ?? d.status] || (d.viewerStatus ?? d.status))}</strong>
-                </div>
-              </div>
-              <div className="card-body">
-                <div className="workflow-steps-list">
-                  {d.workflows.map((wf, idx) => {
-                    return (
-                      <div key={wf.id} className="workflow-step-row">
-                        <div className="workflow-step-number">{idx + 1}</div>
-                        <div className="workflow-step-info">
-                          <div className="workflow-step-name">{wf.workflowStep.name}</div>
-                          {wf.workflowStep.roleName && (
-                            <div className="workflow-step-role">{wf.workflowStep.roleName}</div>
-                          )}
-                          {wf.user && (
-                            <div className="workflow-step-assignee">Người thực hiện: {wf.user.fullName}</div>
-                          )}
-                          {wf.notes && (
-                            <div className="workflow-step-notes">{wf.notes}</div>
-                          )}
-                          {wf.completedAt && (
-                            <div className="workflow-step-completed">
-                              Hoàn thành: {new Date(wf.completedAt).toLocaleString('vi-VN')}
-                            </div>
-                          )}
-                        </div>
-                        <div className="workflow-step-status">
-                          <span className={`workflow-status-tag ${wf.status.toLowerCase().replace('_', '-')}`}>
-                            {WORKFLOW_STATUS_LABELS[wf.status] || wf.status}
-                          </span>
-                        </div>
-                        {canUserActOnStep(wf) && (
-                          <div className="workflow-step-actions">
-                            <button
-                              className="btn btn-sm btn-success"
-                              onClick={() => handleWorkflowStepAction(wf.id, 'approve')}
-                              disabled={updatingStep === wf.id}
-                              title="Duyệt bước này"
-                            >
-                              {updatingStep === wf.id ? '...' : 'Duyệt'}
-                            </button>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleWorkflowStepAction(wf.id, 'reject')}
-                              disabled={updatingStep === wf.id}
-                              title="Từ chối bước này"
-                            >
-                              Từ chối
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Audit trail for the current viewer. Shows every participation
               row the caller owns on this document so they can see what
               happened on their branch of the workflow — e.g. "I acted as
@@ -671,7 +579,7 @@ export default function IncomingDocumentDetailPage() {
                       SPECIALIST: 'Chuyên viên',
                       XLC: 'Người xử lý chính',
                       PHXL: 'Người phối hợp',
-                      XDB: 'Để biết',
+                      XDB: 'Xem Để biết',
                     };
                     const pStatus = String(p.status).toUpperCase();
                     const statusLabel = WORKFLOW_STATUS_LABELS[pStatus] ?? pStatus;

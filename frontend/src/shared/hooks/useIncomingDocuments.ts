@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { incomingDocumentsApi, type IncomingDocumentListItem } from '../../api';
+import { annotateIncomingUnread } from '../utils/incomingUnread';
 
 interface UseIncomingDocumentsOptions {
   pageSize?: number;
@@ -42,7 +43,7 @@ export function useIncomingDocuments(options: UseIncomingDocumentsOptions = {}):
       incomingDocumentsApi
         .getAll({ page: 1, limit: pageSize, search: s, status: st || undefined, documentTypeId: dt })
         .then(({ data }) => {
-          setDocuments(data.data!.items);
+          setDocuments(annotateIncomingUnread(data.data!.items));
           setTotal(data.data!.total);
         })
         .catch(() => setError('Failed to load incoming documents'))
@@ -61,7 +62,7 @@ export function useIncomingDocuments(options: UseIncomingDocumentsOptions = {}):
       incomingDocumentsApi
         .getAll({ page: newPage, limit: pageSize, search, status: statusFilter || undefined, documentTypeId })
         .then(({ data }) => {
-          setDocuments(data.data!.items);
+          setDocuments(annotateIncomingUnread(data.data!.items));
           setTotal(data.data!.total);
         })
         .catch(() => setError('Failed to load incoming documents'))

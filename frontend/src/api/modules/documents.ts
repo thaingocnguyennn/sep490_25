@@ -72,6 +72,16 @@ export interface IncomingDocumentListItem {
   documentBookId: number | null;
   documentBook: { id: number; name: string; code: string | null } | null;
   document: Document;
+  /**
+   * Client-computed flag indicating this row has not been opened by the
+   * current viewer yet. Derived from `viewerStatus === 'PENDING'`. The
+   * list page uses it to render the unread (bold) style; the sidebar
+   * unread counter uses the same predicate to count rows.
+   *
+   * Optional because the backend does not return this field — only the
+   * frontend annotate-list helpers populate it after the API response.
+   */
+  viewerUnread?: boolean;
 }
 
 

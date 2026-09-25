@@ -92,7 +92,7 @@ export default function ProcessorPicker({
                           ? 'Người xử lý chính'
                           : type === 'PHXL'
                             ? 'Người phối hợp'
-                            : 'Để biết'
+                            : 'Xem Để biết'
                       }
                     >
                       {type}

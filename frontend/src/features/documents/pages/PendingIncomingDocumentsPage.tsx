@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   incomingDocumentsApi,
@@ -8,6 +8,7 @@ import { DocumentStatusBadge } from '../../../shared/components/DocumentBadges';
 import { LoadingSpinner } from '../../../shared/components';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatUrgency } from '../../../shared/constants/urgency';
+import { annotateIncomingUnread } from '../../../shared/utils/incomingUnread';
 
 export default function PendingIncomingDocumentsPage() {
   const navigate = useNavigate();
@@ -34,7 +35,10 @@ export default function PendingIncomingDocumentsPage() {
         : incomingDocumentsApi.getPendingForSpecialist({ page: p, limit, search: s || undefined });
     apiCall
       .then(({ data }) => {
-        setDocuments(data.data!.items);
+        // Precompute the unread flag for each row so the JSX template can
+        // decide whether to render the bold styling. Same logic as the
+        // main `IncomingDocumentsPage` (`backend/src/shared/access/viewer-status.ts`).
+        setDocuments(annotateIncomingUnread(data.data!.items));
         setTotal(data.data!.total);
       })
       .catch(() => setError('Không thể tải danh sách văn bản chờ xử lý'))
@@ -43,6 +47,35 @@ export default function PendingIncomingDocumentsPage() {
 
   useEffect(() => {
     if (isHead || isSpec) load(1, search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
+
+  // Mirror filter/page state into refs so the focus/visibility listener
+  // (bound once on mount) reads the latest values when the user
+  // navigates back from the detail page.
+  const pageRef = useRef(page);
+  const searchRef = useRef(search);
+  useEffect(() => {
+    pageRef.current = page;
+    searchRef.current = search;
+  }, [page, search]);
+
+  // Re-fetch on tab focus so unread bold styling refreshes immediately
+  // when the user navigates back from the detail page (the sidebar
+  // counter is refreshed on its own 15s cadence by `MainLayout`).
+  useEffect(() => {
+    const handleRefocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (isHead || isSpec) load(pageRef.current, searchRef.current);
+    };
+    document.addEventListener('visibilitychange', handleRefocus);
+    window.addEventListener('focus', handleRefocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleRefocus);
+      window.removeEventListener('focus', handleRefocus);
+    };
+    // Re-bind only when `viewMode` (HEAD ↔ SPECIALIST) flips, which is
+    // the only case where `load` itself changes identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
 
@@ -136,7 +169,7 @@ export default function PendingIncomingDocumentsPage() {
                 </thead>
                 <tbody>
                   {documents.map((item) => (
-                    <tr key={item.id}>
+                    <tr key={item.id} className={item.viewerUnread ? 'row-unread' : ''}>
                       <td style={{ fontFamily: 'monospace', fontWeight: 600, color: '#667eea' }}>
                         {item.arrivalNumber ?? '—'}
                       </td>
