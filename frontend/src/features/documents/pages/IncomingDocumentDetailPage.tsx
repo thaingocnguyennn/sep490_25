@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   incomingDocumentsApi,
+  type HeadAction,
   type IncomingDocumentDetail,
 } from '../../../api';
 import { incomingUnreadSignal } from '../state/incomingUnreadSignal';
@@ -35,9 +36,19 @@ export default function IncomingDocumentDetailPage() {
   const [error, setError] = useState('');
   const [processOpen, setProcessOpen] = useState(false);
   const [processMode, setProcessMode] = useState<'head' | 'specialist'>('head');
+  // Optional pre-selected action for `ProcessIncomingDocumentModal`.
+  // When set, the modal opens directly on the matching form (skipping
+  // the 3-action picker grid). Today this is wired from the "Chuyển xử
+  // lý" button — the button label *is* the action, so showing the picker
+  // again is redundant. The legacy deep-link (`?process=1`) leaves this
+  // `null` and continues to show the picker for backward compatibility.
+  const [processDefaultAction, setProcessDefaultAction] = useState<HeadAction | null>(null);
 
   // Quick head-action modal (FINISH / RETURN). FORWARD still reuses
-  // `ProcessIncomingDocumentModal` because it needs the processor picker.
+  // `ProcessIncomingDocumentModal` because it needs the processor picker
+  // — the "Chuyển xử lý" button opens that modal pre-pinned to FORWARD
+  // (see `processDefaultAction`) so the user lands straight on the
+  // picker + instructions form instead of the 3-action grid.
   const [quickAction, setQuickAction] = useState<QuickHeadAction | null>(null);
   const [quickSubmitting, setQuickSubmitting] = useState(false);
   const [quickError, setQuickError] = useState('');
@@ -132,6 +143,11 @@ export default function IncomingDocumentDetailPage() {
       setProcessOpen(true);
       const modeParam = searchParams.get('mode');
       setProcessMode(modeParam === 'specialist' ? 'specialist' : 'head');
+      // Legacy deep-link: no `defaultAction` query param → show the
+      // full 3-action picker for backward compatibility. New callers
+      // (the "Chuyển xử lý" button) use the imperative
+      // `openProcessModal(mode, defaultAction)` instead.
+      setProcessDefaultAction(null);
     }
   }, [searchParams, doc]);
 
@@ -308,8 +324,12 @@ export default function IncomingDocumentDetailPage() {
     }
   };
 
-  const openProcessModal = (mode: 'head' | 'specialist') => {
+  const openProcessModal = (
+    mode: 'head' | 'specialist',
+    defaultAction: HeadAction | null = null
+  ) => {
     setProcessMode(mode);
+    setProcessDefaultAction(defaultAction);
     setProcessOpen(true);
   };
 
@@ -348,7 +368,7 @@ export default function IncomingDocumentDetailPage() {
               Vào sổ văn bản
             </button>
           )}
-          {canReply && (
+          {/* {canReply && (
             <button
               className="btn btn-outline"
               onClick={() => navigate(`/outgoing-documents/create?fromIncomingId=${doc.id}`)}
@@ -356,7 +376,7 @@ export default function IncomingDocumentDetailPage() {
             >
               Phúc đáp văn bản
             </button>
-          )}
+          )} */}
           {canProcess && (
             <>
               {canProcessAsHead ? (
@@ -377,7 +397,7 @@ export default function IncomingDocumentDetailPage() {
                   </button>
                   <button
                     className="btn btn-primary"
-                    onClick={() => openProcessModal('head')}
+                    onClick={() => openProcessModal('head', 'FORWARD')}
                     title="Chuyển xử lý cho chuyên viên / phối hợp / để biết"
                   >
                     Chuyển xử lý
@@ -738,6 +758,10 @@ export default function IncomingDocumentDetailPage() {
           open={processOpen}
           doc={doc}
           mode={processMode}
+          // When set by `openProcessModal('head', 'FORWARD')`, this opens
+          // the modal pre-pinned to FORWARD and hides the 3-action picker.
+          // `null` (legacy `?process=1` deep-link) keeps the picker grid.
+          defaultAction={processDefaultAction ?? undefined}
           // For the Department Head "Chuyển xử lý" flow, scope the
           // org-tree picker to the head's home department (and its
           // descendants). We prefer `departmentMemberships[0]` so users

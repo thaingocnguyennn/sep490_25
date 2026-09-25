@@ -27,6 +27,23 @@ interface ProcessIncomingDocumentModalProps {
   onClose: () => void;
   onSuccess: () => void;
   /**
+   * Optional pre-selected action. When provided (head mode only), the
+   * modal skips the 3-action picker grid and opens directly on the
+   * matching form section. Used by the detail-page "Chuyển xử lý"
+   * button so the user lands straight on the FORWARD form rather than
+   * having to pick the same action again from the picker.
+   *
+   * - Undefined → render the full FORWARD/FINISH/RETURN picker (legacy
+   *   behaviour, used by the `?process=1` URL deep-link).
+   * - 'FORWARD' → render the org-tree picker + instructions + attachments
+   *   directly. The picker grid is hidden but the rest of the modal is
+   *   identical.
+   * - Other values are accepted but treated the same as undefined for
+   *   now (FINISH/RETURN are routed through `QuickProcessHeadModal` on
+   *   the detail page and should not open this modal pre-pinned).
+   */
+  defaultAction?: HeadAction;
+  /**
    * When set, the FORWARD step in head mode scopes the org tree to this
    * department (the acting user's home department and all of its
    * descendants). The Department Head forwarding flow uses this so they
@@ -105,12 +122,24 @@ export default function ProcessIncomingDocumentModal({
   mode = 'head',
   onClose,
   onSuccess,
+  defaultAction,
   headUserDepartmentId = null,
   headUserDepartmentName = null,
 }: ProcessIncomingDocumentModalProps) {
   const isSpecialist = mode === 'specialist';
   const actionOptions = isSpecialist ? SPECIALIST_ACTION_OPTIONS : HEAD_ACTION_OPTIONS;
-  const modalTitle = isSpecialist ? 'Xử lý văn bản đến (Chuyên viên)' : 'Xử lý văn bản đến';
+  // Only FORWARD is honoured as a pre-selected action in head mode.
+  // Specialist mode only ever uses FINISH (already hard-wired below).
+  // When `defaultAction` is set we skip the action-picker grid entirely.
+  const skipActionPicker = !isSpecialist && defaultAction === 'FORWARD';
+  // When the caller pre-pinned the action, surface it in the modal
+  // header so the user can confirm what's happening. The generic title
+  // is preserved for the deep-link / picker entry point.
+  const modalTitle = isSpecialist
+    ? 'Xử lý văn bản đến (Chuyên viên)'
+    : skipActionPicker
+      ? 'Chuyển xử lý văn bản'
+      : 'Xử lý văn bản đến';
   const returnReasonLabel = isSpecialist ? 'Lý do chuyển trả' : 'Lý do trả lại';
   const returnReasonPlaceholder = isSpecialist
     ? 'Nhập lý do cần chuyển trả cho Trưởng phòng...'
@@ -134,13 +163,20 @@ export default function ProcessIncomingDocumentModal({
   useEffect(() => {
     if (open) {
       fetchProcessors();
-      setAction(null);
+      // Pre-select the action when the caller asked for it (e.g. the
+      // detail-page "Chuyển xử lý" button). Otherwise start blank and
+      // wait for the user to pick from the picker grid.
+      setAction(skipActionPicker ? 'FORWARD' : null);
       setProcessorIds([]);
       setProcessingInstructions('');
       setReason('');
       setAttachments([]);
       setError('');
     }
+    // `skipActionPicker` is derived from props (`defaultAction` + `mode`)
+    // so it doesn't need to be in the deps — including `open` covers
+    // the common case and we intentionally re-read it on every open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, fetchProcessors]);
 
   if (!open) return null;
@@ -271,34 +307,66 @@ export default function ProcessIncomingDocumentModal({
 
           {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
 
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>Chọn hành động xử lý</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-            {actionOptions.map((opt) => (
-              <button
-                type="button"
-                key={opt.value}
-                onClick={() => setAction(opt.value)}
-                disabled={submitting}
-                style={{
-                  textAlign: 'left',
-                  padding: 14,
-                  border: action === opt.value ? '2px solid #667eea' : '1px solid #dfe6e9',
-                  borderRadius: 8,
-                  background: action === opt.value ? '#f0f3ff' : '#fff',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 4, color: action === opt.value ? '#667eea' : '#2d3436' }}>
-                  {opt.title}
-                </div>
-                <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>{opt.description}</div>
-              </button>
-            ))}
-          </div>
+          {/* When the caller pre-selects an action (e.g. the detail-page
+              "Chuyển xử lý" button), hide the picker grid entirely and
+              surface the chosen action as a small header chip above the
+              form. The form sections below are gated on `action`
+              anyway, so this is purely a UX shortcut — no API or
+              payload logic changes. */}
+          {!skipActionPicker && (
+            <>
+              <div style={{ marginBottom: 8, fontWeight: 600 }}>Chọn hành động xử lý</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                {actionOptions.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    onClick={() => setAction(opt.value)}
+                    disabled={submitting}
+                    style={{
+                      textAlign: 'left',
+                      padding: 14,
+                      border: action === opt.value ? '2px solid #667eea' : '1px solid #dfe6e9',
+                      borderRadius: 8,
+                      background: action === opt.value ? '#f0f3ff' : '#fff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: action === opt.value ? '#667eea' : '#2d3436' }}>
+                      {opt.title}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#636e72', lineHeight: 1.4 }}>{opt.description}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           {action === 'FORWARD' && (
             <div>
+              {skipActionPicker && (
+                // Compact action indicator replacing the picker grid so
+                // the user can confirm what's selected and cancel out
+                // without scrolling to the footer.
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 16,
+                    padding: '8px 12px',
+                    background: '#f0f3ff',
+                    border: '1px solid #667eea',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    color: '#2d3436',
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: '#667eea' }}>Hành động:</span>
+                  <span>Chuyển xử lý</span>
+                </div>
+              )}
               {isSpecialist ? (
                 // Specialist path: keep the legacy flat picker (rarely used
                 // because specialists effectively only FINISH, but kept for
