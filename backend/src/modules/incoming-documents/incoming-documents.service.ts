@@ -21,11 +21,6 @@ import {
   resolveStageFromRoleName,
   resolveDocumentId,
 } from "../../shared/access/document-access";
-import {
-  emitNotificationToUser,
-  emitNotificationToUsers,
-} from "../../shared/services/notification.service";
-import { logSystemAction } from "../../shared/services/system-log.service";
 import fs from "fs";
 import path from "path";
 import { config } from "../../config";
@@ -278,7 +273,6 @@ export class IncomingDocumentsService {
         );
       }
 
-      const forwardedUserIds: number[] = [];
       await prisma.$transaction(async (tx) => {
         await tx.documentProcessor.deleteMany({ where: { documentId } });
         await tx.documentProcessor.createMany({
@@ -288,8 +282,6 @@ export class IncomingDocumentsService {
             processorType: p.processorType,
           })),
         });
-        forwardedUserIds.push(...processorIds.map((p) => p.userId));
-
         await tx.documentWorkflow.update({
           where: { id: headStep.id },
           data: {
@@ -330,11 +322,16 @@ export class IncomingDocumentsService {
 
         // Per-user participation rows for FORWARD.
         // The actor's HEAD and XLC participations are marked COMPLETED.
+        // Pass `headStep.workflowStepId` (FK to the static `WorkflowStep`
+        // table), NOT `headStep.id` (which is the `DocumentWorkflow` PK —
+        // those id-spaces don't overlap and passing `id` here used to
+        // trigger Prisma `P2003` on the FK when the participation row
+        // already existed with a valid step id).
         await upsertParticipation(tx, {
           documentId,
           userId,
           participationRole: "DEPARTMENT_HEAD",
-          workflowStepId: headStep.id,
+          workflowStepId: headStep.workflowStepId,
           status: "COMPLETED",
           completedAt: new Date(),
           forceUpdate: true,
@@ -367,7 +364,7 @@ export class IncomingDocumentsService {
             documentId,
             userId: xlc.userId,
             participationRole: "DEPARTMENT_HEAD",
-            workflowStepId: headStep.id,
+            workflowStepId: headStep.workflowStepId,
             status: "PENDING",
           });
         }
@@ -379,19 +376,6 @@ export class IncomingDocumentsService {
             status: "PENDING",
           });
         }
-      });
-
-      await emitNotificationToUsers(
-        forwardedUserIds,
-        "Văn bản đến được chuyển xử lý",
-        `Trưởng phòng đã chuyển văn bản ${incoming.document.documentNumber} cho bạn`,
-      );
-      await logSystemAction({
-        userId,
-        action: "INCOMING_FORWARDED",
-        entityType: "IncomingDocument",
-        entityId: id,
-        details: `Forwarded to ${processorIds.length} processor(s)`,
       });
     } else if (action === "FINISH") {
       await prisma.$transaction(async (tx) => {
@@ -430,11 +414,14 @@ export class IncomingDocumentsService {
         // Per-user participations: mark the actor's HEAD/XLC participation
         // COMPLETED. Other actors are left in PENDING so they don't see a
         // false "Hoàn thành"; admins still see the global truth.
+        // Pass `headStep.workflowStepId` (FK to `WorkflowStep`), not
+        // `headStep.id` (DocumentWorkflow PK) — see FORWARD branch above
+        // for the same fix and its Prisma P2003 rationale.
         await upsertParticipation(tx, {
           documentId,
           userId,
           participationRole: "DEPARTMENT_HEAD",
-          workflowStepId: headStep.id,
+          workflowStepId: headStep.workflowStepId,
           status: "COMPLETED",
           completedAt: new Date(),
           forceUpdate: true,
@@ -447,12 +434,6 @@ export class IncomingDocumentsService {
           completedAt: new Date(),
           forceUpdate: true,
         });
-      });
-      await logSystemAction({
-        userId,
-        action: "INCOMING_FINISHED_BY_HEAD",
-        entityType: "IncomingDocument",
-        entityId: id,
       });
     } else if (action === "RETURN") {
       if (!payload.reason?.trim()) {
@@ -487,7 +468,7 @@ export class IncomingDocumentsService {
           documentId,
           userId,
           participationRole: "DEPARTMENT_HEAD",
-          workflowStepId: headStep.id,
+          workflowStepId: headStep.workflowStepId,
           status: "RETURNED",
           returnedAt: nowReturn,
           returnReason: payload.reason ?? null,
@@ -523,21 +504,6 @@ export class IncomingDocumentsService {
           },
           data: { status: "CANCELLED" },
         });
-      });
-      // Notify the clerk who created the document so they can act.
-      if (incoming.document.createdBy && incoming.document.createdByUser) {
-        await emitNotificationToUser(
-          incoming.document.createdBy,
-          "Văn bản đến bị trả lại",
-          `Trưởng phòng trả lại văn bản ${incoming.document.documentNumber}: ${payload.reason}`,
-        );
-      }
-      await logSystemAction({
-        userId,
-        action: "INCOMING_RETURNED",
-        entityType: "IncomingDocument",
-        entityId: id,
-        details: payload.reason,
       });
     } else {
       throw new BadRequestError("Hành động không hợp lệ");
@@ -798,9 +764,11 @@ export class IncomingDocumentsService {
    *   - Validates that the document is in RETURNED state.
    *   - Validates the new processor set (same rules as create()).
    *   - Re-opens the document: Document.status flips back to PENDING, the
-   *     clerk's CLERK participation row resets to PENDING with cleared
-   *     returnedAt, and the document's workflow rows for steps 1/2/3 are
-   *     refreshed: step 1 (CLERK) → PENDING (re-opened), step 2 (HEAD) →
+   *     clerk's CLERK participation row transitions RETURNED → COMPLETED
+   *     (the clerk has just finished their intake-and-resubmit work and
+   *     should see "Hoàn thành" in their list, mirroring the original
+   *     `create()` flow). The document's workflow rows for steps 1/2/3
+   *     are refreshed: step 1 (CLERK) → COMPLETED, step 2 (HEAD) →
    *     PENDING (re-opened so the new head can act), step 3 (SPECIALIST)
    *     → PENDING (the head will FORWARD to a specialist later).
    *   - Old processor participations are CANCELLED (except the actor's
@@ -841,15 +809,26 @@ export class IncomingDocumentsService {
     await prisma.$transaction(async (tx) => {
       // Re-open workflow steps. We deliberately reuse the existing rows so
       // the audit trail of who acted when stays intact.
+      //
+      // Step 1 (CLERK) is marked COMPLETED with the acting clerk as the
+      // userId: the clerk has just finished their intake-and-resubmit
+      // work, mirroring the original `create()` flow (which also closes
+      // step 1 as soon as the clerk files the document). Steps 2/3 are
+      // reset to PENDING so the new head can act on the re-opened
+      // document. Setting step 1 back to PENDING here used to leave the
+      // clerk's `viewerStatus` stuck on "Đang xử lý" because the
+      // participation row stayed PENDING too — see the participation
+      // upsert below for the matching fix.
       await tx.documentWorkflow.updateMany({
         where: {
           documentId,
           workflowStep: { stepOrder: 1, roleName: "DOCUMENT_CLERK" },
         },
         data: {
-          status: WorkflowStatus.PENDING,
-          completedAt: null,
-          notes: "Văn thư đang gửi lại sau khi bị trả lại",
+          status: WorkflowStatus.COMPLETED,
+          userId,
+          completedAt: new Date(),
+          notes: "Văn thư đã gửi lại văn bản sau khi bị trả lại",
         },
       });
       await tx.documentWorkflow.updateMany({
@@ -878,25 +857,34 @@ export class IncomingDocumentsService {
       });
 
       // Reset global status to PENDING so the resolver + filters work
-      // correctly (the clerk participation row will be PENDING too).
+      // correctly for the downstream head / specialist workflow. The
+      // document is now active again and pending their action.
       await tx.document.update({
         where: { id: documentId },
         data: { status: DocumentStatus.PENDING },
       });
 
-      // Re-open the clerk's CLERK participation row.
+      // Close the clerk's CLERK participation row as COMPLETED. This
+      // matches the original `create()` flow and is what makes the
+      // clerk's `viewerStatus` resolve to "Hoàn thành" via
+      // `mapParticipationStatus` (PENDING + viewedAt != null would
+      // otherwise surface as "Đang xử lý" — see shared/access/viewer-status.ts).
+      // We explicitly null out `returnedAt` / `returnReason` so the
+      // audit trail reflects that the prior RETURN has been resolved.
       await upsertParticipation(tx, {
         documentId,
         userId,
         participationRole: "CLERK",
-        status: "PENDING",
-        completedAt: null,
+        status: "COMPLETED",
+        completedAt: new Date(),
         returnedAt: null,
+        returnReason: null,
         forceUpdate: true,
       });
 
       // Cancel any non-clerk participation rows from the previous round.
-      // The clerk row is already reset to PENDING above.
+      // The clerk's CLERK row is closed as COMPLETED above (mirroring the
+      // original `create()` flow).
       await tx.documentWorkflowParticipation.updateMany({
         where: {
           documentId,
@@ -920,6 +908,17 @@ export class IncomingDocumentsService {
       });
 
       // Create fresh participation rows for the new head + processors.
+      //
+      // IMPORTANT: pass `forceUpdate: true` on every call. Without it,
+      // `upsertParticipation` is a no-op when the row already exists,
+      // and the blanket-cancel step above (`userId: { not: userId }`)
+      // would have left any previously-assigned user with a `CANCELLED`
+      // participation row from the previous round. The resolver maps
+      // `CANCELLED` to `RETURNED` ("Trả lại"), so a user who got
+      // reassigned would otherwise still see "Trả lại" until the next
+      // workflow action overwrites the row. We also explicitly clear
+      // `returnedAt` and `returnReason` so the prior RETURN markers
+      // don't leak into the new audit trail.
       const workflowSteps = await tx.workflowStep.findMany({
         orderBy: { stepOrder: "asc" },
       });
@@ -934,6 +933,9 @@ export class IncomingDocumentsService {
           participationRole: "XLC",
           workflowStepId: headStepRow?.id ?? null,
           status: "PENDING",
+          returnedAt: null,
+          returnReason: null,
+          forceUpdate: true,
         });
         await upsertParticipation(tx, {
           documentId,
@@ -941,6 +943,9 @@ export class IncomingDocumentsService {
           participationRole: "DEPARTMENT_HEAD",
           workflowStepId: headStepRow?.id ?? null,
           status: "PENDING",
+          returnedAt: null,
+          returnReason: null,
+          forceUpdate: true,
         });
       }
       for (const s of data.processorIds.filter(
@@ -951,6 +956,9 @@ export class IncomingDocumentsService {
           userId: s.userId,
           participationRole: s.processorType,
           status: "PENDING",
+          returnedAt: null,
+          returnReason: null,
+          forceUpdate: true,
         });
       }
 
@@ -1837,14 +1845,6 @@ export class IncomingDocumentsService {
       data: { status: status as DocumentStatus },
     });
 
-    await logSystemAction({
-      userId,
-      action: "INCOMING_DOCUMENT_STATUS_OVERRIDE",
-      entityType: "IncomingDocument",
-      entityId: id,
-      details: notes || `Status set to ${status}`,
-    });
-
     return this.getById(id);
   }
 
@@ -2076,22 +2076,6 @@ export class IncomingDocumentsService {
       }
     });
 
-    await logSystemAction({
-      userId,
-      action: `INCOMING_WORKFLOW_STEP_${stepStatusEnum}`,
-      entityType: "DocumentWorkflow",
-      entityId: workflowId,
-      details: `${stage} step updated to ${stepStatusEnum}`,
-    });
-
-    if (stepStatusEnum === "APPROVED" || stepStatusEnum === "REJECTED") {
-      await emitNotificationToUser(
-        incoming.document.createdBy ?? 0,
-        `Bước xử lý ${stepStatusEnum === "APPROVED" ? "đã duyệt" : "bị từ chối"}`,
-        `Văn bản ${incoming.document.documentNumber} — bước đã được cập nhật`,
-      ).catch(() => undefined);
-    }
-
     return this.getById(id);
   }
 
@@ -2162,14 +2146,6 @@ export class IncomingDocumentsService {
         completedAt,
         forceUpdate: true,
       });
-    });
-
-    await logSystemAction({
-      userId: actorId,
-      action: "INCOMING_PROCESSOR_COMPLETED",
-      entityType: "IncomingDocument",
-      entityId: incomingId,
-      details: `PHXL processor ${processorUserId} marked complete`,
     });
 
     return this.getById(incomingId);
@@ -2314,7 +2290,13 @@ export class IncomingDocumentsService {
         documentId,
         userId,
         participationRole: "SPECIALIST",
-        workflowStepId: specialistStep.id,
+        // `specialistStep` is a `DocumentWorkflow` row, so its FK to
+        // the static `WorkflowStep` table lives on
+        // `specialistStep.workflowStepId`. Using `specialistStep.id`
+        // (the `DocumentWorkflow` PK) here violates the
+        // `workflowStepId` FK on `DocumentWorkflowParticipation` —
+        // fixed alongside the matching head-side bug.
+        workflowStepId: specialistStep.workflowStepId,
         status: "COMPLETED",
         completedAt: new Date(),
         forceUpdate: true,
@@ -2342,17 +2324,6 @@ export class IncomingDocumentsService {
         forceUpdate: true,
       });
     });
-    await logSystemAction({
-      userId,
-      action: "INCOMING_FINISHED_BY_SPECIALIST",
-      entityType: "IncomingDocument",
-      entityId: id,
-    });
-    await emitNotificationToUser(
-      incoming.document.createdBy ?? 0,
-      "Văn bản được chuyên viên hoàn thành",
-      `Văn bản ${incoming.document.documentNumber} đã hoàn thành xử lý`,
-    ).catch(() => undefined);
     return this.getById(id);
   }
 
@@ -2627,15 +2598,27 @@ async function upsertParticipation(
   }
 
   if (forceUpdate) {
+    // Only include `workflowStepId` in the SET clause when the caller
+    // explicitly provided one. Falling back to `existing.workflowStepId`
+    // is dangerous because any stale value (e.g. a previously-stored
+    // `DocumentWorkflow.id` written by an older buggy caller) will
+    // override a now-correct `WorkflowStep.id` and trigger a Prisma
+    // P2003 FK violation (`DocumentWorkflowParticipation_workflowStepId_fkey`).
+    // Keeping the update no-op for `workflowStepId` when the caller
+    // omits it is safer — the column is nullable and a missing value
+    // simply means "no step association" in the audit row.
+    const updateData: Record<string, unknown> = {
+      status: data.status ?? existing.status,
+      completedAt: data.completedAt ?? existing.completedAt,
+      returnedAt: data.returnedAt ?? existing.returnedAt,
+      returnReason: data.returnReason ?? existing.returnReason,
+    };
+    if (data.workflowStepId !== undefined) {
+      updateData.workflowStepId = data.workflowStepId ?? existing.workflowStepId;
+    }
     await tx.documentWorkflowParticipation.update({
       where: { id: existing.id },
-      data: {
-        status: data.status ?? existing.status,
-        workflowStepId: data.workflowStepId ?? existing.workflowStepId,
-        completedAt: data.completedAt ?? existing.completedAt,
-        returnedAt: data.returnedAt ?? existing.returnedAt,
-        returnReason: data.returnReason ?? existing.returnReason,
-      },
+      data: updateData,
     });
   }
 }

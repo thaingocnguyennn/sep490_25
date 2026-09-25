@@ -520,6 +520,25 @@ button {
   background: #f8f9fa;
 }
 
+/* Unread row styling — used by IncomingDocumentsPage and
+   PendingIncomingDocumentsPage to draw the user's eye to documents
+   they have not yet opened. The list annotators set a `viewerUnread`
+   flag based on `viewerStatus === 'PENDING'` (i.e. the viewer's
+   participation row has `viewedAt IS NULL`).
+   We bold every cell except those containing an inline badge / status
+   pill, which already carry their own visual weight and look heavy
+   when forced to 700. */
+.data-table tbody tr.row-unread td {
+  font-weight: 700;
+  color: #2d3436;
+}
+.data-table tbody tr.row-unread td .badge,
+.data-table tbody tr.row-unread td .status-badge,
+.data-table tbody tr.row-unread td .sidebar-badge-red,
+.data-table tbody tr.row-unread td .sidebar-icon-badge-red {
+  font-weight: 600;
+}
+
 .status-badge {
   display: inline-block;
   padding: 4px 10px;

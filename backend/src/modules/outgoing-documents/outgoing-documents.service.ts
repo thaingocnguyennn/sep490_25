@@ -4,7 +4,6 @@ import { documentsRepository } from '../documents/documents.repository';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../shared/exceptions/app-error';
 import { performOcr, extractFields } from '../../shared/services/ocr.service';
 import { sendEmail } from '../../shared/services/email.service';
-import { emitNotificationToUser } from '../../shared/services/notification.service';
 import {
   extractSignaturesFromFile,
   buildSignatureSummary,
@@ -811,24 +810,9 @@ export class OutgoingDocumentsService {
           data: outgoingUpdateData,
         });
       }
-
-      // Ghi SystemLog
-      await tx.systemLog.create({
-        data: {
-          userId,
-          action: `OUTGOING_STATUS_CHANGE`,
-          entityType: 'OutgoingDocument',
-          entityId: id,
-          details: `Chuyển trạng thái từ "${currentStatus}" sang "${newStatus}"${
-            options?.note ? `. Ghi chú/Ý kiến: ${options.note}` : ''
-          }${
-            options?.returnReason ? `. Lý do: ${options.returnReason}` : ''
-          }${options?.recallReason ? `. Lý do thu hồi: ${options.recallReason}` : ''}`,
-        },
-      });
     });
 
-    // ─── Gửi thông báo & Email khi Chuyên viên trình duyệt (SUBMITTED) ───
+    // ─── Gửi Email khi Chuyên viên trình duyệt (SUBMITTED) ───
     if (newStatus === 'SUBMITTED' && options?.assignedApproverId) {
       try {
         const submitter = await prisma.user.findUnique({
@@ -838,14 +822,7 @@ export class OutgoingDocumentsService {
         const submitterName = submitter?.fullName || 'Chuyên viên';
         const submitterDept = submitter?.department?.name ? ` (${submitter.department.name})` : '';
 
-        // 1. Gửi thông báo in-app cho Lãnh đạo
-        await emitNotificationToUser(
-          options.assignedApproverId,
-          'Văn bản đi chờ phê duyệt',
-          `Chuyên viên ${submitterName}${submitterDept} đã trình duyệt văn bản "${outgoing.document.subject}". Vui lòng xem xét và phê duyệt.`,
-        );
-
-        // 2. Gửi Email thông báo qua Nodemailer cho Lãnh đạo
+        // 1. Gửi Email thông báo qua Nodemailer cho Lãnh đạo
         const approver = await prisma.user.findUnique({
           where: { id: options.assignedApproverId },
           select: { id: true, fullName: true, email: true },
@@ -963,16 +940,6 @@ export class OutgoingDocumentsService {
               html: emailHtml,
               attachments,
             });
-
-            await prisma.systemLog.create({
-              data: {
-                userId,
-                action: 'OUTGOING_SUBMIT_EMAIL_SENT',
-                entityType: 'OutgoingDocument',
-                entityId: id,
-                details: `Đã gửi email thông báo trình duyệt tới: [${recipientList.join(', ')}] cho Lãnh đạo ${approver?.fullName || 'Lãnh đạo'}`,
-              },
-            });
           } catch (emailErr) {
             // eslint-disable-next-line no-console
             console.warn('[Outgoing Document] Không thể gửi email cho lãnh đạo (kiểm tra cấu hình SMTP trong backend/.env):', emailErr);
@@ -1018,17 +985,6 @@ export class OutgoingDocumentsService {
         data: {
           trashedAt: new Date(),
           trashedBy: userId,
-        },
-      });
-
-      // Ghi log xóa mềm
-      await tx.systemLog.create({
-        data: {
-          userId,
-          action: 'OUTGOING_SOFT_DELETE',
-          entityType: 'OutgoingDocument',
-          entityId: id,
-          details: `Xóa mềm (chuyển vào thùng rác) văn bản đi`,
         },
       });
     });
@@ -1127,17 +1083,6 @@ export class OutgoingDocumentsService {
         failedEmails.push(email);
       }
     }
-
-    // Ghi log
-    await prisma.systemLog.create({
-      data: {
-        userId,
-        action: 'OUTGOING_SEND_EMAIL',
-        entityType: 'OutgoingDocument',
-        entityId: id,
-        details: `Gửi email văn bản đi. Thành công: [${sentEmails.join(', ')}]. Thất bại: [${failedEmails.join(', ')}]`,
-      },
-    });
 
     return {
       sentCount: sentEmails.length,

@@ -1,7 +1,6 @@
 ﻿import { Prisma, DocumentTypeStatus } from '@prisma/client';
 import prisma from '../../config/database';
 import { DocumentTypesRepository } from './document-types.repository';
-import { logSystemAction } from '../../shared/services/system-log.service';
 import {
   NotFoundError,
   ConflictError,
@@ -74,20 +73,12 @@ export class DocumentTypesService {
     if (duplicateName) throw new ConflictError('Tên thể loại văn bản đã tồn tại');
     if (duplicateCode) throw new ConflictError('Mã thể loại văn bản đã tồn tại');
 
-    // 4. Create inside transaction + SystemLog
+    // 4. Create inside transaction.
     return prisma.$transaction(async (tx) => {
       const type = await repository.create(
         { name, normalizedName, code, description, status, createdById: userId },
         tx,
       );
-
-      await logSystemAction({
-        userId,
-        action: 'CREATE_DOCUMENT_TYPE',
-        entityType: 'DocumentType',
-        entityId: type.id,
-        details: `Tạo thể loại văn bản: ${type.code} - ${type.name}`,
-      });
 
       return type;
     }).catch((error) => {
@@ -176,17 +167,9 @@ export class DocumentTypesService {
       updateData.status = dto.status;
     }
 
-    // 5. Update in transaction + SystemLog
+    // 5. Update in transaction.
     return prisma.$transaction(async (tx) => {
       const updated = await repository.update(id, updateData, tx);
-
-      await logSystemAction({
-        userId,
-        action: 'UPDATE_DOCUMENT_TYPE',
-        entityType: 'DocumentType',
-        entityId: id,
-        details: `Cập nhật thể loại văn bản: ${updated.code} - ${updated.name}`,
-      });
 
       return updated;
     }).catch((error) => {
@@ -220,25 +203,9 @@ export class DocumentTypesService {
       if (usage.total > 0) {
         updatedType = await repository.deactivate(id, userId, tx);
         operation = 'DEACTIVATED';
-
-        await logSystemAction({
-          userId,
-          action: 'DEACTIVATE_DOCUMENT_TYPE',
-          entityType: 'DocumentType',
-          entityId: id,
-          details: `Vô hiệu hóa thể loại văn bản ${type.code} (đang được sử dụng bởi ${usage.total} văn bản)`,
-        });
       } else {
         updatedType = await repository.softDelete(id, userId, tx);
         operation = 'SOFT_DELETED';
-
-        await logSystemAction({
-          userId,
-          action: 'DELETE_DOCUMENT_TYPE',
-          entityType: 'DocumentType',
-          entityId: id,
-          details: `Xoá mềm thể loại văn bản: ${type.code} - ${type.name}`,
-        });
       }
 
       return { kind: updatedType, operation, usage };
@@ -260,14 +227,6 @@ export class DocumentTypesService {
 
     return prisma.$transaction(async (tx) => {
       const updated = await repository.reactivate(id, userId, tx);
-
-      await logSystemAction({
-        userId,
-        action: 'REACTIVATE_DOCUMENT_TYPE',
-        entityType: 'DocumentType',
-        entityId: id,
-        details: `Kích hoạt lại thể loại văn bản: ${updated.code} - ${updated.name}`,
-      });
 
       return updated;
     });

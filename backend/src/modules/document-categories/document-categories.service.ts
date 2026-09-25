@@ -1,7 +1,6 @@
 import { Prisma, DocumentCategoryStatus } from '@prisma/client';
 import prisma from '../../config/database';
 import { DocumentCategoriesRepository } from './document-categories.repository';
-import { logSystemAction } from '../../shared/services/system-log.service';
 import {
   NotFoundError,
   ConflictError,
@@ -74,20 +73,12 @@ export class DocumentCategoriesService {
       throw new ConflictError('Mã lĩnh vực văn bản đã tồn tại');
     }
 
-    // 3. Tạo mới trong transaction kèm SystemLog
+    // 3. Tạo mới trong transaction.
     return prisma.$transaction(async (tx) => {
       const category = await repository.create(
         { name, normalizedName, code, description, status, createdById: userId },
         tx,
       );
-
-      await logSystemAction({
-        userId,
-        action: 'CREATE_DOCUMENT_CATEGORY',
-        entityType: 'DocumentCategory',
-        entityId: category.id,
-        details: `Tạo lĩnh vực văn bản: ${category.code} - ${category.name}`,
-      });
 
       return category;
     }).catch((error) => {
@@ -184,17 +175,9 @@ export class DocumentCategoriesService {
       updateData.status = dto.status;
     }
 
-    // 5. Cập nhật trong transaction kèm SystemLog
+    // 5. Cập nhật trong transaction.
     return prisma.$transaction(async (tx) => {
       const updated = await repository.update(id, updateData, tx);
-
-      await logSystemAction({
-        userId,
-        action: 'UPDATE_DOCUMENT_CATEGORY',
-        entityType: 'DocumentCategory',
-        entityId: id,
-        details: `Cập nhật lĩnh vực văn bản: ${updated.code} - ${updated.name}`,
-      });
 
       return updated;
     }).catch((error) => {
@@ -242,26 +225,10 @@ export class DocumentCategoriesService {
         // Đang được sử dụng → chỉ deactivate (không đặt deletedAt)
         updatedCategory = await repository.deactivate(id, userId, tx);
         operation = 'DEACTIVATED';
-
-        await logSystemAction({
-          userId,
-          action: 'DEACTIVATE_DOCUMENT_CATEGORY',
-          entityType: 'DocumentCategory',
-          entityId: id,
-          details: `Vô hiệu hóa lĩnh vực văn bản ${category.code} (đang được sử dụng bởi ${usage.total} văn bản)`,
-        });
       } else {
         // Chưa được sử dụng → soft delete
         updatedCategory = await repository.softDelete(id, userId, tx);
         operation = 'SOFT_DELETED';
-
-        await logSystemAction({
-          userId,
-          action: 'DELETE_DOCUMENT_CATEGORY',
-          entityType: 'DocumentCategory',
-          entityId: id,
-          details: `Xoá mềm lĩnh vực văn bản: ${category.code} - ${category.name}`,
-        });
       }
 
       return { category: updatedCategory, operation, usage };

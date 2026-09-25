@@ -381,7 +381,8 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
         setOcrSuccess('');
         setError('Không trích xuất được trường nào từ tài liệu. Vui lòng điền thông tin thủ công.');
       } else {
-        setOcrSuccess(`Đã trích xuất thành công ${extractedKeys.length} trường: ${extractedKeys.join(', ')}.`);
+        // setOcrSuccess(`Đã trích xuất thành công ${extractedKeys.length} trường: ${extractedKeys.join(', ')}.`);
+        setOcrSuccess(`Đã trích xuất thành công.`);
       }
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string } } };
@@ -1145,7 +1146,7 @@ export default function AddIncomingDocumentPage({ editMode = false }: AddIncomin
                     onChange={handlePhxlChange}
                   />
                   <ProcessorRoleSection
-                    title="Để biết (XDB)"
+                    title="Xem Để biết (XDB)"
                     description="Chọn nhiều Trưởng phòng hoặc Chuyên viên chỉ để biết."
                     variant="xdb"
                     users={processors}
